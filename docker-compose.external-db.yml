@@ -16,7 +16,7 @@
 
 services:
   youtarr:
-    image: ${YOUTARR_IMAGE:-flahercc/youtarr:latest}
+    image: ${YOUTARR_IMAGE:-dialmaster/youtarr:latest}
     container_name: youtarr
     restart: unless-stopped
     # Optional: Run as specific UID:GID for security (defaults to root if not set per previous behavior)

@@ -20,7 +20,7 @@ Youtarr ships four Compose files so each supported runtime can layer the right o
 ## Container Details
 
 ### Application Container (youtarr)
-- **Image**: `flahercc/youtarr:latest`
+- **Image**: `dialmaster/youtarr:latest`
 - **Exposed Ports**:
   - 3087 → 3011 (Web interface + WebSocket)
 - **Volumes**:

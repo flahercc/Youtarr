@@ -109,7 +109,7 @@ module.exports = function createHealthRoutes({ getCachedYtDlpVersion, refreshYtD
 
       https
         .get(
-          'https://registry.hub.docker.com/v2/repositories/flahercc/youtarr/tags',
+          'https://registry.hub.docker.com/v2/repositories/dialmaster/youtarr/tags',
           (resp) => {
             let data = '';
 
