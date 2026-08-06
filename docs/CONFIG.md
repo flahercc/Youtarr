@@ -63,6 +63,18 @@ Configuration can be modified through:
   - `"0 0 * * 0"` - Weekly on Sunday at midnight
   - `"*/30 * * * *"` - Every 30 minutes
 
+### Enable Scheduled Channel Scan
+- **Config Key**: `channelScanEnabled`
+- **Type**: `boolean`
+- **Default**: `false`
+- **Description**: Runs a daily scan of every enabled channel's auto-download-enabled tabs and adds any newly-discovered videos to a review queue shown in Manual Downloads, where each video can be downloaded or ignored individually. This does not download anything by itself.
+
+### Channel Scan Time
+- **Config Key**: `channelScanTime`
+- **Type**: `string` (`"HH:MM"`, 24-hour, server-local time)
+- **Default**: `"14:00"`
+- **Description**: Time of day the scheduled channel scan runs when `channelScanEnabled` is true.
+
 ### Files to Download per Channel
 - **Config Key**: `channelFilesToDownload`
 - **Type**: `number`

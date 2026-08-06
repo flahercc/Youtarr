@@ -44,6 +44,7 @@ class ChannelVideoWriter {
           published_at_source: video.publishedAt ? PUBLISHED_AT_SOURCE.APPROXIMATE : PUBLISHED_AT_SOURCE.ESTIMATED,
           channel_id: channelId,
           media_type: mediaType,
+          first_seen_at: new Date(nowMs),
         },
       });
 

@@ -198,6 +198,7 @@ const createServerModule = ({
         const cronMock = { schedule: jest.fn() };
         const cronJobsMock = { initialize: jest.fn() };
         const watchStatusSchedulerMock = { scheduleTask: jest.fn(), subscribe: jest.fn() };
+        const newVideoScanSchedulerMock = { scheduleTask: jest.fn(), subscribe: jest.fn() };
         const rateLimitMiddleware = jest.fn(() => (req, res, next) => next());
         // Mock ipKeyGenerator to normalize IPv6 addresses
         rateLimitMiddleware.ipKeyGenerator = jest.fn((ip) => ip);
@@ -255,6 +256,7 @@ const createServerModule = ({
         }));
         jest.doMock('../modules/cronJobs', () => cronJobsMock);
         jest.doMock('../modules/mediaServers/watchStatusScheduler', () => watchStatusSchedulerMock);
+        jest.doMock('../modules/channel/newVideoScanScheduler', () => newVideoScanSchedulerMock);
         jest.doMock('../modules/webSocketServer.js', () => jest.fn());
         jest.doMock('node-cron', () => cronMock);
         jest.doMock('express-rate-limit', () => Object.assign(rateLimitMiddleware, { ipKeyGenerator: rateLimitMiddleware.ipKeyGenerator }));
@@ -274,6 +276,7 @@ const createServerModule = ({
         state.plexModuleMock = plexModuleMock;
         state.rateLimitMiddleware = rateLimitMiddleware;
         state.watchStatusSchedulerMock = watchStatusSchedulerMock;
+        state.newVideoScanSchedulerMock = newVideoScanSchedulerMock;
         state.sessionUpdateMock = effectiveSession?.update || defaultSessionUpdate;
 
         const finalize = () => resolve(state);
@@ -325,12 +328,14 @@ describe('server initialization', () => {
   });
 
   test('initializes database and exposes health route', async () => {
-    const { app, dbMock, channelModuleMock, watchStatusSchedulerMock } = await createServerModule();
+    const { app, dbMock, channelModuleMock, watchStatusSchedulerMock, newVideoScanSchedulerMock } = await createServerModule();
 
     expect(dbMock.initializeDatabase).toHaveBeenCalledTimes(1);
     expect(channelModuleMock.subscribe).toHaveBeenCalledTimes(1);
     expect(watchStatusSchedulerMock.scheduleTask).toHaveBeenCalledTimes(1);
     expect(watchStatusSchedulerMock.subscribe).toHaveBeenCalledTimes(1);
+    expect(newVideoScanSchedulerMock.scheduleTask).toHaveBeenCalledTimes(1);
+    expect(newVideoScanSchedulerMock.subscribe).toHaveBeenCalledTimes(1);
 
     const [healthHandler] = findRouteHandlers(app, 'get', '/api/health');
     const req = createMockRequest({ path: '/api/health' });

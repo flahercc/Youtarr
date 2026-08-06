@@ -114,6 +114,15 @@ jest.mock('../DownloadSettingsDialog', () => {
   };
 });
 
+// NewVideosQueue fetches from /api/new-videos on mount via its own hook,
+// which is unrelated to what this file tests and was causing act() warnings
+// across unrelated tests. Mock it out like every other child component here.
+jest.mock('../NewVideosQueue/NewVideosQueue', () => {
+  return function MockNewVideosQueue() {
+    return null;
+  };
+});
+
 describe('ManualDownload', () => {
   const mockOnStartDownload = jest.fn();
   const mockToken = 'test-token';

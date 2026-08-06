@@ -1077,6 +1077,61 @@ module.exports = function createChannelRoutes({ verifyToken, channelModule, arch
 
   /**
    * @swagger
+   * /api/channels/{channelId}/videos/{youtubeId}/download:
+   *   post:
+   *     summary: Download a single channel video
+   *     description: Queue a download for one video discovered via a channel scan (the new-videos review queue). Single-video counterpart to /api/channels/{channelId}/download-all.
+   *     tags: [Channels]
+   *     parameters:
+   *       - in: path
+   *         name: channelId
+   *         required: true
+   *         schema:
+   *           type: string
+   *       - in: path
+   *         name: youtubeId
+   *         required: true
+   *         schema:
+   *           type: string
+   *     responses:
+   *       202:
+   *         description: Download job queued
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 status:
+   *                   type: string
+   *                 queued:
+   *                   type: integer
+   *       404:
+   *         description: Channel or channel video not found
+   *       409:
+   *         description: Video is ignored, removed, live/upcoming, subscriber-only, or already downloaded
+   *       500:
+   *         description: Failed to queue download
+   */
+  router.post('/api/channels/:channelId/videos/:youtubeId/download', verifyToken, async (req, res) => {
+    const { channelId, youtubeId } = req.params;
+
+    try {
+      const result = await channelDownloadAllModule.downloadSingleVideo(channelId, youtubeId);
+      res.status(202).json({ status: 'accepted', queued: result.queued });
+    } catch (error) {
+      if (error.message === 'CHANNEL_NOT_FOUND' || error.message === 'VIDEO_NOT_FOUND') {
+        return res.status(404).json({ error: 'Video not found' });
+      }
+      if (error.message === 'VIDEO_NOT_ELIGIBLE' || error.message === 'VIDEO_ALREADY_DOWNLOADED') {
+        return res.status(409).json({ error: 'Video is not eligible for download' });
+      }
+      req.log.error({ err: error, channelId, youtubeId }, 'Failed to queue single video download');
+      res.status(500).json({ error: 'Failed to queue download' });
+    }
+  });
+
+  /**
+   * @swagger
    * /api/channels/{channelId}/videos/{youtubeId}/ignore:
    *   post:
    *     summary: Ignore a video

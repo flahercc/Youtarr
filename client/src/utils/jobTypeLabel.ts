@@ -4,6 +4,7 @@
 // mirror used by the activity header, queued-job chips, and job summaries.
 
 const AUTO_RETRY_PREFIX = 'Auto-retry: ';
+const NEW_VIDEO_DOWNLOAD_PREFIX = 'New Video: ';
 const CHANNEL_DOWNLOAD_ALL_PREFIX = 'Channel Download All: ';
 const PLAYLIST_DOWNLOAD_PREFIX = 'Playlist: ';
 const CHANNEL_DOWNLOAD_LABEL = 'Channel Downloads';
@@ -19,6 +20,9 @@ export function jobTypeLabel(jobType: string | null | undefined): string {
   }
   if (jobType.startsWith(AUTO_RETRY_PREFIX)) {
     return `Automatic retry: ${jobType.slice(AUTO_RETRY_PREFIX.length)}`;
+  }
+  if (jobType.startsWith(NEW_VIDEO_DOWNLOAD_PREFIX)) {
+    return `New video: ${jobType.slice(NEW_VIDEO_DOWNLOAD_PREFIX.length)}`;
   }
   if (jobType.startsWith(CHANNEL_DOWNLOAD_ALL_PREFIX)) {
     return `Full channel download: ${jobType.slice(CHANNEL_DOWNLOAD_ALL_PREFIX.length)}`;
