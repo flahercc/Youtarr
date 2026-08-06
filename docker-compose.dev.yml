@@ -22,15 +22,15 @@ services:
     ports:
       - "${YOUTARR_HOST_PORT:-3087}:3011"
     volumes:
-      - ${YOUTUBE_OUTPUT_DIR:-./downloads}:/usr/src/app/data
-      - ./server/images:/app/server/images
-      - ./config:/app/config
-      - ./jobs:/app/jobs
+      - ${YOUTUBE_OUTPUT_DIR:-./downloads}:/usr/src/app/data:z
+      - ./server/images:/app/server/images:z
+      - ./config:/app/config:z
+      - ./jobs:/app/jobs:z
       # Mount server code for hot reload with --watch
-      - ./server:/app/server
-      - ./migrations:/app/migrations
-      - ./package.json:/app/package.json
-      - ./package-lock.json:/app/package-lock.json
+      - ./server:/app/server:z
+      - ./migrations:/app/migrations:z
+      - ./package.json:/app/package.json:z
+      - ./package-lock.json:/app/package-lock.json:z
     environment:
       - NODE_ENV=development
       - DEV_MODE=true
