@@ -8,6 +8,7 @@ import { ValidationResponse } from '../types';
 jest.mock('axios', () => ({
   post: jest.fn(),
   get: jest.fn(),
+  isAxiosError: jest.fn(() => false),
   create: jest.fn(() => ({
     post: jest.fn(),
     get: jest.fn()
@@ -144,6 +145,9 @@ describe('ManualDownload', () => {
       // Leave other URLs for explicit mockResolvedValueOnce in tests
       return Promise.reject(new Error(`Unexpected POST to ${url}`));
     });
+    // NewVideosQueue fetches this on mount; default to an empty queue so
+    // existing tests here don't need to know about it.
+    mockedAxios.get.mockResolvedValue({ data: { videos: [] } });
   });
 
   test('renders the component with initial state', () => {

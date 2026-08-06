@@ -78,6 +78,11 @@ ChannelVideo.init(
       allowNull: true,
       defaultValue: null,
     },
+    first_seen_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      defaultValue: null,
+    },
   },
   {
     sequelize,

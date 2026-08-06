@@ -1,11 +1,24 @@
 const ChannelVideo = require('../models/channelvideo');
 const { Video, Channel } = require('../models');
 const downloadModule = require('./downloadModule');
-const { channelDownloadAllJobLabel } = require('./download/jobTypes');
+const { channelDownloadAllJobLabel, newVideoDownloadJobLabel } = require('./download/jobTypes');
 const { MEDIA_TAB_TYPE_MAP } = require('./tabsUtils');
 const logger = require('../logger');
 
 const WATCH_URL_PREFIX = 'https://www.youtube.com/watch?v=';
+
+// Mirrors the yt-dlp manual-download match filter
+// (availability!=subscriber_only & !is_live & live_status!=is_upcoming), so
+// callers agree with what yt-dlp will actually accept. Shared by the
+// per-channel-per-tab listing below and the cross-channel new-videos queue
+// (newVideoQueueModule), which applies the same rule across tabs/channels.
+function isEligibleAvailability(row) {
+  return (
+    row.availability !== 'subscriber_only' &&
+    row.live_status !== 'is_live' &&
+    row.live_status !== 'is_upcoming'
+  );
+}
 
 // "Download all videos for a channel" (one tab at a time). Assumes the caller
 // already ran the fetch-all ("Load More") flow, so channelvideos is complete.
@@ -23,15 +36,7 @@ class ChannelDownloadAllModule {
       attributes: ['youtube_id', 'duration', 'availability', 'live_status'],
     });
 
-    // Mirror the yt-dlp manual-download match filter
-    // (availability!=subscriber_only & !is_live & live_status!=is_upcoming)
-    // so the preview count matches what yt-dlp will accept.
-    const candidates = rows.filter(
-      (row) =>
-        row.availability !== 'subscriber_only' &&
-        row.live_status !== 'is_live' &&
-        row.live_status !== 'is_upcoming'
-    );
+    const candidates = rows.filter(isEligibleAvailability);
 
     if (candidates.length === 0) {
       return [];
@@ -98,6 +103,42 @@ class ChannelDownloadAllModule {
     return { queued: urls.length };
   }
 
+  // Queue a single video discovered by the new-videos scan (see
+  // newVideoScanScheduler / newVideoQueueModule). Same eligibility rule and
+  // doSpecificDownloads call shape as startDownloadAll, but for one video.
+  async downloadSingleVideo(channelId, youtubeId) {
+    await this.findChannelOrThrow(channelId);
+
+    const row = await ChannelVideo.findOne({
+      where: { channel_id: channelId, youtube_id: youtubeId },
+      attributes: ['youtube_id', 'title', 'ignored', 'youtube_removed', 'availability', 'live_status'],
+    });
+
+    if (!row) {
+      throw new Error('VIDEO_NOT_FOUND');
+    }
+    if (row.ignored || row.youtube_removed || !isEligibleAvailability(row)) {
+      throw new Error('VIDEO_NOT_ELIGIBLE');
+    }
+
+    const existing = await Video.findOne({ where: { youtubeId } });
+    if (existing) {
+      throw new Error('VIDEO_ALREADY_DOWNLOADED');
+    }
+
+    await downloadModule.doSpecificDownloads({
+      body: {
+        urls: [`${WATCH_URL_PREFIX}${youtubeId}`],
+        channelId,
+        jobLabel: newVideoDownloadJobLabel(row),
+      },
+    });
+
+    logger.info({ channelId, youtubeId }, 'Queued single new-video download');
+
+    return { queued: 1 };
+  }
+
   async findChannelOrThrow(channelId) {
     const channel = await Channel.findOne({ where: { channel_id: channelId } });
     if (!channel) {
@@ -108,3 +149,4 @@ class ChannelDownloadAllModule {
 }
 
 module.exports = new ChannelDownloadAllModule();
+module.exports.isEligibleAvailability = isEligibleAvailability;

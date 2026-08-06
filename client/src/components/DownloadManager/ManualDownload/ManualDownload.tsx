@@ -23,6 +23,7 @@ import UrlInput from './UrlInput';
 import VideoChip from './VideoChip';
 import DownloadSettingsDialog from './DownloadSettingsDialog';
 import BulkImportDialog from './BulkImportDialog';
+import NewVideosQueue from './NewVideosQueue/NewVideosQueue';
 import { VideoInfo, ValidationResponse, DownloadSettings } from './types';
 
 const ENRICH_CHUNK_SIZE = 25;
@@ -226,6 +227,8 @@ const ManualDownload: React.FC<ManualDownloadProps> = ({ onStartDownload, token,
 
   return (
     <Box>
+      <NewVideosQueue token={token} />
+
       <Paper elevation={1} className="p-4 mb-4">
         <Typography variant="h6" gutterBottom className="flex items-center gap-2">
           <PlaylistAddIcon size={20} />

@@ -1,5 +1,5 @@
 import React from 'react';
-import { screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { CoreSettingsSection } from '../CoreSettingsSection';
@@ -391,6 +391,85 @@ describe('CoreSettingsSection Component', () => {
       expect(screen.getByRole('option', { name: 'Every 12 hours' })).toBeInTheDocument();
       expect(screen.getByRole('option', { name: 'Daily' })).toBeInTheDocument();
       expect(screen.getByRole('option', { name: 'Weekly' })).toBeInTheDocument();
+    });
+  });
+
+  describe('Enable Scheduled Channel Scan Checkbox', () => {
+    test('renders Enable Scheduled Channel Scan checkbox', () => {
+      const props = createSectionProps();
+      renderWithProviders(<CoreSettingsSection {...props} />);
+      expect(screen.getByRole('checkbox', { name: /Enable Scheduled Channel Scan/i })).toBeInTheDocument();
+    });
+
+    test('checkbox reflects channelScanEnabled state when false', () => {
+      const props = createSectionProps({
+        config: createConfig({ channelScanEnabled: false })
+      });
+      renderWithProviders(<CoreSettingsSection {...props} />);
+      expect(screen.getByRole('checkbox', { name: /Enable Scheduled Channel Scan/i })).not.toBeChecked();
+    });
+
+    test('checkbox reflects channelScanEnabled state when true', () => {
+      const props = createSectionProps({
+        config: createConfig({ channelScanEnabled: true })
+      });
+      renderWithProviders(<CoreSettingsSection {...props} />);
+      expect(screen.getByRole('checkbox', { name: /Enable Scheduled Channel Scan/i })).toBeChecked();
+    });
+
+    test('calls onConfigChange when checkbox is toggled', async () => {
+      const user = userEvent.setup();
+      const onConfigChange = jest.fn();
+      const props = createSectionProps({
+        config: createConfig({ channelScanEnabled: false }),
+        onConfigChange
+      });
+      renderWithProviders(<CoreSettingsSection {...props} />);
+
+      const checkbox = screen.getByRole('checkbox', { name: /Enable Scheduled Channel Scan/i });
+      await user.click(checkbox);
+
+      expect(onConfigChange).toHaveBeenCalledWith({ channelScanEnabled: true });
+    });
+  });
+
+  describe('Channel Scan Time field', () => {
+    test('renders with the configured value', () => {
+      const props = createSectionProps({
+        config: createConfig({ channelScanEnabled: true, channelScanTime: '09:30' })
+      });
+      renderWithProviders(<CoreSettingsSection {...props} />);
+      expect(screen.getByLabelText('Channel Scan Time')).toHaveValue('09:30');
+    });
+
+    test('is disabled when channelScanEnabled is false', () => {
+      const props = createSectionProps({
+        config: createConfig({ channelScanEnabled: false })
+      });
+      renderWithProviders(<CoreSettingsSection {...props} />);
+      expect(screen.getByLabelText('Channel Scan Time')).toBeDisabled();
+    });
+
+    test('is enabled when channelScanEnabled is true', () => {
+      const props = createSectionProps({
+        config: createConfig({ channelScanEnabled: true })
+      });
+      renderWithProviders(<CoreSettingsSection {...props} />);
+      expect(screen.getByLabelText('Channel Scan Time')).not.toBeDisabled();
+    });
+
+    test('calls onConfigChange when the time changes', () => {
+      const onConfigChange = jest.fn();
+      const props = createSectionProps({
+        config: createConfig({ channelScanEnabled: true, channelScanTime: '14:00' }),
+        onConfigChange
+      });
+      renderWithProviders(<CoreSettingsSection {...props} />);
+
+      const input = screen.getByLabelText('Channel Scan Time');
+      fireEvent.change(input, { target: { value: '09:15' } });
+
+      expect(onConfigChange).toHaveBeenCalledWith({ channelScanTime: '09:15' });
     });
   });
 

@@ -17,6 +17,7 @@ const createYoutubeApiKeyRoutes = require('./youtubeApiKey');
 const createYtdlpOptionsRoutes = require('./ytdlpOptions');
 const createMaintenanceRoutes = require('./maintenance');
 const createSubfolderRoutes = require('./subfolders');
+const createNewVideoRoutes = require('./newVideos');
 const videoMetadataModule = require('../modules/videoMetadataModule');
 const videoOembedEnricher = require('../modules/videoOembedEnricher');
 const playlistModule = require('../modules/playlistModule');
@@ -24,6 +25,8 @@ const m3uGenerator = require('../modules/m3uGenerator');
 const mediaServers = require('../modules/mediaServers');
 const channelSettingsModule = require('../modules/channelSettingsModule');
 const channelDownloadAllModule = require('../modules/channelDownloadAllModule');
+const newVideoQueueModule = require('../modules/channel/newVideoQueueModule');
+const newVideoScanScheduler = require('../modules/channel/newVideoScanScheduler');
 const ratingMapper = require('../modules/ratingMapper');
 const subfolderModule = require('../modules/subfolderModule');
 const playlistVideoFilters = require('../modules/playlistVideoFilters');
@@ -117,6 +120,9 @@ function registerRoutes(app, deps) {
 
   // Subfolder registry routes
   app.use(createSubfolderRoutes({ verifyToken, subfolderModule }));
+
+  // New-videos discovery queue routes
+  app.use(createNewVideoRoutes({ verifyToken, newVideoQueueModule, newVideoScanScheduler }));
 
   // Defensive redirect: /channels -> /subscriptions (frontend handles client-side routing,
   // this fallback covers direct server-side hits during the transition period)

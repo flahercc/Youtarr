@@ -1,6 +1,6 @@
-jest.mock('../../models/channelvideo', () => ({ findAll: jest.fn() }));
+jest.mock('../../models/channelvideo', () => ({ findAll: jest.fn(), findOne: jest.fn() }));
 jest.mock('../../models', () => ({
-  Video: { findAll: jest.fn() },
+  Video: { findAll: jest.fn(), findOne: jest.fn() },
   Channel: { findOne: jest.fn() },
 }));
 jest.mock('../downloadModule', () => ({ doSpecificDownloads: jest.fn() }));
@@ -32,7 +32,9 @@ function cv(youtubeId, overrides = {}) {
 beforeEach(() => {
   jest.clearAllMocks();
   ChannelVideo.findAll.mockResolvedValue([]);
+  ChannelVideo.findOne.mockResolvedValue(null);
   Video.findAll.mockResolvedValue([]);
+  Video.findOne.mockResolvedValue(null);
   Channel.findOne.mockResolvedValue(channelRow);
   downloadModule.doSpecificDownloads.mockResolvedValue(undefined);
 });
@@ -182,5 +184,77 @@ describe('startDownloadAll', () => {
     await expect(
       channelDownloadAllModule.startDownloadAll('UCmissing', 'videos', {})
     ).rejects.toThrow('CHANNEL_NOT_FOUND');
+  });
+});
+
+describe('downloadSingleVideo', () => {
+  it('queues a specific-downloads job for the single video', async () => {
+    ChannelVideo.findOne.mockResolvedValue(cv('a', { title: 'Cool Video' }));
+
+    const result = await channelDownloadAllModule.downloadSingleVideo(CHANNEL_ID, 'a');
+
+    expect(result).toEqual({ queued: 1 });
+    expect(downloadModule.doSpecificDownloads).toHaveBeenCalledWith({
+      body: {
+        urls: ['https://www.youtube.com/watch?v=a'],
+        channelId: CHANNEL_ID,
+        jobLabel: 'New Video: Cool Video',
+      },
+    });
+  });
+
+  it('throws CHANNEL_NOT_FOUND for an unknown channel', async () => {
+    Channel.findOne.mockResolvedValue(null);
+
+    await expect(
+      channelDownloadAllModule.downloadSingleVideo('UCmissing', 'a')
+    ).rejects.toThrow('CHANNEL_NOT_FOUND');
+    expect(downloadModule.doSpecificDownloads).not.toHaveBeenCalled();
+  });
+
+  it('throws VIDEO_NOT_FOUND when the channelvideo row does not exist', async () => {
+    ChannelVideo.findOne.mockResolvedValue(null);
+
+    await expect(
+      channelDownloadAllModule.downloadSingleVideo(CHANNEL_ID, 'missing')
+    ).rejects.toThrow('VIDEO_NOT_FOUND');
+    expect(downloadModule.doSpecificDownloads).not.toHaveBeenCalled();
+  });
+
+  it('throws VIDEO_NOT_ELIGIBLE for an ignored video', async () => {
+    ChannelVideo.findOne.mockResolvedValue(cv('a', { ignored: true }));
+
+    await expect(
+      channelDownloadAllModule.downloadSingleVideo(CHANNEL_ID, 'a')
+    ).rejects.toThrow('VIDEO_NOT_ELIGIBLE');
+    expect(downloadModule.doSpecificDownloads).not.toHaveBeenCalled();
+  });
+
+  it('throws VIDEO_NOT_ELIGIBLE for a live video', async () => {
+    ChannelVideo.findOne.mockResolvedValue(cv('a', { live_status: 'is_live' }));
+
+    await expect(
+      channelDownloadAllModule.downloadSingleVideo(CHANNEL_ID, 'a')
+    ).rejects.toThrow('VIDEO_NOT_ELIGIBLE');
+  });
+
+  it('throws VIDEO_ALREADY_DOWNLOADED when a Video row already exists', async () => {
+    ChannelVideo.findOne.mockResolvedValue(cv('a'));
+    Video.findOne.mockResolvedValue({ youtubeId: 'a' });
+
+    await expect(
+      channelDownloadAllModule.downloadSingleVideo(CHANNEL_ID, 'a')
+    ).rejects.toThrow('VIDEO_ALREADY_DOWNLOADED');
+    expect(downloadModule.doSpecificDownloads).not.toHaveBeenCalled();
+  });
+});
+
+describe('isEligibleAvailability', () => {
+  it('is exported for reuse by newVideoQueueModule', () => {
+    expect(typeof channelDownloadAllModule.isEligibleAvailability).toBe('function');
+    expect(channelDownloadAllModule.isEligibleAvailability(cv('a'))).toBe(true);
+    expect(
+      channelDownloadAllModule.isEligibleAvailability(cv('a', { availability: 'subscriber_only' }))
+    ).toBe(false);
   });
 });

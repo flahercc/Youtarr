@@ -5,12 +5,14 @@ const {
   PLAYLIST_DOWNLOAD_LABEL_PREFIX,
   CHANNEL_DOWNLOAD_ALL_LABEL_PREFIX,
   AUTO_RETRY_LABEL_PREFIX,
+  NEW_VIDEO_DOWNLOAD_LABEL_PREFIX,
   PLAYLIST_SWEEP_LABEL,
   isSpecificUrlDownloadJob,
   isDownloadJob,
   playlistJobLabel,
   channelDownloadAllJobLabel,
   autoRetryJobLabel,
+  newVideoDownloadJobLabel,
   isChannelDownloadAllJob,
 } = require('../jobTypes');
 
@@ -103,6 +105,31 @@ describe('jobTypes', () => {
       // /triggerchanneldownloads guards on jobType.includes(CHANNEL_DOWNLOAD_LABEL);
       // a running auto-retry job must not block scheduled channel downloads.
       expect(autoRetryJobLabel(3).includes(CHANNEL_DOWNLOAD_LABEL)).toBe(false);
+    });
+  });
+
+  describe('new-video-queue downloads', () => {
+    it('labels jobs with the video title', () => {
+      const label = newVideoDownloadJobLabel({ title: 'Cool Video', youtube_id: 'abc123' });
+      expect(label).toBe(`${NEW_VIDEO_DOWNLOAD_LABEL_PREFIX}Cool Video`);
+    });
+
+    it('falls back to the youtube id when the title is missing', () => {
+      expect(newVideoDownloadJobLabel({ youtube_id: 'abc123' })).toBe(
+        `${NEW_VIDEO_DOWNLOAD_LABEL_PREFIX}abc123`
+      );
+    });
+
+    it('treats new-video downloads as specific URL-list download jobs', () => {
+      const label = newVideoDownloadJobLabel({ title: 'Cool Video', youtube_id: 'abc123' });
+      expect(isSpecificUrlDownloadJob(label)).toBe(true);
+      expect(isDownloadJob(label)).toBe(true);
+      expect(isChannelDownloadAllJob(label)).toBe(false);
+    });
+
+    it('is not mistaken for a channel-downloads family label', () => {
+      const label = newVideoDownloadJobLabel({ title: 'Cool Video', youtube_id: 'abc123' });
+      expect(label.includes(CHANNEL_DOWNLOAD_LABEL)).toBe(false);
     });
   });
 

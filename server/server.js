@@ -245,6 +245,7 @@ const initialize = async () => {
     const youtubeApi = require('./modules/youtubeApi');
     const messageEmitter = require('./modules/messageEmitter');
     const watchStatusScheduler = require('./modules/mediaServers/watchStatusScheduler');
+    const newVideoScanScheduler = require('./modules/channel/newVideoScanScheduler');
     const { Channel } = require('./models');
     const { registerRoutes } = require('./routes');
 
@@ -285,6 +286,8 @@ const initialize = async () => {
 
     watchStatusScheduler.scheduleTask();
     watchStatusScheduler.subscribe();
+    newVideoScanScheduler.scheduleTask();
+    newVideoScanScheduler.subscribe();
     subscriptionImportModule.init({
       channelModule,
       jobModule,

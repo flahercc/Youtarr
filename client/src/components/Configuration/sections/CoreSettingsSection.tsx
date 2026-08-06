@@ -186,6 +186,10 @@ export const CoreSettingsSection: React.FC<CoreSettingsSectionProps> = ({
     onConfigChange({ [event.target.name]: event.target.checked });
   };
 
+  const handleScanTimeChange = (event: ChangeEvent<HTMLInputElement>) => {
+    onConfigChange({ channelScanTime: event.target.value });
+  };
+
   const handleChannelFilesChange = (event: SelectChangeEvent<string>) => {
     onConfigChange({ channelFilesToDownload: Number(event.target.value) });
   };
@@ -270,6 +274,25 @@ export const CoreSettingsSection: React.FC<CoreSettingsSectionProps> = ({
                   </Box>
                 </Grid>
 
+                <Grid item xs={12} md={6}>
+                  <Box className="flex items-center">
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          name="channelScanEnabled"
+                          checked={config.channelScanEnabled}
+                          onChange={handleCheckboxChange}
+                        />
+                      }
+                      label="Enable Scheduled Channel Scan"
+                    />
+                    <InfoTooltip
+                      text="When enabled, Youtarr checks your subscribed channels for new videos once a day at the time below and adds them to a review queue on the Manual Download tab, where you can download or ignore each one. This does not download anything automatically."
+                      onMobileClick={onMobileTooltipClick}
+                    />
+                  </Box>
+                </Grid>
+
                 {config.subtitlesEnabled && (
                   <Grid item xs={12} md={6}>
                     <Box className="flex items-start">
@@ -325,6 +348,25 @@ export const CoreSettingsSection: React.FC<CoreSettingsSectionProps> = ({
                       />
                     </Box>
                   </FormControl>
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <Box className="flex items-center gap-1">
+                    <TextField
+                      fullWidth
+                      type="time"
+                      label="Channel Scan Time"
+                      name="channelScanTime"
+                      value={config.channelScanTime}
+                      onChange={handleScanTimeChange}
+                      disabled={!config.channelScanEnabled}
+                      InputLabelProps={{ shrink: true }}
+                    />
+                    <InfoTooltip
+                      text="Server-local time of day the scheduled channel scan runs, once daily."
+                      onMobileClick={onMobileTooltipClick}
+                    />
+                  </Box>
                 </Grid>
 
                 <Grid item xs={12} md={6}>

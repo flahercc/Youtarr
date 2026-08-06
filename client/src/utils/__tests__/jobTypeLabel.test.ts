@@ -38,6 +38,10 @@ describe('jobTypeLabel', () => {
     );
   });
 
+  test('maps new-video-queue downloads with the video title', () => {
+    expect(jobTypeLabel('New Video: Cool Video')).toBe('New video: Cool Video');
+  });
+
   test('maps auto-retry jobs keeping the detail suffix', () => {
     expect(jobTypeLabel('Auto-retry: 3 videos (HTTP 403)')).toBe(
       'Automatic retry: 3 videos (HTTP 403)'
