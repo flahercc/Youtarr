@@ -8,7 +8,6 @@ import { ValidationResponse } from '../types';
 jest.mock('axios', () => ({
   post: jest.fn(),
   get: jest.fn(),
-  isAxiosError: jest.fn(() => false),
   create: jest.fn(() => ({
     post: jest.fn(),
     get: jest.fn()
@@ -115,6 +114,15 @@ jest.mock('../DownloadSettingsDialog', () => {
   };
 });
 
+// NewVideosQueue fetches from /api/new-videos on mount via its own hook,
+// which is unrelated to what this file tests and was causing act() warnings
+// across unrelated tests. Mock it out like every other child component here.
+jest.mock('../NewVideosQueue/NewVideosQueue', () => {
+  return function MockNewVideosQueue() {
+    return null;
+  };
+});
+
 describe('ManualDownload', () => {
   const mockOnStartDownload = jest.fn();
   const mockToken = 'test-token';
@@ -145,9 +153,6 @@ describe('ManualDownload', () => {
       // Leave other URLs for explicit mockResolvedValueOnce in tests
       return Promise.reject(new Error(`Unexpected POST to ${url}`));
     });
-    // NewVideosQueue fetches this on mount; default to an empty queue so
-    // existing tests here don't need to know about it.
-    mockedAxios.get.mockResolvedValue({ data: { videos: [] } });
   });
 
   test('renders the component with initial state', () => {
