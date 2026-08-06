@@ -4,7 +4,7 @@ import { http, HttpResponse } from 'msw';
 import ChangelogPage from '../ChangelogPage';
 
 const CHANGELOG_RAW_URL =
-  'https://raw.githubusercontent.com/DialmasterOrg/Youtarr/main/CHANGELOG.md';
+  'https://raw.githubusercontent.com/flahercc/Youtarr/main/CHANGELOG.md';
 
 const meta: Meta<typeof ChangelogPage> = {
   title: 'Pages/ChangelogPage',
@@ -90,7 +90,7 @@ export const ErrorState: Story = {
       const alertContent = within(alert);
 
       await expect(alertContent.getByText(/unable to load changelog/i)).toBeInTheDocument();
-      await expect(alertContent.getByRole('link', { name: /https:\/\/github.com\/dialmasterorg\/youtarr/i })).toBeInTheDocument();
+      await expect(alertContent.getByRole('link', { name: /https:\/\/github.com\/flahercc\/youtarr/i })).toBeInTheDocument();
 
       const retryButton = await alertContent.findByRole('button', { name: /retry/i });
       await userEvent.click(retryButton);

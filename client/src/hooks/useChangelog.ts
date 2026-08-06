@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 
 const CHANGELOG_URL =
-  'https://raw.githubusercontent.com/DialmasterOrg/Youtarr/main/CHANGELOG.md';
+  'https://raw.githubusercontent.com/flahercc/Youtarr/main/CHANGELOG.md';
 const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes cache
 
 interface UseChangelogResult {

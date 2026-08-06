@@ -16,7 +16,7 @@ Choose your preferred installation method
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/DialmasterOrg/Youtarr.git
+   git clone https://github.com/flahercc/Youtarr.git
    cd Youtarr
    ```
 2. **Start Youtarr**:
@@ -49,7 +49,7 @@ If you prefer to use standard `docker compose up` commands:
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/DialmasterOrg/Youtarr.git
+   git clone https://github.com/flahercc/Youtarr.git
    cd Youtarr
    ```
 
@@ -211,7 +211,7 @@ For external access:
 
 Before upgrading, you can check if updates are available:
 
-- **View release notes and changelog**: [GitHub Releases](https://github.com/DialmasterOrg/Youtarr/releases)
+- **View release notes and changelog**: [GitHub Releases](https://github.com/flahercc/Youtarr/releases)
 - **Check your current version**: Look in the footer of the Youtarr web interface
 - **Compare versions**: If your version number is older than the latest release, an update is available
 

@@ -18,7 +18,7 @@ production deployments are unsupported.
 Please report security vulnerabilities using GitHub private vulnerability
 reporting for this repository:
 
-https://github.com/DialmasterOrg/Youtarr/security/advisories/new
+https://github.com/flahercc/Youtarr/security/advisories/new
 
 Do not report vulnerabilities through public GitHub issues, public pull
 requests, Discord, or other public channels. Public reports can expose users

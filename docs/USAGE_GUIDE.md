@@ -645,5 +645,5 @@ Now that you know how to use Youtarr's features, check out these guides for adva
 ## Getting Help
 
 - [Troubleshooting Guide](TROUBLESHOOTING.md) - Common issues and solutions
-- [GitHub Issues](https://github.com/DialmasterOrg/Youtarr/issues) - Report bugs or request features
+- [GitHub Issues](https://github.com/flahercc/Youtarr/issues) - Report bugs or request features
 - [Discord Server](https://discord.gg/68rvWnYMtD) - Join the community for help and discussion

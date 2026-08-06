@@ -14,7 +14,7 @@ import ReactMarkdown from 'react-markdown';
 import { useChangelog } from '../hooks/useChangelog';
 
 const CHANGELOG_GITHUB_URL =
-  'https://github.com/DialmasterOrg/Youtarr/blob/main/CHANGELOG.md';
+  'https://github.com/flahercc/Youtarr/blob/main/CHANGELOG.md';
 
 interface ChangelogPageProps {
   updateAvailable?: boolean;

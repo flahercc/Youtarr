@@ -29,7 +29,7 @@ Thank you for your interest in contributing to Youtarr! This document will help 
 
 ```bash
 # Clone the repository
-git clone https://github.com/DialmasterOrg/Youtarr.git
+git clone https://github.com/flahercc/Youtarr.git
 cd Youtarr
 
 # Build the development Docker image
@@ -46,7 +46,7 @@ For detailed setup instructions and troubleshooting, see the [Development Guide]
 ## Ways to Contribute
 
 ### Bug Reports and Fixes
-Found a bug? Check the [GitHub Issues](https://github.com/DialmasterOrg/Youtarr/issues) to see if it's already reported. If not, create a new issue with:
+Found a bug? Check the [GitHub Issues](https://github.com/flahercc/Youtarr/issues) to see if it's already reported. If not, create a new issue with:
 - Steps to reproduce
 - Expected vs actual behavior
 - Your environment (OS, Docker version, etc.)
@@ -364,8 +364,8 @@ If CI checks fail:
 When code is merged to `dev`, an RC build is automatically triggered:
 - Builds multi-architecture Docker images (amd64 + arm64)
 - Pushes to Docker Hub with tags:
-  - `dialmaster/youtarr:dev-latest` (always the latest dev build)
-  - `dialmaster/youtarr:dev-rc.<commit-sha>` (specific RC build)
+  - `flahercc/youtarr:dev-latest` (always the latest dev build)
+  - `flahercc/youtarr:dev-rc.<commit-sha>` (specific RC build)
 
 These RC images allow testing bleeding-edge features before stable release.
 
@@ -378,8 +378,8 @@ When code is merged from `dev` to `main`, a production release is triggered:
 - Creates GitHub release with release notes
 - Builds multi-architecture Docker images (amd64 + arm64)
 - Publishes to Docker Hub with tags:
-  - `dialmaster/youtarr:latest` (stable release for end-users)
-  - `dialmaster/youtarr:vX.X.X` (specific version)
+  - `flahercc/youtarr:latest` (stable release for end-users)
+  - `flahercc/youtarr:vX.X.X` (specific version)
 
 You don't need to worry about versioning or releases - just use the correct commit message prefix.
 
@@ -527,8 +527,8 @@ If you get stuck or need help:
 - [Media Servers](docs/MEDIA_SERVERS.md)
 
 ### Repository
-- [GitHub Repository](https://github.com/DialmasterOrg/Youtarr)
-- [Issue Tracker](https://github.com/DialmasterOrg/Youtarr/issues)
+- [GitHub Repository](https://github.com/flahercc/Youtarr)
+- [Issue Tracker](https://github.com/flahercc/Youtarr/issues)
 - [Changelog](CHANGELOG.md)
 
 ### Support the Project

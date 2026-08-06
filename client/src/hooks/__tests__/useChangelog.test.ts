@@ -45,7 +45,7 @@ describe('useChangelog', () => {
     expect(result.current.content).toBe(mockChangelogContent);
     expect(result.current.error).toBeNull();
     expect(mockFetch).toHaveBeenCalledWith(
-      'https://raw.githubusercontent.com/DialmasterOrg/Youtarr/main/CHANGELOG.md'
+      'https://raw.githubusercontent.com/flahercc/Youtarr/main/CHANGELOG.md'
     );
   });
 

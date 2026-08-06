@@ -775,7 +775,7 @@ The cookies preview endpoint is rate-limited to 3 requests per minute because ea
 
 If these solutions don't resolve your issue:
 
-1. Check the [GitHub Issues](https://github.com/DialmasterOrg/Youtarr/issues) page
+1. Check the [GitHub Issues](https://github.com/flahercc/Youtarr/issues) page
 2. Provide details about your operating system
 3. Provide relevant logs when reporting issues:
    ```bash

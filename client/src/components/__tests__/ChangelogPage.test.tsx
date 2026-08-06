@@ -165,7 +165,7 @@ describe('ChangelogPage', () => {
     render(<ChangelogPage />);
 
     const githubLink = screen.getByRole('link', { name: /github\.com/i });
-    expect(githubLink).toHaveAttribute('href', 'https://github.com/DialmasterOrg/Youtarr/blob/main/CHANGELOG.md');
+    expect(githubLink).toHaveAttribute('href', 'https://github.com/flahercc/Youtarr/blob/main/CHANGELOG.md');
     expect(githubLink).toHaveAttribute('target', '_blank');
     expect(githubLink).toHaveAttribute('rel', 'noopener noreferrer');
   });
