@@ -75,6 +75,13 @@ Configuration can be modified through:
 - **Default**: `"14:00"`
 - **Description**: Time of day the scheduled channel scan runs when `channelScanEnabled` is true.
 
+### New Videos Scan Limit
+- **Config Key**: `channelScanVideoLimit`
+- **Type**: `number`
+- **Default**: `50`
+- **Range**: 1-200
+- **Description**: Maximum number of most recent videos checked per channel tab during the scheduled channel scan, to find new videos for the Manual Downloads review queue.
+
 ### Files to Download per Channel
 - **Config Key**: `channelFilesToDownload`
 - **Type**: `number`

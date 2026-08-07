@@ -18,7 +18,15 @@ const video: NewQueueVideo = {
 
 describe('NewVideoQueueItem', () => {
   test('renders the title, channel name, and formatted duration', () => {
-    render(<NewVideoQueueItem video={video} onDownload={jest.fn()} onIgnore={jest.fn()} />);
+    render(
+      <NewVideoQueueItem
+        video={video}
+        selected={false}
+        onToggleSelect={jest.fn()}
+        onDownload={jest.fn()}
+        onIgnore={jest.fn()}
+      />
+    );
 
     expect(screen.getByText('Cool Video')).toBeInTheDocument();
     expect(screen.getByText(/Channel One/)).toBeInTheDocument();
@@ -29,6 +37,8 @@ describe('NewVideoQueueItem', () => {
     render(
       <NewVideoQueueItem
         video={{ ...video, duration: null }}
+        selected={false}
+        onToggleSelect={jest.fn()}
         onDownload={jest.fn()}
         onIgnore={jest.fn()}
       />
@@ -40,7 +50,15 @@ describe('NewVideoQueueItem', () => {
   test('calls onDownload when the download button is clicked', async () => {
     const user = userEvent.setup();
     const onDownload = jest.fn();
-    render(<NewVideoQueueItem video={video} onDownload={onDownload} onIgnore={jest.fn()} />);
+    render(
+      <NewVideoQueueItem
+        video={video}
+        selected={false}
+        onToggleSelect={jest.fn()}
+        onDownload={onDownload}
+        onIgnore={jest.fn()}
+      />
+    );
 
     await user.click(screen.getByRole('button', { name: /Download Cool Video/i }));
 
@@ -50,10 +68,50 @@ describe('NewVideoQueueItem', () => {
   test('calls onIgnore when the ignore button is clicked', async () => {
     const user = userEvent.setup();
     const onIgnore = jest.fn();
-    render(<NewVideoQueueItem video={video} onDownload={jest.fn()} onIgnore={onIgnore} />);
+    render(
+      <NewVideoQueueItem
+        video={video}
+        selected={false}
+        onToggleSelect={jest.fn()}
+        onDownload={jest.fn()}
+        onIgnore={onIgnore}
+      />
+    );
 
     await user.click(screen.getByRole('button', { name: /Ignore Cool Video/i }));
 
     expect(onIgnore).toHaveBeenCalledWith(video);
+  });
+
+  test('reflects the selected state on the checkbox', () => {
+    render(
+      <NewVideoQueueItem
+        video={video}
+        selected={true}
+        onToggleSelect={jest.fn()}
+        onDownload={jest.fn()}
+        onIgnore={jest.fn()}
+      />
+    );
+
+    expect(screen.getByRole('checkbox', { name: /Select Cool Video/i })).toBeChecked();
+  });
+
+  test('calls onToggleSelect when the checkbox is clicked', async () => {
+    const user = userEvent.setup();
+    const onToggleSelect = jest.fn();
+    render(
+      <NewVideoQueueItem
+        video={video}
+        selected={false}
+        onToggleSelect={onToggleSelect}
+        onDownload={jest.fn()}
+        onIgnore={jest.fn()}
+      />
+    );
+
+    await user.click(screen.getByRole('checkbox', { name: /Select Cool Video/i }));
+
+    expect(onToggleSelect).toHaveBeenCalledWith(video);
   });
 });

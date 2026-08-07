@@ -473,6 +473,47 @@ describe('CoreSettingsSection Component', () => {
     });
   });
 
+  describe('New Videos Scan Limit field', () => {
+    test('renders with the configured value', () => {
+      const props = createSectionProps({
+        config: createConfig({ channelScanEnabled: true, channelScanVideoLimit: 75 })
+      });
+      renderWithProviders(<CoreSettingsSection {...props} />);
+      expect(screen.getByLabelText('New Videos Scan Limit per Channel Tab')).toHaveValue(75);
+    });
+
+    test('is disabled when channelScanEnabled is false', () => {
+      const props = createSectionProps({
+        config: createConfig({ channelScanEnabled: false })
+      });
+      renderWithProviders(<CoreSettingsSection {...props} />);
+      expect(screen.getByLabelText('New Videos Scan Limit per Channel Tab')).toBeDisabled();
+    });
+
+    test('is enabled when channelScanEnabled is true', () => {
+      const props = createSectionProps({
+        config: createConfig({ channelScanEnabled: true })
+      });
+      renderWithProviders(<CoreSettingsSection {...props} />);
+      expect(screen.getByLabelText('New Videos Scan Limit per Channel Tab')).not.toBeDisabled();
+    });
+
+    test('calls onConfigChange when the value changes', () => {
+      const onConfigChange = jest.fn();
+      const props = createSectionProps({
+        config: createConfig({ channelScanEnabled: true, channelScanVideoLimit: 50 }),
+        onConfigChange
+      });
+      renderWithProviders(<CoreSettingsSection {...props} />);
+
+      const input = screen.getByLabelText('New Videos Scan Limit per Channel Tab');
+      fireEvent.change(input, { target: { value: '100' } });
+
+      expect(onConfigChange).toHaveBeenCalledWith({ channelScanVideoLimit: 100 });
+    });
+
+  });
+
   describe('Files to Download per Channel Select', () => {
     test('renders Files to Download per Channel select', () => {
       const props = createSectionProps();

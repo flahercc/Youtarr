@@ -5,6 +5,7 @@
   "channelDownloadFrequency": "0 * * * *",
   "channelScanEnabled": false,
   "channelScanTime": "14:00",
+  "channelScanVideoLimit": 50,
   "preferredResolution": "1080",
   "videoCodec": "default",
   "defaultSubfolder": "",

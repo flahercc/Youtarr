@@ -7,6 +7,10 @@ const videoEntryParser = require('./videoEntryParser');
 const channelVideoWriter = require('./channelVideoWriter');
 const tabState = require('./tabState');
 
+// Default/max videos fetched per channel/tab when the caller doesn't
+// specify a limit (e.g. regular channel page browsing).
+const DEFAULT_MAX_VIDEO_COUNT = 50;
+
 class ChannelVideoFetcher {
   /**
    * Fetch channel videos from a specific tab via yt-dlp.
@@ -14,10 +18,11 @@ class ChannelVideoFetcher {
    * @param {string} channelId - Channel ID to fetch videos for
    * @param {Date|null} mostRecentVideoDate - Date of the most recent video we have
    * @param {string} tabType - Type of tab to fetch videos from
+   * @param {number} maxVideoCount - Upper bound on videos fetched for this tab
    * @returns {Promise<Object>} - Object with videos array and current channel URL
    * @throws {Error} - If channel not found in database
    */
-  async fetchChannelVideos(channelId, mostRecentVideoDate = null, tabType) {
+  async fetchChannelVideos(channelId, mostRecentVideoDate = null, tabType, maxVideoCount = DEFAULT_MAX_VIDEO_COUNT) {
     const channel = await Channel.findOne({
       where: { channel_id: channelId },
     });
@@ -28,12 +33,12 @@ class ChannelVideoFetcher {
 
     // Determine how many videos to fetch based on recency
     // If we have recent data (within 10 days), fetch fewer videos for faster response
-    let videoCount = 50; // Default/max for initial fetch or stale data
+    let videoCount = maxVideoCount; // Default/max for initial fetch or stale data
     if (mostRecentVideoDate) {
       const daysSinceLastVideo = Math.floor((Date.now() - new Date(mostRecentVideoDate).getTime()) / (1000 * 60 * 60 * 24));
       if (daysSinceLastVideo <= 10) {
-        // Fetch 5 videos minimum, or 5 videos per day since last fetch, up to 50 max
-        videoCount = Math.min(50, Math.max(5, daysSinceLastVideo * 5));
+        // Fetch 5 videos minimum, or 5 videos per day since last fetch, up to maxVideoCount
+        videoCount = Math.min(maxVideoCount, Math.max(5, daysSinceLastVideo * 5));
       }
     }
 
@@ -112,12 +117,13 @@ class ChannelVideoFetcher {
    * @param {string} channelId - Channel ID
    * @param {string} tabType - Type of tab to fetch videos from
    * @param {Date|null} mostRecentVideoDate - Date of the most recent video we have
+   * @param {number} maxVideoCount - Upper bound on videos fetched for this tab
    * @returns {Promise<void>}
    * @throws {Error} - Re-throws yt-dlp errors
    */
-  async fetchAndSaveVideosViaYtDlp(channel, channelId, tabType, mostRecentVideoDate = null) {
+  async fetchAndSaveVideosViaYtDlp(channel, channelId, tabType, mostRecentVideoDate = null, maxVideoCount = DEFAULT_MAX_VIDEO_COUNT) {
     try {
-      const result = await this.fetchChannelVideos(channelId, mostRecentVideoDate, tabType);
+      const result = await this.fetchChannelVideos(channelId, mostRecentVideoDate, tabType, maxVideoCount);
       const { videos, currentChannelUrl } = result;
 
       const mediaType = MEDIA_TAB_TYPE_MAP[tabType];
@@ -153,3 +159,4 @@ class ChannelVideoFetcher {
 }
 
 module.exports = new ChannelVideoFetcher();
+module.exports.DEFAULT_MAX_VIDEO_COUNT = DEFAULT_MAX_VIDEO_COUNT;

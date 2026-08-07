@@ -10,6 +10,8 @@ interface UseNewVideosQueueResult {
   scan: () => Promise<void>;
   ignoreVideo: (video: NewQueueVideo) => Promise<void>;
   downloadVideo: (video: NewQueueVideo) => Promise<void>;
+  ignoreVideos: (videos: NewQueueVideo[]) => Promise<void>;
+  downloadVideos: (videos: NewQueueVideo[]) => Promise<void>;
 }
 
 function extractErrorMessage(err: unknown, fallback: string): string {
@@ -68,39 +70,83 @@ export function useNewVideosQueue(token: string | null): UseNewVideosQueueResult
     }
   }, [token, fetchQueue]);
 
+  const postVideoAction = useCallback((video: NewQueueVideo, action: 'ignore' | 'download', authToken: string) => {
+    return axios.post(
+      `/api/channels/${video.channel_id}/videos/${video.youtube_id}/${action}`,
+      null,
+      { headers: { 'x-access-token': authToken } }
+    );
+  }, []);
+
   const ignoreVideo = useCallback(async (video: NewQueueVideo) => {
     if (!token) return;
 
     setVideos((prev) => prev.filter((v) => v.youtube_id !== video.youtube_id));
     try {
-      await axios.post(
-        `/api/channels/${video.channel_id}/videos/${video.youtube_id}/ignore`,
-        null,
-        { headers: { 'x-access-token': token } }
-      );
+      await postVideoAction(video, 'ignore', token);
     } catch (err: unknown) {
       // Refetch first (it clears any stale error), then surface this one so
       // it isn't wiped by the refetch's own success path.
       await fetchQueue();
       setError(extractErrorMessage(err, 'Failed to ignore video.'));
     }
-  }, [token, fetchQueue]);
+  }, [token, fetchQueue, postVideoAction]);
 
   const downloadVideo = useCallback(async (video: NewQueueVideo) => {
     if (!token) return;
 
     setVideos((prev) => prev.filter((v) => v.youtube_id !== video.youtube_id));
     try {
-      await axios.post(
-        `/api/channels/${video.channel_id}/videos/${video.youtube_id}/download`,
-        null,
-        { headers: { 'x-access-token': token } }
-      );
+      await postVideoAction(video, 'download', token);
     } catch (err: unknown) {
       await fetchQueue();
       setError(extractErrorMessage(err, 'Failed to queue download.'));
     }
-  }, [token, fetchQueue]);
+  }, [token, fetchQueue, postVideoAction]);
 
-  return { videos, loading, error, scanning, scan, ignoreVideo, downloadVideo };
+  const runBulkAction = useCallback(async (
+    videosToProcess: NewQueueVideo[],
+    action: 'ignore' | 'download',
+    failureFallback: string
+  ) => {
+    if (!token || videosToProcess.length === 0) return;
+
+    const ids = new Set(videosToProcess.map((v) => v.youtube_id));
+    setVideos((prev) => prev.filter((v) => !ids.has(v.youtube_id)));
+
+    const results = await Promise.allSettled(
+      videosToProcess.map((video) => postVideoAction(video, action, token))
+    );
+    const failureCount = results.filter((r) => r.status === 'rejected').length;
+    if (failureCount > 0) {
+      await fetchQueue();
+      setError(
+        failureCount === videosToProcess.length
+          ? failureFallback
+          : `${failureFallback} (${failureCount} of ${videosToProcess.length} failed)`
+      );
+    }
+  }, [token, fetchQueue, postVideoAction]);
+
+  const ignoreVideos = useCallback(
+    (videosToIgnore: NewQueueVideo[]) => runBulkAction(videosToIgnore, 'ignore', 'Failed to ignore selected videos.'),
+    [runBulkAction]
+  );
+
+  const downloadVideos = useCallback(
+    (videosToDownload: NewQueueVideo[]) => runBulkAction(videosToDownload, 'download', 'Failed to queue selected downloads.'),
+    [runBulkAction]
+  );
+
+  return {
+    videos,
+    loading,
+    error,
+    scanning,
+    scan,
+    ignoreVideo,
+    downloadVideo,
+    ignoreVideos,
+    downloadVideos,
+  };
 }

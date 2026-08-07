@@ -190,6 +190,13 @@ export const CoreSettingsSection: React.FC<CoreSettingsSectionProps> = ({
     onConfigChange({ channelScanTime: event.target.value });
   };
 
+  const handleScanVideoLimitChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const parsed = Number(event.target.value);
+    if (!Number.isNaN(parsed)) {
+      onConfigChange({ channelScanVideoLimit: parsed });
+    }
+  };
+
   const handleChannelFilesChange = (event: SelectChangeEvent<string>) => {
     onConfigChange({ channelFilesToDownload: Number(event.target.value) });
   };
@@ -391,6 +398,25 @@ export const CoreSettingsSection: React.FC<CoreSettingsSectionProps> = ({
                       />
                     </Box>
                   </FormControl>
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <Box className="flex items-center gap-1">
+                    <TextField
+                      fullWidth
+                      type="number"
+                      label="New Videos Scan Limit per Channel Tab"
+                      name="channelScanVideoLimit"
+                      value={config.channelScanVideoLimit}
+                      onChange={handleScanVideoLimitChange}
+                      disabled={!config.channelScanEnabled}
+                      inputProps={{ min: 1, max: 200, step: 1 }}
+                    />
+                    <InfoTooltip
+                      text="How many of the most recent videos to check per channel tab when the scheduled scan looks for new videos to add to the Manual Downloads review queue."
+                      onMobileClick={onMobileTooltipClick}
+                    />
+                  </Box>
                 </Grid>
 
                 <Grid item xs={12} md={6}>

@@ -8,6 +8,7 @@ jest.mock('../../../models/channelvideo', () => ({ count: jest.fn() }));
 jest.mock('../channelVideoFetcher', () => ({
   shouldRefreshChannelVideos: jest.fn(),
   fetchAndSaveVideosViaYtDlp: jest.fn(),
+  DEFAULT_MAX_VIDEO_COUNT: 50,
 }));
 jest.mock('../channelVideoQuery', () => ({ fetchNewestVideosFromDb: jest.fn() }));
 
@@ -39,6 +40,7 @@ describe('newVideoScanScheduler', () => {
     channelVideoFetcher.shouldRefreshChannelVideos.mockReturnValue(true);
     channelVideoFetcher.fetchAndSaveVideosViaYtDlp.mockResolvedValue(undefined);
     ChannelVideo.count.mockResolvedValue(0);
+    configModule.getConfig.mockReturnValue({});
 
     scheduler = require('../newVideoScanScheduler');
   });
@@ -96,15 +98,28 @@ describe('newVideoScanScheduler', () => {
 
       expect(Channel.findAll).toHaveBeenCalledWith({ where: { enabled: true } });
       expect(channelVideoFetcher.fetchAndSaveVideosViaYtDlp).toHaveBeenCalledWith(
-        expect.objectContaining({ channel_id: 'UC1' }), 'UC1', 'videos', null
+        expect.objectContaining({ channel_id: 'UC1' }), 'UC1', 'videos', null, 50
       );
       expect(channelVideoFetcher.fetchAndSaveVideosViaYtDlp).toHaveBeenCalledWith(
-        expect.objectContaining({ channel_id: 'UC1' }), 'UC1', 'shorts', null
+        expect.objectContaining({ channel_id: 'UC1' }), 'UC1', 'shorts', null, 50
       );
       expect(summary.channelsScanned).toBe(1);
       expect(summary.tabsScanned).toBe(2);
       expect(summary.newVideosFound).toBe(2); // (4-2) + (1-1)
       expect(summary.errors).toEqual([]);
+    });
+
+    test('passes the configured channelScanVideoLimit through to the fetch', async () => {
+      Channel.findAll.mockResolvedValue([
+        { channel_id: 'UC1', auto_download_enabled_tabs: 'video' },
+      ]);
+      configModule.getConfig.mockReturnValue({ channelScanVideoLimit: 150 });
+
+      await scheduler.scanAllChannels();
+
+      expect(channelVideoFetcher.fetchAndSaveVideosViaYtDlp).toHaveBeenCalledWith(
+        expect.objectContaining({ channel_id: 'UC1' }), 'UC1', 'videos', null, 150
+      );
     });
 
     test('skips channels with no enabled tabs', async () => {

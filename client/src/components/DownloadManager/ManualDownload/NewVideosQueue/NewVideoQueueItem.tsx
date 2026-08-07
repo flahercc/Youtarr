@@ -1,10 +1,12 @@
 import React from 'react';
-import { Box, Tooltip, IconButton } from '../../../ui';
+import { Box, Tooltip, IconButton, Checkbox } from '../../../ui';
 import { Download as DownloadIcon, Ban as IgnoreIcon } from 'lucide-react';
 import { NewQueueVideo } from './types';
 
 interface NewVideoQueueItemProps {
   video: NewQueueVideo;
+  selected: boolean;
+  onToggleSelect: (video: NewQueueVideo) => void;
   onDownload: (video: NewQueueVideo) => void;
   onIgnore: (video: NewQueueVideo) => void;
 }
@@ -20,7 +22,7 @@ function formatDuration(seconds: number | null): string | null {
   return `${minutes}:${secs.toString().padStart(2, '0')}`;
 }
 
-const NewVideoQueueItem: React.FC<NewVideoQueueItemProps> = ({ video, onDownload, onIgnore }) => {
+const NewVideoQueueItem: React.FC<NewVideoQueueItemProps> = ({ video, selected, onToggleSelect, onDownload, onIgnore }) => {
   const duration = formatDuration(video.duration);
 
   return (
@@ -28,6 +30,11 @@ const NewVideoQueueItem: React.FC<NewVideoQueueItemProps> = ({ video, onDownload
       className="flex items-center gap-3 p-2 rounded-[var(--radius-ui)]"
       style={{ border: 'var(--border-weight) solid var(--border)' }}
     >
+      <Checkbox
+        checked={selected}
+        onChange={() => onToggleSelect(video)}
+        inputProps={{ 'aria-label': `Select ${video.title}` }}
+      />
       <img
         src={video.thumbnail}
         alt=""

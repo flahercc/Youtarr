@@ -22,6 +22,17 @@ const video: NewQueueVideo = {
   published_at: '2026-01-01T00:00:00.000Z',
 };
 
+const video2: NewQueueVideo = {
+  youtube_id: 'def',
+  channel_id: 'UC2',
+  channel_title: 'Channel Two',
+  title: 'Another Video',
+  thumbnail: 'https://example.com/thumb2.jpg',
+  duration: 60,
+  first_seen_at: '2026-01-02T00:00:00.000Z',
+  published_at: '2026-01-02T00:00:00.000Z',
+};
+
 describe('useNewVideosQueue', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -122,5 +133,77 @@ describe('useNewVideosQueue', () => {
       null,
       { headers: { 'x-access-token': 't' } }
     );
+  });
+
+  test('ignoreVideos removes all selected videos optimistically and posts one ignore call per video', async () => {
+    axios.get.mockResolvedValueOnce({ data: { videos: [video, video2] } });
+    axios.post.mockResolvedValue({ data: {} });
+
+    const { result } = renderHook(() => useNewVideosQueue('t'));
+    await waitFor(() => expect(result.current.videos).toEqual([video, video2]));
+
+    await act(async () => {
+      await result.current.ignoreVideos([video, video2]);
+    });
+
+    expect(result.current.videos).toEqual([]);
+    expect(axios.post).toHaveBeenCalledWith(
+      '/api/channels/UC1/videos/abc/ignore', null, { headers: { 'x-access-token': 't' } }
+    );
+    expect(axios.post).toHaveBeenCalledWith(
+      '/api/channels/UC2/videos/def/ignore', null, { headers: { 'x-access-token': 't' } }
+    );
+  });
+
+  test('downloadVideos removes all selected videos optimistically and posts one download call per video', async () => {
+    axios.get.mockResolvedValueOnce({ data: { videos: [video, video2] } });
+    axios.post.mockResolvedValue({ data: {} });
+
+    const { result } = renderHook(() => useNewVideosQueue('t'));
+    await waitFor(() => expect(result.current.videos).toEqual([video, video2]));
+
+    await act(async () => {
+      await result.current.downloadVideos([video, video2]);
+    });
+
+    expect(result.current.videos).toEqual([]);
+    expect(axios.post).toHaveBeenCalledWith(
+      '/api/channels/UC1/videos/abc/download', null, { headers: { 'x-access-token': 't' } }
+    );
+    expect(axios.post).toHaveBeenCalledWith(
+      '/api/channels/UC2/videos/def/download', null, { headers: { 'x-access-token': 't' } }
+    );
+  });
+
+  test('a partial bulk failure refetches and reports how many failed', async () => {
+    axios.get.mockResolvedValueOnce({ data: { videos: [video, video2] } });
+    axios.post
+      .mockResolvedValueOnce({ data: {} })
+      .mockRejectedValueOnce({ isAxiosError: true, response: { data: { error: 'nope' } } });
+    axios.get.mockResolvedValueOnce({ data: { videos: [video2] } });
+
+    const { result } = renderHook(() => useNewVideosQueue('t'));
+    await waitFor(() => expect(result.current.videos).toEqual([video, video2]));
+
+    await act(async () => {
+      await result.current.ignoreVideos([video, video2]);
+    });
+
+    expect(result.current.error).toBe('Failed to ignore selected videos. (1 of 2 failed)');
+    expect(result.current.videos).toEqual([video2]);
+  });
+
+  test('ignoreVideos and downloadVideos are no-ops for an empty selection', async () => {
+    axios.get.mockResolvedValueOnce({ data: { videos: [] } });
+
+    const { result } = renderHook(() => useNewVideosQueue('t'));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.ignoreVideos([]);
+      await result.current.downloadVideos([]);
+    });
+
+    expect(axios.post).not.toHaveBeenCalled();
   });
 });

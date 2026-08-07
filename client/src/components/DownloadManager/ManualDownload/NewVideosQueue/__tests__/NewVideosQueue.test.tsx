@@ -21,6 +21,17 @@ const video: NewQueueVideo = {
   published_at: '2026-01-01T00:00:00.000Z',
 };
 
+const video2: NewQueueVideo = {
+  youtube_id: 'def',
+  channel_id: 'UC2',
+  channel_title: 'Channel Two',
+  title: 'Another Video',
+  thumbnail: 'https://example.com/thumb2.jpg',
+  duration: 60,
+  first_seen_at: '2026-01-02T00:00:00.000Z',
+  published_at: '2026-01-02T00:00:00.000Z',
+};
+
 function buildResult(overrides: Partial<ReturnType<typeof useNewVideosQueue>> = {}) {
   return {
     videos: [],
@@ -30,6 +41,8 @@ function buildResult(overrides: Partial<ReturnType<typeof useNewVideosQueue>> = 
     scan: jest.fn(),
     ignoreVideo: jest.fn(),
     downloadVideo: jest.fn(),
+    ignoreVideos: jest.fn(),
+    downloadVideos: jest.fn(),
     ...overrides,
   };
 }
@@ -100,5 +113,51 @@ describe('NewVideosQueue', () => {
 
     await user.click(screen.getByRole('button', { name: /Ignore Cool Video/i }));
     expect(ignoreVideo).toHaveBeenCalledWith(video);
+  });
+
+  test('does not show bulk action buttons when nothing is selected', () => {
+    mockedUseNewVideosQueue.mockReturnValue(buildResult({ videos: [video, video2] }));
+    render(<NewVideosQueue token="t" />);
+
+    expect(screen.queryByRole('button', { name: /Download Selected/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Ignore Selected/i })).not.toBeInTheDocument();
+  });
+
+  test('selecting a video shows bulk actions and calls downloadVideos/ignoreVideos with just that video', async () => {
+    const user = userEvent.setup();
+    const downloadVideos = jest.fn();
+    const ignoreVideos = jest.fn();
+    mockedUseNewVideosQueue.mockReturnValue(
+      buildResult({ videos: [video, video2], downloadVideos, ignoreVideos })
+    );
+    render(<NewVideosQueue token="t" />);
+
+    await user.click(screen.getByRole('checkbox', { name: /Select Cool Video/i }));
+
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Download Selected/i }));
+    expect(downloadVideos).toHaveBeenCalledWith([video]);
+
+    await user.click(screen.getByRole('button', { name: /Ignore Selected/i }));
+    expect(ignoreVideos).toHaveBeenCalledWith([video]);
+  });
+
+  test('select all checkbox selects and deselects every video', async () => {
+    const user = userEvent.setup();
+    const downloadVideos = jest.fn();
+    mockedUseNewVideosQueue.mockReturnValue(
+      buildResult({ videos: [video, video2], downloadVideos })
+    );
+    render(<NewVideosQueue token="t" />);
+
+    await user.click(screen.getByRole('checkbox', { name: /Select all new videos/i }));
+    expect(screen.getByText('2 selected')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Download Selected/i }));
+    expect(downloadVideos).toHaveBeenCalledWith([video, video2]);
+
+    await user.click(screen.getByRole('checkbox', { name: /Select all new videos/i }));
+    expect(screen.getByText('Select all')).toBeInTheDocument();
   });
 });

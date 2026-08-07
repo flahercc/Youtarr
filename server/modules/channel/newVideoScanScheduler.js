@@ -10,6 +10,7 @@ const { MEDIA_TAB_TYPE_MAP, parseTabCsv } = require('../tabsUtils');
 // Belt-and-braces default matching config.example.json, mirroring
 // watchStatusScheduler's DEFAULT_SYNC_FREQUENCY handling.
 const DEFAULT_SCAN_TIME = '14:00';
+const DEFAULT_SCAN_VIDEO_LIMIT = channelVideoFetcher.DEFAULT_MAX_VIDEO_COUNT;
 
 // auto_download_enabled_tabs stores mediaType values ('video'/'short'/
 // 'livestream'); fetchChannelVideos needs the tabType ('videos'/'shorts'/
@@ -142,7 +143,8 @@ class NewVideoScanScheduler {
         where: { channel_id: channel.channel_id, media_type: mediaType },
       });
 
-      await channelVideoFetcher.fetchAndSaveVideosViaYtDlp(channel, channel.channel_id, tabType, mostRecentVideoDate);
+      const maxVideoCount = configModule.getConfig().channelScanVideoLimit || DEFAULT_SCAN_VIDEO_LIMIT;
+      await channelVideoFetcher.fetchAndSaveVideosViaYtDlp(channel, channel.channel_id, tabType, mostRecentVideoDate, maxVideoCount);
 
       const afterCount = await ChannelVideo.count({
         where: { channel_id: channel.channel_id, media_type: mediaType },
