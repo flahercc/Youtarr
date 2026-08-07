@@ -562,7 +562,6 @@ class YtdlpCommandBuilder {
       '--extractor-args', 'youtubetab:tab=videos;sort=dd',
       '--match-filter', matchFilter,
       '-o', outputPath,
-      '--datebefore', 'now',
       '-o', `thumbnail:${thumbnailPath}`,
       '-o', 'pl_thumbnail:',
       '--exec', `node ${path.resolve(__dirname, '../videoDownloadPostProcessFiles.js')} {}`
@@ -644,7 +643,6 @@ class YtdlpCommandBuilder {
       '--extractor-args', 'youtubetab:tab=videos;sort=dd',
       '--match-filter', 'availability!=subscriber_only & !is_live & live_status!=is_upcoming',
       '-o', outputPath,
-      '--datebefore', 'now',
       '-o', `thumbnail:${thumbnailPath}`,
       '-o', 'pl_thumbnail:',
       '--exec', `node ${path.resolve(__dirname, '../videoDownloadPostProcessFiles.js')} {}`
