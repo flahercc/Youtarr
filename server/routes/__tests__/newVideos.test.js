@@ -57,6 +57,7 @@ describe('New videos routes', () => {
 
       expect(res.status).toBe(200);
       expect(res.body).toEqual(summary);
+      expect(mockNewVideoScanScheduler.scanAllChannels).toHaveBeenCalledWith(true);
     });
 
     test('returns 409 when a scan is already in progress', async () => {

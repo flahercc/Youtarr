@@ -145,6 +145,19 @@ describe('newVideoScanScheduler', () => {
       expect(channelVideoFetcher.fetchAndSaveVideosViaYtDlp).not.toHaveBeenCalled();
     });
 
+    test('force bypasses the freshness gate so a recently-fetched tab is still re-checked', async () => {
+      Channel.findAll.mockResolvedValue([
+        { channel_id: 'UC1', auto_download_enabled_tabs: 'video' },
+      ]);
+      channelVideoFetcher.shouldRefreshChannelVideos.mockReturnValue(false);
+
+      await scheduler.scanAllChannels(true);
+
+      expect(channelVideoFetcher.fetchAndSaveVideosViaYtDlp).toHaveBeenCalledWith(
+        expect.objectContaining({ channel_id: 'UC1' }), 'UC1', 'videos', null, 50
+      );
+    });
+
     test('isolates one channel/tab failure so the rest of the scan still runs', async () => {
       Channel.findAll.mockResolvedValue([
         { channel_id: 'UC1', auto_download_enabled_tabs: 'video' },

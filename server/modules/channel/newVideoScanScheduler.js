@@ -84,9 +84,13 @@ class NewVideoScanScheduler {
    * previously seen, reusing the same fetch/insert pipeline that channel
    * page visits and "Load More" already use. One channel/tab failing does
    * not stop the rest. Throws SCAN_IN_PROGRESS if a scan is already running.
+   * @param {boolean} force - Bypass the per-tab freshness gate. Used by the
+   *   manual "Scan Now" trigger so it always re-checks YouTube instead of
+   *   silently no-oping on channels/tabs fetched within the last hour (e.g.
+   *   from browsing the channel page moments earlier).
    * @returns {Promise<{channelsScanned: number, tabsScanned: number, newVideosFound: number, errors: Array<{channelId: string, tabType: string, message: string}>}>}
    */
-  async scanAllChannels() {
+  async scanAllChannels(force = false) {
     if (this.scanning) {
       throw new Error('SCAN_IN_PROGRESS');
     }
@@ -107,7 +111,7 @@ class NewVideoScanScheduler {
 
         for (const tabType of tabTypes) {
           summary.tabsScanned += 1;
-          await this.scanChannelTab(channel, tabType, summary);
+          await this.scanChannelTab(channel, tabType, summary, force);
         }
       }
 
@@ -124,17 +128,18 @@ class NewVideoScanScheduler {
    * @param {Object} channel - Channel database record
    * @param {string} tabType - 'videos' | 'shorts' | 'streams'
    * @param {Object} summary - Running scan summary, mutated in place
+   * @param {boolean} force - Bypass the per-tab freshness gate
    * @returns {Promise<void>}
    * @private
    */
-  async scanChannelTab(channel, tabType, summary) {
+  async scanChannelTab(channel, tabType, summary, force = false) {
     const mediaType = MEDIA_TAB_TYPE_MAP[tabType];
     try {
       const recentVideos = await channelVideoQuery.fetchNewestVideosFromDb(
         channel.channel_id, 1, 0, 'off', '', 'date', 'desc', false, mediaType
       );
 
-      if (!channelVideoFetcher.shouldRefreshChannelVideos(channel, recentVideos.length, mediaType)) {
+      if (!force && !channelVideoFetcher.shouldRefreshChannelVideos(channel, recentVideos.length, mediaType)) {
         return;
       }
 

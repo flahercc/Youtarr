@@ -63,7 +63,7 @@ function createNewVideoRoutes({ verifyToken, newVideoQueueModule, newVideoScanSc
    */
   router.post('/api/new-videos/scan', verifyToken, async (req, res) => {
     try {
-      const summary = await newVideoScanScheduler.scanAllChannels();
+      const summary = await newVideoScanScheduler.scanAllChannels(true);
       res.json(summary);
     } catch (error) {
       if (error.message === 'SCAN_IN_PROGRESS') {
