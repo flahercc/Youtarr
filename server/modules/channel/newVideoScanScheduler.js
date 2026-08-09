@@ -5,7 +5,7 @@ const Channel = require('../../models/channel');
 const ChannelVideo = require('../../models/channelvideo');
 const channelVideoFetcher = require('./channelVideoFetcher');
 const channelVideoQuery = require('./channelVideoQuery');
-const { MEDIA_TAB_TYPE_MAP, parseTabCsv } = require('../tabsUtils');
+const { TAB_TYPES, MEDIA_TAB_TYPE_MAP, parseTabCsv } = require('../tabsUtils');
 
 // Belt-and-braces default matching config.example.json, mirroring
 // watchStatusScheduler's DEFAULT_SYNC_FREQUENCY handling.
@@ -80,10 +80,14 @@ class NewVideoScanScheduler {
   }
 
   /**
-   * Scan every enabled channel's auto-download-enabled tabs for videos not
-   * previously seen, reusing the same fetch/insert pipeline that channel
-   * page visits and "Load More" already use. One channel/tab failing does
-   * not stop the rest. Throws SCAN_IN_PROGRESS if a scan is already running.
+   * Scan every enabled channel's videos tab plus any of its
+   * auto-download-enabled tabs, for videos not previously seen. The videos
+   * tab is included unconditionally (even with auto-download off) so the
+   * New Videos review queue covers every subscribed channel, not just ones
+   * opted into auto-download. Reuses the same fetch/insert pipeline that
+   * channel page visits and "Load More" already use. One channel/tab
+   * failing does not stop the rest. Throws SCAN_IN_PROGRESS if a scan is
+   * already running.
    * @param {boolean} force - Bypass the per-tab freshness gate. Used by the
    *   manual "Scan Now" trigger so it always re-checks YouTube instead of
    *   silently no-oping on channels/tabs fetched within the last hour (e.g.
@@ -102,9 +106,7 @@ class NewVideoScanScheduler {
       const channels = await Channel.findAll({ where: { enabled: true } });
 
       for (const channel of channels) {
-        const tabTypes = parseTabCsv(channel.auto_download_enabled_tabs)
-          .map((mediaType) => TAB_TYPE_BY_MEDIA_TYPE[mediaType])
-          .filter(Boolean);
+        const tabTypes = this.resolveScanTabTypes(channel);
 
         if (tabTypes.length === 0) continue;
         summary.channelsScanned += 1;
@@ -120,6 +122,29 @@ class NewVideoScanScheduler {
     } finally {
       this.scanning = false;
     }
+  }
+
+  /**
+   * Tabs to check for a channel: its auto-download-enabled tabs, plus the
+   * primary "videos" tab unless the user explicitly hid it. Ensures the scan
+   * covers every subscribed channel's regular uploads even when
+   * auto-download is off.
+   * @param {Object} channel - Channel database record
+   * @returns {string[]} - tabType values ('videos' | 'shorts' | 'streams')
+   * @private
+   */
+  resolveScanTabTypes(channel) {
+    const autoTabTypes = parseTabCsv(channel.auto_download_enabled_tabs)
+      .map((mediaType) => TAB_TYPE_BY_MEDIA_TYPE[mediaType])
+      .filter(Boolean);
+
+    const tabTypes = new Set(autoTabTypes);
+    const hiddenTabs = new Set(parseTabCsv(channel.hidden_tabs));
+    if (!hiddenTabs.has(TAB_TYPES.VIDEOS)) {
+      tabTypes.add(TAB_TYPES.VIDEOS);
+    }
+
+    return Array.from(tabTypes);
   }
 
   /**

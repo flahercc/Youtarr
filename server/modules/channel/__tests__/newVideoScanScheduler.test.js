@@ -122,9 +122,23 @@ describe('newVideoScanScheduler', () => {
       );
     });
 
-    test('skips channels with no enabled tabs', async () => {
+    test('still scans the primary videos tab even with no auto-download tabs enabled', async () => {
       Channel.findAll.mockResolvedValue([
         { channel_id: 'UC1', auto_download_enabled_tabs: '' },
+      ]);
+
+      const summary = await scheduler.scanAllChannels();
+
+      expect(channelVideoFetcher.fetchAndSaveVideosViaYtDlp).toHaveBeenCalledWith(
+        expect.objectContaining({ channel_id: 'UC1' }), 'UC1', 'videos', null, 50
+      );
+      expect(summary.channelsScanned).toBe(1);
+      expect(summary.tabsScanned).toBe(1);
+    });
+
+    test('skips a channel entirely when the videos tab is hidden and no auto-download tabs are enabled', async () => {
+      Channel.findAll.mockResolvedValue([
+        { channel_id: 'UC1', auto_download_enabled_tabs: '', hidden_tabs: 'videos' },
       ]);
 
       const summary = await scheduler.scanAllChannels();
