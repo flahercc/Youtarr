@@ -23,6 +23,7 @@ export const AddToQueue: Story = {
   parameters: {
     msw: {
       handlers: [
+        http.get('/api/new-videos', () => HttpResponse.json({ videos: [], count: 0 })),
         http.post('/api/checkYoutubeVideoURL', async ({ request }) => {
           const body = (await request.json()) as { url?: string };
           const url = body.url ?? 'https://youtube.com/watch?v=test123';
@@ -56,7 +57,7 @@ export const AddToQueue: Story = {
     await expect(addButton).toBeTruthy();
     await userEvent.click(addButton as HTMLButtonElement);
 
-    await expect(await body.findByText('Download Queue')).toBeInTheDocument();
+    await expect(await body.findByText('Videos to Download (1)')).toBeInTheDocument();
     await expect(await body.findByText(/test video/i)).toBeInTheDocument();
   },
 };

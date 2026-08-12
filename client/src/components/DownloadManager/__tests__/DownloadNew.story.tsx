@@ -20,6 +20,9 @@ const meta: Meta<typeof DownloadNew> = {
             channelFilesToDownload: 3,
           });
         }),
+        http.get('/api/new-videos', () => {
+          return HttpResponse.json({ videos: [], count: 0 });
+        }),
         http.get('/api/channels/subfolders', () => {
           return HttpResponse.json(['Movies', 'Shows']);
         }),
@@ -101,7 +104,7 @@ export const ManualDownload: Story = {
 
     await expect(await canvas.findByText(/first story video/i)).toBeInTheDocument();
 
-    const downloadButton = await canvas.findByRole('button', { name: /download videos/i });
+    const downloadButton = await canvas.findByRole('button', { name: /download selected/i });
     await userEvent.click(downloadButton);
 
     await expect(await body.findByRole('dialog', { name: /download settings/i })).toBeInTheDocument();
@@ -134,7 +137,7 @@ export const SettingsDialogOpen: Story = {
     await userEvent.type(urlInput, 'https://www.youtube.com/watch?v=video1{enter}');
     await expect(await canvas.findByText(/first story video/i)).toBeInTheDocument();
 
-    const downloadButton = await canvas.findByRole('button', { name: /download videos/i });
+    const downloadButton = await canvas.findByRole('button', { name: /download selected/i });
     await userEvent.click(downloadButton);
 
     await expect(await body.findByRole('dialog', { name: /download settings/i })).toBeInTheDocument();
@@ -178,7 +181,7 @@ export const WithUrls: Story = {
     await userEvent.type(urlInput, 'https://www.youtube.com/watch?v=video2{enter}');
     await expect(await canvas.findByText(/second story video/i)).toBeInTheDocument();
 
-    const downloadButton = await canvas.findByRole('button', { name: /download videos/i });
+    const downloadButton = await canvas.findByRole('button', { name: /download selected/i });
     await userEvent.click(downloadButton);
     const startButton = await body.findByRole('button', { name: /start download/i });
     await userEvent.click(startButton);

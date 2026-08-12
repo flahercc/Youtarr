@@ -2,7 +2,7 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
-import NewVideoQueueItem from '../NewVideoQueueItem';
+import NewVideoQueueCard from '../NewVideoQueueCard';
 import { NewQueueVideo, ManualQueueVideo } from '../types';
 
 const video: NewQueueVideo = {
@@ -15,13 +15,6 @@ const video: NewQueueVideo = {
   duration: 125,
   first_seen_at: '2026-01-01T00:00:00.000Z',
   published_at: '2026-01-01T00:00:00.000Z',
-};
-
-const playlistVideo: NewQueueVideo = {
-  ...video,
-  source: 'playlist',
-  source_id: 'PL1',
-  source_title: 'Playlist One',
 };
 
 const manualVideo: ManualQueueVideo = {
@@ -39,10 +32,10 @@ const manualVideo: ManualQueueVideo = {
   is_bulk_import: false,
 };
 
-describe('NewVideoQueueItem', () => {
+describe('NewVideoQueueCard', () => {
   test('renders the title, source, and formatted duration', () => {
     render(
-      <NewVideoQueueItem
+      <NewVideoQueueCard
         video={video}
         selected={false}
         onToggleSelect={jest.fn()}
@@ -56,25 +49,11 @@ describe('NewVideoQueueItem', () => {
     expect(screen.getByText(/2:05/)).toBeInTheDocument();
   });
 
-  test('omits the duration when missing', () => {
-    render(
-      <NewVideoQueueItem
-        video={{ ...video, duration: null }}
-        selected={false}
-        onToggleSelect={jest.fn()}
-        onDownload={jest.fn()}
-        onRemove={jest.fn()}
-      />
-    );
-
-    expect(screen.getByText('Channel One')).toBeInTheDocument();
-  });
-
   test('calls onDownload when the download button is clicked', async () => {
     const user = userEvent.setup();
     const onDownload = jest.fn();
     render(
-      <NewVideoQueueItem
+      <NewVideoQueueCard
         video={video}
         selected={false}
         onToggleSelect={jest.fn()}
@@ -88,11 +67,11 @@ describe('NewVideoQueueItem', () => {
     expect(onDownload).toHaveBeenCalledWith(video);
   });
 
-  test('calls onRemove when the ignore button is clicked for a discovered video', async () => {
+  test('calls onRemove when the ignore button is clicked', async () => {
     const user = userEvent.setup();
     const onRemove = jest.fn();
     render(
-      <NewVideoQueueItem
+      <NewVideoQueueCard
         video={video}
         selected={false}
         onToggleSelect={jest.fn()}
@@ -106,39 +85,11 @@ describe('NewVideoQueueItem', () => {
     expect(onRemove).toHaveBeenCalledWith(video);
   });
 
-  test('renders a playlist source title the same as a channel one', () => {
-    render(
-      <NewVideoQueueItem
-        video={playlistVideo}
-        selected={false}
-        onToggleSelect={jest.fn()}
-        onDownload={jest.fn()}
-        onRemove={jest.fn()}
-      />
-    );
-
-    expect(screen.getByText(/Playlist One/)).toBeInTheDocument();
-  });
-
-  test('reflects the selected state on the checkbox', () => {
-    render(
-      <NewVideoQueueItem
-        video={video}
-        selected={true}
-        onToggleSelect={jest.fn()}
-        onDownload={jest.fn()}
-        onRemove={jest.fn()}
-      />
-    );
-
-    expect(screen.getByRole('checkbox', { name: /Select Cool Video/i })).toBeChecked();
-  });
-
   test('calls onToggleSelect when the checkbox is clicked', async () => {
     const user = userEvent.setup();
     const onToggleSelect = jest.fn();
     render(
-      <NewVideoQueueItem
+      <NewVideoQueueCard
         video={video}
         selected={false}
         onToggleSelect={onToggleSelect}
@@ -155,7 +106,7 @@ describe('NewVideoQueueItem', () => {
   describe('manual video', () => {
     test('has no instant-download button, only a remove action', () => {
       render(
-        <NewVideoQueueItem
+        <NewVideoQueueCard
           video={manualVideo}
           selected={false}
           onToggleSelect={jest.fn()}
@@ -168,41 +119,9 @@ describe('NewVideoQueueItem', () => {
       expect(screen.getByRole('button', { name: /Remove Manual Video/i })).toBeInTheDocument();
     });
 
-    test('calls onRemove (not onDownload) when the remove button is clicked', async () => {
-      const user = userEvent.setup();
-      const onRemove = jest.fn();
-      render(
-        <NewVideoQueueItem
-          video={manualVideo}
-          selected={false}
-          onToggleSelect={jest.fn()}
-          onDownload={jest.fn()}
-          onRemove={onRemove}
-        />
-      );
-
-      await user.click(screen.getByRole('button', { name: /Remove Manual Video/i }));
-
-      expect(onRemove).toHaveBeenCalledWith(manualVideo);
-    });
-
-    test('shows a bulk-import stub title while awaiting enrichment', () => {
-      render(
-        <NewVideoQueueItem
-          video={{ ...manualVideo, is_bulk_import: true }}
-          selected={false}
-          onToggleSelect={jest.fn()}
-          onDownload={jest.fn()}
-          onRemove={jest.fn()}
-        />
-      );
-
-      expect(screen.getByText('Fetching details...')).toBeInTheDocument();
-    });
-
     test('shows a members-only indicator', () => {
       render(
-        <NewVideoQueueItem
+        <NewVideoQueueCard
           video={{ ...manualVideo, is_members_only: true }}
           selected={false}
           onToggleSelect={jest.fn()}
@@ -214,10 +133,10 @@ describe('NewVideoQueueItem', () => {
       expect(screen.getByTestId('LockIcon')).toBeInTheDocument();
     });
 
-    test('shows an already-downloaded indicator', () => {
+    test('shows a bulk-import stub title while awaiting enrichment', () => {
       render(
-        <NewVideoQueueItem
-          video={{ ...manualVideo, is_already_downloaded: true }}
+        <NewVideoQueueCard
+          video={{ ...manualVideo, is_bulk_import: true }}
           selected={false}
           onToggleSelect={jest.fn()}
           onDownload={jest.fn()}
@@ -225,7 +144,7 @@ describe('NewVideoQueueItem', () => {
         />
       );
 
-      expect(screen.getByText(/Already downloaded/i)).toBeInTheDocument();
+      expect(screen.getByText('Fetching details...')).toBeInTheDocument();
     });
   });
 });

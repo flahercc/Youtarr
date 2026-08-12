@@ -5,6 +5,11 @@ jest.mock('../../../logger', () => ({
 jest.mock('../../configModule', () => ({ getConfig: jest.fn(), onConfigChange: jest.fn() }));
 jest.mock('../../../models/channel', () => ({ findAll: jest.fn() }));
 jest.mock('../../../models/channelvideo', () => ({ count: jest.fn() }));
+jest.mock('../../../models', () => ({
+  Playlist: { findAll: jest.fn() },
+  PlaylistVideo: { count: jest.fn() },
+}));
+jest.mock('../../playlistModule', () => ({ fetchAllPlaylistVideos: jest.fn() }));
 jest.mock('../channelVideoFetcher', () => ({
   shouldRefreshChannelVideos: jest.fn(),
   fetchAndSaveVideosViaYtDlp: jest.fn(),
@@ -18,6 +23,9 @@ describe('newVideoScanScheduler', () => {
   let configModule;
   let Channel;
   let ChannelVideo;
+  let Playlist;
+  let PlaylistVideo;
+  let playlistModule;
   let channelVideoFetcher;
   let channelVideoQuery;
   let logger;
@@ -32,6 +40,8 @@ describe('newVideoScanScheduler', () => {
     configModule = require('../../configModule');
     Channel = require('../../../models/channel');
     ChannelVideo = require('../../../models/channelvideo');
+    ({ Playlist, PlaylistVideo } = require('../../../models'));
+    playlistModule = require('../../playlistModule');
     channelVideoFetcher = require('../channelVideoFetcher');
     channelVideoQuery = require('../channelVideoQuery');
     logger = require('../../../logger');
@@ -40,6 +50,10 @@ describe('newVideoScanScheduler', () => {
     channelVideoFetcher.shouldRefreshChannelVideos.mockReturnValue(true);
     channelVideoFetcher.fetchAndSaveVideosViaYtDlp.mockResolvedValue(undefined);
     ChannelVideo.count.mockResolvedValue(0);
+    Channel.findAll.mockResolvedValue([]);
+    Playlist.findAll.mockResolvedValue([]);
+    PlaylistVideo.count.mockResolvedValue(0);
+    playlistModule.fetchAllPlaylistVideos.mockResolvedValue(0);
     configModule.getConfig.mockReturnValue({});
 
     scheduler = require('../newVideoScanScheduler');
@@ -203,6 +217,92 @@ describe('newVideoScanScheduler', () => {
       Channel.findAll.mockResolvedValue([]);
       await scheduler.scanAllChannels();
       await expect(scheduler.scanAllChannels()).resolves.toBeDefined();
+    });
+  });
+
+  describe('scanAll', () => {
+    test('scans channels and playlists in one pass', async () => {
+      Channel.findAll.mockResolvedValue([
+        { channel_id: 'UC1', auto_download_enabled_tabs: 'video' },
+      ]);
+      Playlist.findAll.mockResolvedValue([
+        { playlist_id: 'PL1', lastFetched: null },
+      ]);
+      PlaylistVideo.count.mockResolvedValueOnce(2).mockResolvedValueOnce(5);
+
+      const summary = await scheduler.scanAll();
+
+      expect(Playlist.findAll).toHaveBeenCalledWith({ where: { enabled: true } });
+      expect(playlistModule.fetchAllPlaylistVideos).toHaveBeenCalledWith('PL1');
+      expect(summary.channelsScanned).toBe(1);
+      expect(summary.playlistsScanned).toBe(1);
+      expect(summary.newVideosFound).toBe(3); // 5 - 2 from the playlist (channel tab found none)
+      expect(summary.errors).toEqual([]);
+    });
+
+    test('skips a playlist whose freshness gate says no refresh is needed', async () => {
+      Playlist.findAll.mockResolvedValue([
+        { playlist_id: 'PL1', lastFetched: new Date() },
+      ]);
+
+      await scheduler.scanAll();
+
+      expect(playlistModule.fetchAllPlaylistVideos).not.toHaveBeenCalled();
+    });
+
+    test('force bypasses the playlist freshness gate', async () => {
+      Playlist.findAll.mockResolvedValue([
+        { playlist_id: 'PL1', lastFetched: new Date() },
+      ]);
+
+      await scheduler.scanAll(true);
+
+      expect(playlistModule.fetchAllPlaylistVideos).toHaveBeenCalledWith('PL1');
+    });
+
+    test('treats a concurrent fetch of the same playlist as a skip, not an error', async () => {
+      Playlist.findAll.mockResolvedValue([
+        { playlist_id: 'PL1', lastFetched: null },
+      ]);
+      playlistModule.fetchAllPlaylistVideos.mockRejectedValue(new Error('FETCH_IN_PROGRESS'));
+
+      const summary = await scheduler.scanAll();
+
+      expect(summary.errors).toEqual([]);
+    });
+
+    test('isolates one playlist failure so the rest of the scan still runs', async () => {
+      Playlist.findAll.mockResolvedValue([
+        { playlist_id: 'PL1', lastFetched: null },
+        { playlist_id: 'PL2', lastFetched: null },
+      ]);
+      playlistModule.fetchAllPlaylistVideos
+        .mockRejectedValueOnce(new Error('yt-dlp failed'))
+        .mockResolvedValueOnce(0);
+
+      const summary = await scheduler.scanAll();
+
+      expect(summary.playlistsScanned).toBe(2);
+      expect(summary.errors).toEqual([
+        { playlistId: 'PL1', message: 'yt-dlp failed' },
+      ]);
+      expect(playlistModule.fetchAllPlaylistVideos).toHaveBeenCalledTimes(2);
+    });
+
+    test('rejects with SCAN_IN_PROGRESS when a scan is already running', async () => {
+      const firstScan = scheduler.scanAll();
+
+      await expect(scheduler.scanAll()).rejects.toThrow('SCAN_IN_PROGRESS');
+
+      await firstScan;
+    });
+
+    test('scanAllChannels also rejects while a scanAll is in progress, and vice versa', async () => {
+      const firstScan = scheduler.scanAll();
+
+      await expect(scheduler.scanAllChannels()).rejects.toThrow('SCAN_IN_PROGRESS');
+
+      await firstScan;
     });
   });
 });

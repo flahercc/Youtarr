@@ -67,20 +67,20 @@ Configuration can be modified through:
 - **Config Key**: `channelScanEnabled`
 - **Type**: `boolean`
 - **Default**: `false`
-- **Description**: Runs a daily scan of every enabled channel's auto-download-enabled tabs and adds any newly-discovered videos to a review queue shown in Manual Downloads, where each video can be downloaded or ignored individually. This does not download anything by itself.
+- **Description**: Runs a daily scan of every enabled channel's auto-download-enabled tabs and every enabled playlist, adding any newly-discovered videos to a review queue shown in Manual Downloads, where each video can be downloaded or ignored individually. This does not download anything by itself. The same manual "Scan Now" trigger on that page always runs this scan immediately, regardless of this setting.
 
 ### Channel Scan Time
 - **Config Key**: `channelScanTime`
 - **Type**: `string` (`"HH:MM"`, 24-hour, server-local time)
 - **Default**: `"14:00"`
-- **Description**: Time of day the scheduled channel scan runs when `channelScanEnabled` is true.
+- **Description**: Time of day the scheduled channel/playlist scan runs when `channelScanEnabled` is true.
 
 ### New Videos Scan Limit
 - **Config Key**: `channelScanVideoLimit`
 - **Type**: `number`
 - **Default**: `50`
 - **Range**: 1-200
-- **Description**: Maximum number of most recent videos checked per channel tab during the scheduled channel scan, to find new videos for the Manual Downloads review queue.
+- **Description**: Maximum number of most recent videos checked per channel tab during the scheduled scan, to find new videos for the Manual Downloads review queue. Playlists are unaffected by this limit - a playlist scan always re-lists the whole playlist (capped at 5000 entries).
 
 ### Files to Download per Channel
 - **Config Key**: `channelFilesToDownload`

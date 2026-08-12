@@ -64,18 +64,24 @@ export function useNewVideosQueue(token: string | null): UseNewVideosQueueResult
       });
       await fetchQueue();
     } catch (err: unknown) {
-      setError(extractErrorMessage(err, 'Failed to scan channels for new videos.'));
+      setError(extractErrorMessage(err, 'Failed to scan for new videos.'));
     } finally {
       setScanning(false);
     }
   }, [token, fetchQueue]);
 
+  // Channel actions are per-video; playlists only expose a per-video ignore
+  // route, and a bulk download route (POST .../download with a videoIds
+  // array) that also doubles as the single-video download path.
   const postVideoAction = useCallback((video: NewQueueVideo, action: 'ignore' | 'download', authToken: string) => {
-    return axios.post(
-      `/api/channels/${video.channel_id}/videos/${video.youtube_id}/${action}`,
-      null,
-      { headers: { 'x-access-token': authToken } }
-    );
+    const headers = { 'x-access-token': authToken };
+    if (video.source === 'playlist') {
+      if (action === 'download') {
+        return axios.post(`/api/playlists/${video.source_id}/download`, { videoIds: [video.youtube_id] }, { headers });
+      }
+      return axios.post(`/api/playlists/${video.source_id}/videos/${video.youtube_id}/ignore`, null, { headers });
+    }
+    return axios.post(`/api/channels/${video.source_id}/videos/${video.youtube_id}/${action}`, null, { headers });
   }, []);
 
   const ignoreVideo = useCallback(async (video: NewQueueVideo) => {
@@ -104,20 +110,49 @@ export function useNewVideosQueue(token: string | null): UseNewVideosQueueResult
     }
   }, [token, fetchQueue, postVideoAction]);
 
+  // Bulk ignore stays one request per video (playlists have no bulk-ignore
+  // route). Bulk download groups playlist videos by playlist so one
+  // multi-video playlist selection becomes one job, not N.
   const runBulkAction = useCallback(async (
     videosToProcess: NewQueueVideo[],
     action: 'ignore' | 'download',
-    failureFallback: string
+    failureFallback: string,
+    authToken: string
   ) => {
-    if (!token || videosToProcess.length === 0) return;
+    const units: Array<{ request: Promise<unknown>; videoCount: number }> = [];
 
-    const ids = new Set(videosToProcess.map((v) => v.youtube_id));
-    setVideos((prev) => prev.filter((v) => !ids.has(v.youtube_id)));
+    if (action === 'download') {
+      const playlistGroups = new Map<string, NewQueueVideo[]>();
+      for (const video of videosToProcess) {
+        if (video.source === 'playlist') {
+          const group = playlistGroups.get(video.source_id) ?? [];
+          group.push(video);
+          playlistGroups.set(video.source_id, group);
+        } else {
+          units.push({ request: postVideoAction(video, 'download', authToken), videoCount: 1 });
+        }
+      }
+      for (const [playlistId, group] of playlistGroups) {
+        units.push({
+          request: axios.post(
+            `/api/playlists/${playlistId}/download`,
+            { videoIds: group.map((v) => v.youtube_id) },
+            { headers: { 'x-access-token': authToken } }
+          ),
+          videoCount: group.length,
+        });
+      }
+    } else {
+      for (const video of videosToProcess) {
+        units.push({ request: postVideoAction(video, 'ignore', authToken), videoCount: 1 });
+      }
+    }
 
-    const results = await Promise.allSettled(
-      videosToProcess.map((video) => postVideoAction(video, action, token))
+    const results = await Promise.allSettled(units.map((unit) => unit.request));
+    const failureCount = results.reduce(
+      (sum, result, i) => (result.status === 'rejected' ? sum + units[i].videoCount : sum),
+      0
     );
-    const failureCount = results.filter((r) => r.status === 'rejected').length;
     if (failureCount > 0) {
       await fetchQueue();
       setError(
@@ -126,17 +161,21 @@ export function useNewVideosQueue(token: string | null): UseNewVideosQueueResult
           : `${failureFallback} (${failureCount} of ${videosToProcess.length} failed)`
       );
     }
-  }, [token, fetchQueue, postVideoAction]);
+  }, [fetchQueue, postVideoAction]);
 
-  const ignoreVideos = useCallback(
-    (videosToIgnore: NewQueueVideo[]) => runBulkAction(videosToIgnore, 'ignore', 'Failed to ignore selected videos.'),
-    [runBulkAction]
-  );
+  const ignoreVideos = useCallback(async (videosToIgnore: NewQueueVideo[]) => {
+    if (!token || videosToIgnore.length === 0) return;
+    const ids = new Set(videosToIgnore.map((v) => v.youtube_id));
+    setVideos((prev) => prev.filter((v) => !ids.has(v.youtube_id)));
+    await runBulkAction(videosToIgnore, 'ignore', 'Failed to ignore selected videos.', token);
+  }, [token, runBulkAction]);
 
-  const downloadVideos = useCallback(
-    (videosToDownload: NewQueueVideo[]) => runBulkAction(videosToDownload, 'download', 'Failed to queue selected downloads.'),
-    [runBulkAction]
-  );
+  const downloadVideos = useCallback(async (videosToDownload: NewQueueVideo[]) => {
+    if (!token || videosToDownload.length === 0) return;
+    const ids = new Set(videosToDownload.map((v) => v.youtube_id));
+    setVideos((prev) => prev.filter((v) => !ids.has(v.youtube_id)));
+    await runBulkAction(videosToDownload, 'download', 'Failed to queue selected downloads.', token);
+  }, [token, runBulkAction]);
 
   return {
     videos,

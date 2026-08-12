@@ -1,29 +1,25 @@
 import React from 'react';
 import { Box, Tooltip, IconButton, Checkbox } from '../../../ui';
-import { Download as DownloadIcon, Ban as IgnoreIcon } from 'lucide-react';
-import { NewQueueVideo } from './types';
+import { Download as DownloadIcon, Ban as IgnoreIcon, X as RemoveIcon, Lock as LockIcon } from 'lucide-react';
+import { PendingDownloadItem } from './types';
+import { formatQueueDuration, queueItemTitle } from './pendingDownloadDisplay';
 
 interface NewVideoQueueItemProps {
-  video: NewQueueVideo;
+  video: PendingDownloadItem;
   selected: boolean;
-  onToggleSelect: (video: NewQueueVideo) => void;
-  onDownload: (video: NewQueueVideo) => void;
-  onIgnore: (video: NewQueueVideo) => void;
+  onToggleSelect: (video: PendingDownloadItem) => void;
+  onDownload: (video: PendingDownloadItem) => void;
+  onRemove: (video: PendingDownloadItem) => void;
 }
 
-function formatDuration(seconds: number | null): string | null {
-  if (!seconds || seconds <= 0) return null;
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const secs = seconds % 60;
-  if (hours > 0) {
-    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  }
-  return `${minutes}:${secs.toString().padStart(2, '0')}`;
-}
-
-const NewVideoQueueItem: React.FC<NewVideoQueueItemProps> = ({ video, selected, onToggleSelect, onDownload, onIgnore }) => {
-  const duration = formatDuration(video.duration);
+const NewVideoQueueItem: React.FC<NewVideoQueueItemProps> = ({ video, selected, onToggleSelect, onDownload, onRemove }) => {
+  const duration = formatQueueDuration(video.duration);
+  const isManual = video.source === 'manual';
+  // Manual downloads always go through the settings dialog (bulk "Download
+  // Selected"), so a manual row has no per-item instant-download action -
+  // unlike discovered (channel/playlist) rows, which already use
+  // pre-configured settings and can download immediately.
+  const title = queueItemTitle(video);
 
   return (
     <Box
@@ -33,10 +29,10 @@ const NewVideoQueueItem: React.FC<NewVideoQueueItemProps> = ({ video, selected, 
       <Checkbox
         checked={selected}
         onChange={() => onToggleSelect(video)}
-        inputProps={{ 'aria-label': `Select ${video.title}` }}
+        inputProps={{ 'aria-label': `Select ${title}` }}
       />
       <img
-        src={video.thumbnail}
+        src={video.thumbnail || `https://i.ytimg.com/vi/${video.youtube_id}/mqdefault.jpg`}
         alt=""
         aria-hidden="true"
         style={{
@@ -49,39 +45,47 @@ const NewVideoQueueItem: React.FC<NewVideoQueueItemProps> = ({ video, selected, 
         }}
       />
       <Box className="min-w-0 flex-1">
-        <Box className="text-sm font-semibold truncate" title={video.title}>
-          {video.title}
+        <Box className="text-sm font-semibold truncate" title={title}>
+          {title}
         </Box>
         <Box className="text-xs truncate" style={{ color: 'var(--muted-foreground)' }}>
-          {video.channel_title}
+          {video.source_title}
           {duration && ` • ${duration}`}
+          {isManual && video.is_already_downloaded && ' • Already downloaded'}
         </Box>
       </Box>
       <Box className="flex items-center gap-1 flex-shrink-0">
-        <Tooltip title="Download this video">
+        {isManual && video.is_members_only && (
+          <Tooltip title="Members-only content (cannot download)">
+            <LockIcon size={16} data-testid="LockIcon" style={{ color: 'var(--muted-foreground)' }} />
+          </Tooltip>
+        )}
+        {!isManual && (
+          <Tooltip title="Download this video">
+            <IconButton
+              aria-label={`Download ${title}`}
+              size="small"
+              onClick={() => onDownload(video)}
+              style={{
+                background: 'var(--media-overlay-background)',
+                color: 'var(--media-overlay-foreground)',
+              }}
+            >
+              <DownloadIcon size={16} data-testid="DownloadIcon" />
+            </IconButton>
+          </Tooltip>
+        )}
+        <Tooltip title={isManual ? 'Remove from list' : 'Ignore this video'}>
           <IconButton
-            aria-label={`Download ${video.title}`}
+            aria-label={`${isManual ? 'Remove' : 'Ignore'} ${title}`}
             size="small"
-            onClick={() => onDownload(video)}
-            style={{
-              background: 'var(--media-overlay-background)',
-              color: 'var(--media-overlay-foreground)',
-            }}
-          >
-            <DownloadIcon size={16} data-testid="DownloadIcon" />
-          </IconButton>
-        </Tooltip>
-        <Tooltip title="Ignore this video">
-          <IconButton
-            aria-label={`Ignore ${video.title}`}
-            size="small"
-            onClick={() => onIgnore(video)}
+            onClick={() => onRemove(video)}
             style={{
               background: 'var(--media-overlay-ignore-button-background)',
               color: 'var(--media-overlay-foreground)',
             }}
           >
-            <IgnoreIcon size={16} data-testid="BanIcon" />
+            {isManual ? <RemoveIcon size={16} data-testid="RemoveIcon" /> : <IgnoreIcon size={16} data-testid="BanIcon" />}
           </IconButton>
         </Tooltip>
       </Box>

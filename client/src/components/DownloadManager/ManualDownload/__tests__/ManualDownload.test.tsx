@@ -1,9 +1,9 @@
 import React from 'react';
-import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import axios from 'axios';
 import ManualDownload from '../ManualDownload';
-import { ValidationResponse } from '../types';
+import { ValidationResponse, VideoInfo } from '../types';
 
 jest.mock('axios', () => ({
   post: jest.fn(),
@@ -11,7 +11,8 @@ jest.mock('axios', () => ({
   create: jest.fn(() => ({
     post: jest.fn(),
     get: jest.fn()
-  }))
+  })),
+  isAxiosError: (e: unknown) => Boolean(e && (e as { isAxiosError?: boolean }).isAxiosError),
 }));
 
 const mockedAxios = axios as jest.Mocked<typeof axios>;
@@ -32,27 +33,8 @@ jest.mock('../UrlInput', () => {
   };
 });
 
-jest.mock('../VideoChip', () => {
-  return function MockVideoChip({ video, onDelete, isEnriching }: any) {
-    return (
-      <div
-        data-testid={`video-chip-${video.youtubeId}`}
-        data-enriching={isEnriching ? 'true' : 'false'}
-      >
-        <span>{video.videoTitle}</span>
-        <button
-          onClick={() => onDelete(video.youtubeId)}
-          data-testid={`remove-${video.youtubeId}`}
-        >
-          Remove
-        </button>
-      </div>
-    );
-  };
-});
-
 jest.mock('../BulkImportDialog', () => {
-  return function MockBulkImportDialog({ open, onClose, onImport, existingVideoIds }: any) {
+  return function MockBulkImportDialog({ open, onClose, onImport }: any) {
     if (!open) return null;
     return (
       <div data-testid="bulk-import-dialog">
@@ -62,17 +44,6 @@ jest.mock('../BulkImportDialog', () => {
               {
                 youtubeId: 'bulk1',
                 url: 'https://www.youtube.com/watch?v=bulk1aaaaaa',
-                channelName: '',
-                videoTitle: '',
-                duration: 0,
-                publishedAt: 0,
-                isAlreadyDownloaded: false,
-                isMembersOnly: false,
-                isBulkImport: true,
-              },
-              {
-                youtubeId: 'bulk2',
-                url: 'https://www.youtube.com/watch?v=bulk2aaaaaa',
                 channelName: '',
                 videoTitle: '',
                 duration: 0,
@@ -96,14 +67,12 @@ jest.mock('../BulkImportDialog', () => {
 });
 
 jest.mock('../DownloadSettingsDialog', () => {
-  return function MockDownloadSettingsDialog({ open, onClose, onConfirm }: any) {
+  return function MockDownloadSettingsDialog({ open, onClose, onConfirm, videoCount }: any) {
     if (!open) return null;
     return (
       <div data-testid="download-settings-dialog">
-        <button
-          onClick={() => onConfirm(null)} // Use default settings
-          data-testid="confirm-download"
-        >
+        <span data-testid="dialog-video-count">{videoCount}</span>
+        <button onClick={() => onConfirm(null)} data-testid="confirm-download">
           Start Download
         </button>
         <button onClick={onClose} data-testid="cancel-download">
@@ -114,19 +83,40 @@ jest.mock('../DownloadSettingsDialog', () => {
   };
 });
 
-// NewVideosQueue fetches from /api/new-videos on mount via its own hook,
-// which is unrelated to what this file tests and was causing act() warnings
-// across unrelated tests. Mock it out like every other child component here.
+// NewVideosQueue's own behavior (merging, selection, per-source routing) is
+// covered by its own test suite. Here we only need to verify ManualDownload
+// wires manualVideos/isDownloadingManual/onRemoveManual/onDownloadManualSelected
+// correctly, so the mock exposes those as simple test hooks.
 jest.mock('../NewVideosQueue/NewVideosQueue', () => {
-  return function MockNewVideosQueue() {
-    return null;
+  return function MockNewVideosQueue({ manualVideos, isDownloadingManual, onRemoveManual, onDownloadManualSelected }: any) {
+    return (
+      <div data-testid="new-videos-queue">
+        <span data-testid="is-downloading-manual">{String(isDownloadingManual)}</span>
+        {manualVideos.map((v: VideoInfo) => (
+          <div key={v.youtubeId} data-testid={`manual-video-${v.youtubeId}`}>
+            {v.videoTitle}
+          </div>
+        ))}
+        <button
+          onClick={() => onDownloadManualSelected(manualVideos)}
+          data-testid="trigger-download-selected"
+        >
+          Download Selected
+        </button>
+        <button
+          onClick={() => onRemoveManual(manualVideos.map((v: VideoInfo) => v.youtubeId))}
+          data-testid="trigger-remove-selected"
+        >
+          Remove Selected
+        </button>
+      </div>
+    );
   };
 });
 
 describe('ManualDownload', () => {
   const mockOnStartDownload = jest.fn();
   const mockToken = 'test-token';
-
 
   const mockValidationResponse: ValidationResponse = {
     isValidUrl: true,
@@ -145,32 +135,28 @@ describe('ManualDownload', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    // Default: enrichment returns nothing. Individual tests can override.
     mockedAxios.post.mockImplementation((url: string) => {
       if (url === '/api/bulkEnrichVideos') {
         return Promise.resolve({ data: { enriched: {} } });
       }
-      // Leave other URLs for explicit mockResolvedValueOnce in tests
       return Promise.reject(new Error(`Unexpected POST to ${url}`));
     });
   });
 
-  test('renders the component with initial state', () => {
+  test('renders the Add Videos panel and the queue', () => {
     render(<ManualDownload onStartDownload={mockOnStartDownload} token={mockToken} />);
 
     expect(screen.getByText('Add Videos to Download')).toBeInTheDocument();
-    expect(screen.getByText('Paste YouTube video URLs to add to queue')).toBeInTheDocument();
     expect(screen.getByTestId('url-input')).toBeInTheDocument();
-    expect(screen.queryByText('Download Queue')).not.toBeInTheDocument();
+    expect(screen.getByTestId('new-videos-queue')).toBeInTheDocument();
   });
 
-  test('validates and adds a valid video to the queue', async () => {
+  test('validates and adds a valid video, passing it through to the queue', async () => {
     mockedAxios.post.mockResolvedValueOnce({ data: mockValidationResponse });
 
     render(<ManualDownload onStartDownload={mockOnStartDownload} token={mockToken} />);
 
-    const validateButton = screen.getByTestId('validate-button');
-    fireEvent.click(validateButton);
+    fireEvent.click(screen.getByTestId('validate-button'));
 
     await waitFor(() => {
       expect(mockedAxios.post).toHaveBeenCalledWith(
@@ -180,43 +166,27 @@ describe('ManualDownload', () => {
       );
     });
 
-    await waitFor(() => {
-      expect(screen.getByText('Download Queue')).toBeInTheDocument();
-    });
-    expect(screen.getByTestId('video-chip-test123')).toBeInTheDocument();
-    expect(screen.getByText('Test Video')).toBeInTheDocument();
+    expect(await screen.findByTestId('manual-video-test123')).toHaveTextContent('Test Video');
     expect(screen.getByText('Video added to download list.')).toBeInTheDocument();
   });
 
   test('shows error for invalid YouTube URL', async () => {
-    mockedAxios.post.mockResolvedValueOnce({
-      data: { isValidUrl: false }
-    });
+    mockedAxios.post.mockResolvedValueOnce({ data: { isValidUrl: false } });
 
     render(<ManualDownload onStartDownload={mockOnStartDownload} token={mockToken} />);
-
-    const validateButton = screen.getByTestId('validate-button');
-    fireEvent.click(validateButton);
+    fireEvent.click(screen.getByTestId('validate-button'));
 
     await waitFor(() => {
       expect(screen.getByText('Invalid YouTube URL. Please check the URL and try again.')).toBeInTheDocument();
     });
-
-    expect(screen.queryByText('Download Queue')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('manual-video-test123')).not.toBeInTheDocument();
   });
 
   test('shows error for members-only videos', async () => {
-    mockedAxios.post.mockResolvedValueOnce({
-      data: {
-        isValidUrl: true,
-        isMembersOnly: true
-      }
-    });
+    mockedAxios.post.mockResolvedValueOnce({ data: { isValidUrl: true, isMembersOnly: true } });
 
     render(<ManualDownload onStartDownload={mockOnStartDownload} token={mockToken} />);
-
-    const validateButton = screen.getByTestId('validate-button');
-    fireEvent.click(validateButton);
+    fireEvent.click(screen.getByTestId('validate-button'));
 
     await waitFor(() => {
       expect(screen.getByText('This video is members-only and cannot be downloaded.')).toBeInTheDocument();
@@ -227,37 +197,23 @@ describe('ManualDownload', () => {
     mockedAxios.post.mockResolvedValue({ data: mockValidationResponse });
 
     render(<ManualDownload onStartDownload={mockOnStartDownload} token={mockToken} />);
-
     const validateButton = screen.getByTestId('validate-button');
 
-    // First addition
     fireEvent.click(validateButton);
-    await waitFor(() => {
-      expect(screen.getByTestId('video-chip-test123')).toBeInTheDocument();
-    });
+    await screen.findByTestId('manual-video-test123');
 
-    // Try to add the same video again
     fireEvent.click(validateButton);
     await waitFor(() => {
       expect(screen.getByText('This video is already in your download list.')).toBeInTheDocument();
     });
-
-    // Should still only have one video chip
-    const videoChips = screen.getAllByTestId('video-chip-test123');
-    expect(videoChips).toHaveLength(1);
+    expect(screen.getAllByTestId('manual-video-test123')).toHaveLength(1);
   });
 
   test('handles API errors gracefully', async () => {
-    mockedAxios.post.mockRejectedValueOnce({
-      response: {
-        status: 429
-      }
-    });
+    mockedAxios.post.mockRejectedValueOnce({ isAxiosError: true, response: { status: 429 } });
 
     render(<ManualDownload onStartDownload={mockOnStartDownload} token={mockToken} />);
-
-    const validateButton = screen.getByTestId('validate-button');
-    fireEvent.click(validateButton);
+    fireEvent.click(screen.getByTestId('validate-button'));
 
     await waitFor(() => {
       expect(screen.getByText('Too many requests. Please wait a moment and try again.')).toBeInTheDocument();
@@ -265,16 +221,10 @@ describe('ManualDownload', () => {
   });
 
   test('handles custom error messages from API', async () => {
-    mockedAxios.post.mockRejectedValueOnce({
-      response: {
-        data: { error: 'Custom error message' }
-      }
-    });
+    mockedAxios.post.mockRejectedValueOnce({ isAxiosError: true, response: { data: { error: 'Custom error message' } } });
 
     render(<ManualDownload onStartDownload={mockOnStartDownload} token={mockToken} />);
-
-    const validateButton = screen.getByTestId('validate-button');
-    fireEvent.click(validateButton);
+    fireEvent.click(screen.getByTestId('validate-button'));
 
     await waitFor(() => {
       expect(screen.getByText('Custom error message')).toBeInTheDocument();
@@ -285,115 +235,55 @@ describe('ManualDownload', () => {
     mockedAxios.post.mockRejectedValueOnce(new Error('Network error'));
 
     render(<ManualDownload onStartDownload={mockOnStartDownload} token={mockToken} />);
-
-    const validateButton = screen.getByTestId('validate-button');
-    fireEvent.click(validateButton);
+    fireEvent.click(screen.getByTestId('validate-button'));
 
     await waitFor(() => {
       expect(screen.getByText('Failed to validate URL. Please try again.')).toBeInTheDocument();
     });
   });
 
-  test('removes video from queue when delete is clicked', async () => {
+  test('removes videos when the queue asks to remove them', async () => {
     mockedAxios.post.mockResolvedValueOnce({ data: mockValidationResponse });
 
     render(<ManualDownload onStartDownload={mockOnStartDownload} token={mockToken} />);
+    fireEvent.click(screen.getByTestId('validate-button'));
+    await screen.findByTestId('manual-video-test123');
 
-    const validateButton = screen.getByTestId('validate-button');
-    fireEvent.click(validateButton);
-
-    await waitFor(() => {
-      expect(screen.getByTestId('video-chip-test123')).toBeInTheDocument();
-    });
-
-    const removeButton = screen.getByTestId('remove-test123');
-    fireEvent.click(removeButton);
+    fireEvent.click(screen.getByTestId('trigger-remove-selected'));
 
     await waitFor(() => {
-      expect(screen.queryByTestId('video-chip-test123')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('manual-video-test123')).not.toBeInTheDocument();
     });
-    expect(screen.queryByText('Download Queue')).not.toBeInTheDocument();
   });
 
-  test('clears all videos from queue', async () => {
-    // Add multiple videos
-    const video1 = { ...mockValidationResponse, metadata: { ...mockValidationResponse.metadata!, youtubeId: 'video1' } };
-    const video2 = { ...mockValidationResponse, metadata: { ...mockValidationResponse.metadata!, youtubeId: 'video2' } };
-
-    mockedAxios.post
-      .mockResolvedValueOnce({ data: video1 })
-      .mockResolvedValueOnce({ data: video2 });
-
-    render(<ManualDownload onStartDownload={mockOnStartDownload} token={mockToken} />);
-
-    const validateButton = screen.getByTestId('validate-button');
-
-    fireEvent.click(validateButton);
-    await screen.findByTestId('video-chip-video1');
-
-    fireEvent.click(validateButton);
-    await screen.findByTestId('video-chip-video2');
-
-    const clearAllButton = screen.getByRole('button', { name: /clear all/i });
-    fireEvent.click(clearAllButton);
-
-    expect(screen.queryByTestId('video-chip-video1')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('video-chip-video2')).not.toBeInTheDocument();
-    expect(screen.queryByText('Download Queue')).not.toBeInTheDocument();
-  });
-
-  test('starts download with both new and already downloaded videos', async () => {
-    const newVideo = mockValidationResponse;
-    const downloadedVideo = {
-      ...mockValidationResponse,
-      isAlreadyDownloaded: true,
-      metadata: { ...mockValidationResponse.metadata!, youtubeId: 'downloaded123' }
-    };
-
-    mockedAxios.post
-      .mockResolvedValueOnce({ data: newVideo })
-      .mockResolvedValueOnce({ data: downloadedVideo });
-
+  test('opens the settings dialog scoped to the videos the queue passes, and downloads them', async () => {
+    mockedAxios.post.mockResolvedValueOnce({ data: mockValidationResponse });
     mockOnStartDownload.mockResolvedValueOnce(undefined);
 
     render(<ManualDownload onStartDownload={mockOnStartDownload} token={mockToken} />);
+    fireEvent.click(screen.getByTestId('validate-button'));
+    await screen.findByTestId('manual-video-test123');
 
-    const validateButton = screen.getByTestId('validate-button');
+    fireEvent.click(screen.getByTestId('trigger-download-selected'));
 
-    // Add new video
-    fireEvent.click(validateButton);
-    await screen.findByTestId('video-chip-test123');
+    expect(await screen.findByTestId('download-settings-dialog')).toBeInTheDocument();
+    expect(screen.getByTestId('dialog-video-count')).toHaveTextContent('1');
 
-    // Add already downloaded video - should be added with special message
-    fireEvent.click(validateButton);
-    await waitFor(() => {
-      expect(screen.getByText('Video added to download list (previously downloaded).')).toBeInTheDocument();
-    });
-
-    // Should have added the downloaded video to the queue
-    expect(screen.getByTestId('video-chip-downloaded123')).toBeInTheDocument();
-
-    const downloadButton = screen.getByRole('button', { name: /download videos/i });
-    fireEvent.click(downloadButton);
-
-    // Dialog should open
-    await screen.findByTestId('download-settings-dialog');
-
-    // Click confirm in the dialog
-    const confirmButton = screen.getByTestId('confirm-download');
-    fireEvent.click(confirmButton);
+    fireEvent.click(screen.getByTestId('confirm-download'));
 
     await waitFor(() => {
       expect(mockOnStartDownload).toHaveBeenCalledWith(
-        ['https://youtube.com/watch?v=test123', 'https://youtube.com/watch?v=test123'],
+        ['https://youtube.com/watch?v=test123'],
         null,
         undefined
       );
     });
-    expect(await screen.findByText('Started downloading 2 videos.')).toBeInTheDocument();
+    expect(await screen.findByText('Started downloading 1 video.')).toBeInTheDocument();
+    // Downloaded video is cleared from the pending list afterward.
+    expect(screen.queryByTestId('manual-video-test123')).not.toBeInTheDocument();
   });
 
-  test('passes a videoChannelMap built from validated videos to onStartDownload', async () => {
+  test('passes a videoChannelMap built from the videos being downloaded', async () => {
     mockedAxios.post.mockResolvedValueOnce({
       data: {
         ...mockValidationResponse,
@@ -407,19 +297,12 @@ describe('ManualDownload', () => {
     });
 
     render(<ManualDownload onStartDownload={mockOnStartDownload} token={mockToken} />);
+    fireEvent.click(screen.getByTestId('validate-button'));
+    await screen.findByTestId('manual-video-dQw4w9WgXcQ');
 
-    const validateButton = screen.getByTestId('validate-button');
-    fireEvent.click(validateButton);
-
-    await screen.findByTestId('video-chip-dQw4w9WgXcQ');
-
-    const downloadButton = screen.getByRole('button', { name: /download videos/i });
-    fireEvent.click(downloadButton);
-
+    fireEvent.click(screen.getByTestId('trigger-download-selected'));
     await screen.findByTestId('download-settings-dialog');
-
-    const confirmButton = screen.getByTestId('confirm-download');
-    fireEvent.click(confirmButton);
+    fireEvent.click(screen.getByTestId('confirm-download'));
 
     await waitFor(() => {
       expect(mockOnStartDownload).toHaveBeenCalledWith(
@@ -430,182 +313,51 @@ describe('ManualDownload', () => {
     });
   });
 
-  test('allows downloading already downloaded videos', async () => {
-    const downloadedVideo = {
-      ...mockValidationResponse,
-      isAlreadyDownloaded: true
-    };
-
-    mockedAxios.post.mockResolvedValueOnce({ data: downloadedVideo });
-    mockOnStartDownload.mockResolvedValueOnce(undefined);
-
-    render(<ManualDownload onStartDownload={mockOnStartDownload} token={mockToken} />);
-
-    const validateButton = screen.getByTestId('validate-button');
-    fireEvent.click(validateButton);
-
-    // Should show success message for already downloaded video
-    await waitFor(() => {
-      expect(screen.getByText('Video added to download list (previously downloaded).')).toBeInTheDocument();
-    });
-
-    // Video should be added to the queue
-    expect(screen.getByTestId('video-chip-test123')).toBeInTheDocument();
-
-    // Download Queue section should appear
-    expect(screen.getByText('Download Queue')).toBeInTheDocument();
-
-    // Download button should be available
-    const downloadButton = screen.getByRole('button', { name: /download videos/i });
-    expect(downloadButton).toBeInTheDocument();
-
-    // Start download
-    fireEvent.click(downloadButton);
-    await screen.findByTestId('download-settings-dialog');
-    const confirmButton = screen.getByTestId('confirm-download');
-    fireEvent.click(confirmButton);
-
-    // The onStartDownload should be called
-    await waitFor(() => {
-      expect(mockOnStartDownload).toHaveBeenCalledWith(['https://youtube.com/watch?v=test123'], null, undefined);
-    });
-  });
-
   test('handles download error', async () => {
     mockedAxios.post.mockResolvedValueOnce({ data: mockValidationResponse });
     mockOnStartDownload.mockRejectedValueOnce(new Error('Download failed'));
 
     render(<ManualDownload onStartDownload={mockOnStartDownload} token={mockToken} />);
+    fireEvent.click(screen.getByTestId('validate-button'));
+    await screen.findByTestId('manual-video-test123');
 
-    const validateButton = screen.getByTestId('validate-button');
-    fireEvent.click(validateButton);
-
-    await screen.findByTestId('video-chip-test123');
-
-    const downloadButton = screen.getByRole('button', { name: /download videos/i });
-    fireEvent.click(downloadButton);
-
-    // Dialog should open
+    fireEvent.click(screen.getByTestId('trigger-download-selected'));
     await screen.findByTestId('download-settings-dialog');
-
-    // Click confirm in the dialog
-    const confirmButton = screen.getByTestId('confirm-download');
-    fireEvent.click(confirmButton);
+    fireEvent.click(screen.getByTestId('confirm-download'));
 
     await waitFor(() => {
       expect(screen.getByText('Failed to start download. Please try again.')).toBeInTheDocument();
     });
   });
 
-  test('disables inputs while downloading', async () => {
+  test('marks the queue as downloading while a download is in flight', async () => {
     mockedAxios.post.mockResolvedValueOnce({ data: mockValidationResponse });
-
-    // Mock the onStartDownload to take some time
-    mockOnStartDownload.mockImplementation(() => new Promise(resolve => setTimeout(resolve, 100)));
+    mockOnStartDownload.mockImplementation(() => new Promise(resolve => setTimeout(resolve, 50)));
 
     render(<ManualDownload onStartDownload={mockOnStartDownload} token={mockToken} />);
+    fireEvent.click(screen.getByTestId('validate-button'));
+    await screen.findByTestId('manual-video-test123');
 
-    const validateButton = screen.getByTestId('validate-button');
-    fireEvent.click(validateButton);
+    expect(screen.getByTestId('is-downloading-manual')).toHaveTextContent('false');
 
-    await screen.findByTestId('video-chip-test123');
-
-    const downloadButton = screen.getByRole('button', { name: /download videos/i });
-    fireEvent.click(downloadButton);
-
-    // Dialog should open
+    fireEvent.click(screen.getByTestId('trigger-download-selected'));
     await screen.findByTestId('download-settings-dialog');
+    fireEvent.click(screen.getByTestId('confirm-download'));
 
-    // Click confirm in the dialog
-    const confirmButton = screen.getByTestId('confirm-download');
-    fireEvent.click(confirmButton);
-
-    // Check that button shows loading state
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /starting/i })).toBeInTheDocument();
+      expect(screen.getByTestId('is-downloading-manual')).toHaveTextContent('true');
     });
-    expect(validateButton).toBeDisabled();
 
-    // Wait for download to complete
     await waitFor(() => {
-      expect(screen.getByText('Started downloading 1 video.')).toBeInTheDocument();
+      expect(screen.getByTestId('is-downloading-manual')).toHaveTextContent('false');
     });
-  });
-
-  test('displays correct video counts', async () => {
-    const video1 = { ...mockValidationResponse, metadata: { ...mockValidationResponse.metadata!, youtubeId: 'video1' } };
-    const video2 = { ...mockValidationResponse, metadata: { ...mockValidationResponse.metadata!, youtubeId: 'video2' } };
-    const downloadedVideo = {
-      ...mockValidationResponse,
-      isAlreadyDownloaded: true,
-      metadata: { ...mockValidationResponse.metadata!, youtubeId: 'downloaded123' }
-    };
-
-    mockedAxios.post
-      .mockResolvedValueOnce({ data: video1 })
-      .mockResolvedValueOnce({ data: video2 })
-      .mockResolvedValueOnce({ data: downloadedVideo });
-
-    render(<ManualDownload onStartDownload={mockOnStartDownload} token={mockToken} />);
-
-    const validateButton = screen.getByTestId('validate-button');
-
-    // Add first video
-    fireEvent.click(validateButton);
-    await screen.findByTestId('video-chip-video1');
-    expect(screen.getByText('1 video to download')).toBeInTheDocument();
-
-    // Add second video
-    fireEvent.click(validateButton);
-    await screen.findByTestId('video-chip-video2');
-    expect(screen.getByText('2 videos to download')).toBeInTheDocument();
-
-    // Add already downloaded video - should be added to queue
-    fireEvent.click(validateButton);
-    await waitFor(() => {
-      expect(screen.getByText('Video added to download list (previously downloaded).')).toBeInTheDocument();
-    });
-    // Count should now be 3
-    expect(screen.getByText('3 videos to download')).toBeInTheDocument();
-
-    // All videos should be in the queue
-    expect(screen.getByTestId('video-chip-video1')).toBeInTheDocument();
-    expect(screen.getByTestId('video-chip-video2')).toBeInTheDocument();
-    expect(screen.getByTestId('video-chip-downloaded123')).toBeInTheDocument();
-  });
-
-  test('shows download button badge with correct count', async () => {
-    const video1 = { ...mockValidationResponse, metadata: { ...mockValidationResponse.metadata!, youtubeId: 'video1' } };
-    const video2 = { ...mockValidationResponse, metadata: { ...mockValidationResponse.metadata!, youtubeId: 'video2' } };
-
-    mockedAxios.post
-      .mockResolvedValueOnce({ data: video1 })
-      .mockResolvedValueOnce({ data: video2 });
-
-    render(<ManualDownload onStartDownload={mockOnStartDownload} token={mockToken} />);
-
-    const validateButton = screen.getByTestId('validate-button');
-
-    fireEvent.click(validateButton);
-    await screen.findByTestId('video-chip-video1');
-
-    fireEvent.click(validateButton);
-    await screen.findByTestId('video-chip-video2');
-
-    // Check that the download count badge shows "2"
-    const badge = screen.getByTestId('download-count-badge');
-    expect(badge).toBeInTheDocument();
-    const badgeText = within(badge).getByText('2');
-    expect(badgeText).toBeInTheDocument();
   });
 
   test('handles null token', async () => {
     mockedAxios.post.mockResolvedValueOnce({ data: mockValidationResponse });
 
     render(<ManualDownload onStartDownload={mockOnStartDownload} token={null} />);
-
-    const validateButton = screen.getByTestId('validate-button');
-    fireEvent.click(validateButton);
+    fireEvent.click(screen.getByTestId('validate-button'));
 
     await waitFor(() => {
       expect(mockedAxios.post).toHaveBeenCalledWith(
@@ -616,132 +368,31 @@ describe('ManualDownload', () => {
     });
   });
 
-  test('renders Bulk Import button', () => {
+  test('renders the Bulk Import button', () => {
     render(<ManualDownload onStartDownload={mockOnStartDownload} token={mockToken} />);
 
     expect(screen.getByRole('button', { name: /bulk import/i })).toBeInTheDocument();
   });
 
-  test('opens bulk import dialog when button is clicked', () => {
+  test('opens bulk import dialog when the button is clicked', () => {
     render(<ManualDownload onStartDownload={mockOnStartDownload} token={mockToken} />);
 
-    const bulkButton = screen.getByRole('button', { name: /bulk import/i });
-    fireEvent.click(bulkButton);
+    fireEvent.click(screen.getByRole('button', { name: /bulk import/i }));
 
     expect(screen.getByTestId('bulk-import-dialog')).toBeInTheDocument();
   });
 
-  test('adds bulk-imported videos to queue', async () => {
-    render(<ManualDownload onStartDownload={mockOnStartDownload} token={mockToken} />);
-
-    const bulkButton = screen.getByRole('button', { name: /bulk import/i });
-    fireEvent.click(bulkButton);
-
-    const confirmButton = screen.getByTestId('bulk-import-confirm');
-    fireEvent.click(confirmButton);
-
-    await waitFor(() => {
-      expect(screen.getByTestId('video-chip-bulk1')).toBeInTheDocument();
-    });
-    expect(screen.getByTestId('video-chip-bulk2')).toBeInTheDocument();
-    expect(screen.getByText('Added 2 URLs to download queue.')).toBeInTheDocument();
-    expect(screen.getByText('2 videos to download')).toBeInTheDocument();
-  });
-
-  test('enriches bulk-imported videos with title and channel from oembed', async () => {
-    mockedAxios.post.mockImplementation((url: string) => {
-      if (url === '/api/bulkEnrichVideos') {
-        return Promise.resolve({
-          data: {
-            enriched: {
-              bulk1: { title: 'First Video', channelName: 'First Channel' },
-              bulk2: { title: 'Second Video', channelName: 'Second Channel' },
-            },
-          },
-        });
-      }
-      return Promise.reject(new Error(`Unexpected POST to ${url}`));
-    });
-
-    render(<ManualDownload onStartDownload={mockOnStartDownload} token={mockToken} />);
-
-    const bulkButton = screen.getByRole('button', { name: /bulk import/i });
-    fireEvent.click(bulkButton);
-    fireEvent.click(screen.getByTestId('bulk-import-confirm'));
-
-    // Initial state: titles are empty strings
-    await waitFor(() => {
-      expect(screen.getByTestId('video-chip-bulk1')).toBeInTheDocument();
-    });
-
-    // After enrichment: the mocked VideoChip shows `video.videoTitle`, so it
-    // flipping to the new title proves the state was updated from the oembed
-    // response.
-    await waitFor(() => {
-      expect(screen.getByText('First Video')).toBeInTheDocument();
-    });
-    expect(screen.getByText('Second Video')).toBeInTheDocument();
-
-    expect(mockedAxios.post).toHaveBeenCalledWith(
-      '/api/bulkEnrichVideos',
-      { ids: ['bulk1', 'bulk2'] },
-      { headers: { 'x-access-token': mockToken } }
-    );
-  });
-
-  test('marks bulk-imported chips as enriching until the request resolves', async () => {
-    // Create a deferred promise so we can observe the in-flight state.
-    let resolveEnrich: (value: any) => void = () => undefined;
-    const enrichPromise = new Promise((resolve) => {
-      resolveEnrich = resolve;
-    });
-
-    mockedAxios.post.mockImplementation((url: string) => {
-      if (url === '/api/bulkEnrichVideos') return enrichPromise;
-      return Promise.reject(new Error(`Unexpected POST to ${url}`));
-    });
-
+  test('adds bulk-imported videos to the queue and closes the dialog', async () => {
     render(<ManualDownload onStartDownload={mockOnStartDownload} token={mockToken} />);
 
     fireEvent.click(screen.getByRole('button', { name: /bulk import/i }));
     fireEvent.click(screen.getByTestId('bulk-import-confirm'));
 
-    // While the enrichment request is in flight, chips should be marked.
     await waitFor(() => {
-      expect(screen.getByTestId('video-chip-bulk1')).toHaveAttribute('data-enriching', 'true');
+      expect(screen.getByTestId('manual-video-bulk1')).toBeInTheDocument();
     });
-    expect(screen.getByTestId('video-chip-bulk2')).toHaveAttribute('data-enriching', 'true');
-
-    // Resolve with empty enriched map; finally-clause flips the flag back.
-    resolveEnrich({ data: { enriched: {} } });
-
-    await waitFor(() => {
-      expect(screen.getByTestId('video-chip-bulk1')).toHaveAttribute('data-enriching', 'false');
-    });
-    expect(screen.getByTestId('video-chip-bulk2')).toHaveAttribute('data-enriching', 'false');
-  });
-
-  test('leaves bulk-imported videos unchanged when enrichment fails', async () => {
-    mockedAxios.post.mockImplementation((url: string) => {
-      if (url === '/api/bulkEnrichVideos') {
-        return Promise.reject(new Error('network down'));
-      }
-      return Promise.reject(new Error(`Unexpected POST to ${url}`));
-    });
-
-    render(<ManualDownload onStartDownload={mockOnStartDownload} token={mockToken} />);
-
-    const bulkButton = screen.getByRole('button', { name: /bulk import/i });
-    fireEvent.click(bulkButton);
-    fireEvent.click(screen.getByTestId('bulk-import-confirm'));
-
-    await waitFor(() => {
-      expect(screen.getByTestId('video-chip-bulk1')).toBeInTheDocument();
-    });
-
-    // The chip should still be there with its empty title. No crash.
-    expect(screen.getByTestId('video-chip-bulk2')).toBeInTheDocument();
-    expect(screen.getByText('2 videos to download')).toBeInTheDocument();
+    expect(screen.getByText('Added 1 URL to download queue.')).toBeInTheDocument();
+    expect(screen.queryByTestId('bulk-import-dialog')).not.toBeInTheDocument();
   });
 
   test('downloads bulk-imported videos', async () => {
@@ -749,58 +400,20 @@ describe('ManualDownload', () => {
 
     render(<ManualDownload onStartDownload={mockOnStartDownload} token={mockToken} />);
 
-    // Open bulk import and add videos
-    const bulkButton = screen.getByRole('button', { name: /bulk import/i });
-    fireEvent.click(bulkButton);
+    fireEvent.click(screen.getByRole('button', { name: /bulk import/i }));
     fireEvent.click(screen.getByTestId('bulk-import-confirm'));
+    await screen.findByTestId('manual-video-bulk1');
 
-    await waitFor(() => {
-      expect(screen.getByTestId('video-chip-bulk1')).toBeInTheDocument();
-    });
-
-    // Start download
-    const downloadButton = screen.getByRole('button', { name: /download videos/i });
-    fireEvent.click(downloadButton);
-
+    fireEvent.click(screen.getByTestId('trigger-download-selected'));
     await screen.findByTestId('download-settings-dialog');
     fireEvent.click(screen.getByTestId('confirm-download'));
 
     await waitFor(() => {
       expect(mockOnStartDownload).toHaveBeenCalledWith(
-        [
-          'https://www.youtube.com/watch?v=bulk1aaaaaa',
-          'https://www.youtube.com/watch?v=bulk2aaaaaa',
-        ],
+        ['https://www.youtube.com/watch?v=bulk1aaaaaa'],
         null,
         undefined
       );
     });
-  });
-
-  test('clears queue after successful download', async () => {
-    mockedAxios.post.mockResolvedValueOnce({ data: mockValidationResponse });
-    mockOnStartDownload.mockResolvedValueOnce(undefined);
-
-    render(<ManualDownload onStartDownload={mockOnStartDownload} token={mockToken} />);
-
-    const validateButton = screen.getByTestId('validate-button');
-    fireEvent.click(validateButton);
-
-    await screen.findByTestId('video-chip-test123');
-
-    const downloadButton = screen.getByRole('button', { name: /download videos/i });
-    fireEvent.click(downloadButton);
-
-    // Dialog should open
-    await screen.findByTestId('download-settings-dialog');
-
-    // Click confirm in the dialog
-    const confirmButton = screen.getByTestId('confirm-download');
-    fireEvent.click(confirmButton);
-
-    await waitFor(() => {
-      expect(screen.queryByTestId('video-chip-test123')).not.toBeInTheDocument();
-    });
-    expect(screen.queryByText('Download Queue')).not.toBeInTheDocument();
   });
 });

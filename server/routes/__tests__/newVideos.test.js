@@ -15,8 +15,8 @@ describe('New videos routes', () => {
       getQueue: jest.fn().mockResolvedValue([]),
     };
     mockNewVideoScanScheduler = {
-      scanAllChannels: jest.fn().mockResolvedValue({
-        channelsScanned: 0, tabsScanned: 0, newVideosFound: 0, errors: [],
+      scanAll: jest.fn().mockResolvedValue({
+        channelsScanned: 0, tabsScanned: 0, playlistsScanned: 0, newVideosFound: 0, errors: [],
       }),
     };
     const createNewVideoRoutes = require('../newVideos');
@@ -50,25 +50,25 @@ describe('New videos routes', () => {
 
   describe('POST /api/new-videos/scan', () => {
     test('runs the scan and returns the summary', async () => {
-      const summary = { channelsScanned: 2, tabsScanned: 3, newVideosFound: 5, errors: [] };
-      mockNewVideoScanScheduler.scanAllChannels.mockResolvedValueOnce(summary);
+      const summary = { channelsScanned: 2, tabsScanned: 3, playlistsScanned: 1, newVideosFound: 5, errors: [] };
+      mockNewVideoScanScheduler.scanAll.mockResolvedValueOnce(summary);
 
       const res = await request(app).post('/api/new-videos/scan');
 
       expect(res.status).toBe(200);
       expect(res.body).toEqual(summary);
-      expect(mockNewVideoScanScheduler.scanAllChannels).toHaveBeenCalledWith(true);
+      expect(mockNewVideoScanScheduler.scanAll).toHaveBeenCalledWith(true);
     });
 
     test('returns 409 when a scan is already in progress', async () => {
-      mockNewVideoScanScheduler.scanAllChannels.mockRejectedValueOnce(new Error('SCAN_IN_PROGRESS'));
+      mockNewVideoScanScheduler.scanAll.mockRejectedValueOnce(new Error('SCAN_IN_PROGRESS'));
       const res = await request(app).post('/api/new-videos/scan');
       expect(res.status).toBe(409);
       expect(res.body.error).toBeDefined();
     });
 
     test('returns 500 for unexpected failures', async () => {
-      mockNewVideoScanScheduler.scanAllChannels.mockRejectedValueOnce(new Error('boom'));
+      mockNewVideoScanScheduler.scanAll.mockRejectedValueOnce(new Error('boom'));
       const res = await request(app).post('/api/new-videos/scan');
       expect(res.status).toBe(500);
       expect(res.body.error).toBeDefined();
