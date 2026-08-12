@@ -101,7 +101,7 @@ describe('DownloadNew', () => {
   test('renders manual download without any tabs', () => {
     render(<DownloadNew {...defaultProps} />);
 
-    expect(screen.getByText('Start Downloads')).toBeInTheDocument();
+    expect(screen.getByText('Downloads')).toBeInTheDocument();
     expect(screen.getByTestId('manual-download')).toBeInTheDocument();
     expect(screen.queryByRole('tab')).not.toBeInTheDocument();
   });

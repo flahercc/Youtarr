@@ -66,7 +66,7 @@ const DownloadNew: React.FC<DownloadNewProps> = ({
     <Grid item xs={12} md={12}>
       <div>
         <CardHeader
-          title='Start Downloads'
+          title={<span className="text-2xl">Downloads</span>}
           align='center'
           className="px-0 pt-0"
           style={{ marginBottom: '-16px' }}
