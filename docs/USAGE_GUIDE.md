@@ -58,9 +58,9 @@ Subscribe to YouTube channels to automatically download new videos as they're pu
        - `https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA`
 
 3. **Queue downloads when you're ready**
-   - Newly added channels wait until you run a channel download or a scheduled cron cycle
-   - Use the **Manage Downloads -> Channel Download** tab and click **Download new from all channels** to fetch the latest videos immediately
-   - The dialog lets you override resolution/video count for that run; otherwise the global defaults apply
+   - Newly added channels wait until the next scheduled scan/cron cycle, or until you check manually
+   - Go to **Manage Downloads -> Manual Download** and click **Scan Now** in the New Videos queue to check subscribed channels for new videos immediately
+   - Select the videos you want and queue them for download; you can override resolution/video count per download
 
 4. **Configure channel-specific settings** (optional)
    - Click on a channel to open its detail page

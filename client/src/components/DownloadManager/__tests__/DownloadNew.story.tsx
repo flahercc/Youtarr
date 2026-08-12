@@ -20,9 +20,6 @@ const meta: Meta<typeof DownloadNew> = {
             channelFilesToDownload: 3,
           });
         }),
-        http.post('/triggerchanneldownloads', () => {
-          return HttpResponse.json({ success: true });
-        }),
         http.get('/api/channels/subfolders', () => {
           return HttpResponse.json(['Movies', 'Shows']);
         }),
@@ -65,7 +62,7 @@ type Story = StoryObj<typeof DownloadNew>;
 
 /**
  * Default DownloadNew component
- * Tests tab navigation and form display
+ * Tests the manual download form renders without any tabs
  */
 export const Default: Story = {
   args: {
@@ -75,23 +72,19 @@ export const Default: Story = {
     fetchRunningJobs: fn(),
     downloadInitiatedRef: { current: false },
   },
-  play: async ({ canvasElement, args }) => {
+  play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
 
-    const manualTab = await canvas.findByRole('tab', { name: /manual download/i });
-    const channelTab = await canvas.findByRole('tab', { name: /channel download/i });
-
-    await expect(manualTab).toHaveAttribute('aria-selected', 'true');
-    await userEvent.click(channelTab);
-    await expect(channelTab).toHaveAttribute('aria-selected', 'true');
+    await expect(await canvas.findByPlaceholderText(/paste youtube video url here/i)).toBeInTheDocument();
+    await expect(canvas.queryByRole('tab')).not.toBeInTheDocument();
   },
 };
 
 /**
- * Manual Download Tab Active
- * Tests URL input interaction in ManualDownload tab
+ * Manual Download
+ * Tests URL input interaction and download trigger
  */
-export const ManualDownloadTab: Story = {
+export const ManualDownload: Story = {
   args: {
     videoUrls: '',
     setVideoUrls: fn(),
@@ -110,38 +103,6 @@ export const ManualDownloadTab: Story = {
 
     const downloadButton = await canvas.findByRole('button', { name: /download videos/i });
     await userEvent.click(downloadButton);
-
-    await expect(await body.findByRole('dialog', { name: /download settings/i })).toBeInTheDocument();
-    const startButton = await body.findByRole('button', { name: /start download/i });
-    await userEvent.click(startButton);
-
-    await waitFor(async () => {
-      await expect(args.fetchRunningJobs).toHaveBeenCalled();
-    }, { timeout: 2000 });
-  },
-};
-
-/**
- * Channel Download Tab Active
- * Tests channel download trigger button and settings dialog
- */
-export const ChannelDownloadTab: Story = {
-  args: {
-    videoUrls: '',
-    setVideoUrls: fn(),
-    token: 'test-token',
-    fetchRunningJobs: fn(),
-    downloadInitiatedRef: { current: false },
-  },
-  play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement);
-    const body = within(canvasElement.ownerDocument.body);
-
-    const channelTab = await canvas.findByRole('tab', { name: /channel download/i });
-    await userEvent.click(channelTab);
-
-    const triggerButton = await canvas.findByRole('button', { name: /download new from all channels/i });
-    await userEvent.click(triggerButton);
 
     await expect(await body.findByRole('dialog', { name: /download settings/i })).toBeInTheDocument();
     const startButton = await body.findByRole('button', { name: /start download/i });
@@ -225,63 +186,5 @@ export const WithUrls: Story = {
     await waitFor(async () => {
       await expect(args.fetchRunningJobs).toHaveBeenCalled();
     }, { timeout: 2000 });
-  },
-};
-
-/**
- * Error State - Already Running
- * Tests alert when download already in progress
- */
-export const AlreadyRunning: Story = {
-  parameters: {
-    ...meta.parameters,
-    msw: {
-      handlers: [
-        http.get('/getconfig', () => {
-          return HttpResponse.json({
-            darkModeEnabled: false,
-            preferredResolution: '1080',
-            channelFilesToDownload: 3,
-          });
-        }),
-        http.post('/triggerchanneldownloads', () => {
-          // Simulate "already running" error
-          return HttpResponse.json(
-            { error: 'Channel Download already running' },
-            { status: 400 }
-          );
-        }),
-      ],
-    },
-  },
-  args: {
-    videoUrls: '',
-    setVideoUrls: fn(),
-    token: 'test-token',
-    fetchRunningJobs: fn(),
-    downloadInitiatedRef: { current: false },
-  },
-  play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement);
-    const body = within(canvasElement.ownerDocument.body);
-    const originalAlert = window.alert;
-    const alertSpy = fn();
-    window.alert = alertSpy;
-
-    const channelTab = await canvas.findByRole('tab', { name: /channel download/i });
-    await userEvent.click(channelTab);
-
-    const triggerButton = await canvas.findByRole('button', { name: /download new from all channels/i });
-    await userEvent.click(triggerButton);
-
-    await expect(await body.findByRole('dialog', { name: /download settings/i })).toBeInTheDocument();
-    const startButton = await body.findByRole('button', { name: /start download/i });
-    await userEvent.click(startButton);
-
-    await waitFor(async () => {
-      await expect(alertSpy).toHaveBeenCalledWith(expect.stringMatching(/already running/i));
-    }, { timeout: 2000 });
-
-    window.alert = originalAlert;
   },
 };

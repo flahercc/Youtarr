@@ -1,14 +1,10 @@
-import React, { useState, useCallback } from 'react';
+import React, { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Button,
   CardHeader,
   Grid,
-  Tabs,
-  Tab,
 } from '../ui';
 import ManualDownload from './ManualDownload/ManualDownload';
-import DownloadSettingsDialog from './ManualDownload/DownloadSettingsDialog';
 import { DownloadSettings } from './ManualDownload/types';
 import ErrorBoundary from '../ErrorBoundary';
 import { useConfig } from '../../hooks/useConfig';
@@ -28,46 +24,11 @@ const DownloadNew: React.FC<DownloadNewProps> = ({
   fetchRunningJobs,
   downloadInitiatedRef,
 }) => {
-  const [tabValue, setTabValue] = useState(0);
-  const [showChannelSettingsDialog, setShowChannelSettingsDialog] = useState(false);
   const navigate = useNavigate();
 
-  // Use config hook to get default resolution and video count
+  // Use config hook to get default resolution
   const { config } = useConfig(token);
   const defaultResolution = config.preferredResolution || '1080';
-  const defaultVideoCount = config.channelFilesToDownload || 3;
-
-  const handleOpenChannelSettings = () => {
-    setShowChannelSettingsDialog(true);
-  };
-
-  const handleTriggerChannelDownloads = async (settings: DownloadSettings | null) => {
-    setShowChannelSettingsDialog(false);
-    downloadInitiatedRef.current = true;
-
-    const body: any = {};
-    // Add settings to the request body if provided
-    if (settings) {
-      body.overrideSettings = settings;
-    }
-
-    const result = await fetch('/triggerchanneldownloads', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-access-token': token || '',
-      },
-      body: JSON.stringify(body),
-    });
-    // If the result is a 400 then we already have a running Channel Download
-    // job and we should display an alert
-    if (result.status === 400) {
-      alert('Channel Download already running');
-    } else {
-      navigate('/downloads/activity');
-    }
-    setTimeout(fetchRunningJobs, 500);
-  };
 
   const handleManualDownload = useCallback(async (
     urls: string[],
@@ -101,10 +62,6 @@ const DownloadNew: React.FC<DownloadNewProps> = ({
     navigate('/downloads/activity');
   }, [token, fetchRunningJobs, downloadInitiatedRef, navigate]);
 
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
-    setTabValue(newValue);
-  };
-
   return (
     <Grid item xs={12} md={12}>
       <div>
@@ -114,53 +71,16 @@ const DownloadNew: React.FC<DownloadNewProps> = ({
           className="px-0 pt-0"
           style={{ marginBottom: '-16px' }}
         />
-        <div style={{ borderBottom: '1px solid var(--border)', marginBottom: 16 }}>
-          <Tabs value={tabValue} onChange={handleTabChange} centered>
-            <Tab label="Manual Download" />
-            <Tab label="Channel/Playlist Downloads" />
-          </Tabs>
-        </div>
-
-        {tabValue === 0 ? (
-          <ErrorBoundary
-            fallbackMessage="An error occurred in the download manager. Please refresh the page and try again."
-            onReset={() => setTabValue(0)}
-          >
-            <ManualDownload
-              onStartDownload={handleManualDownload}
-              token={token}
-              defaultResolution={defaultResolution}
-            />
-          </ErrorBoundary>
-        ) : (
-          <ErrorBoundary
-            fallbackMessage="An error occurred with channel downloads. Please refresh the page and try again."
-            onReset={() => setTabValue(1)}
-          >
-            <div
-              style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 16, marginTop: 24 }}
-            >
-              <Button
-                variant='contained'
-                onClick={handleOpenChannelSettings}
-                size='large'
-              >
-                Download new from all channels/playlists
-              </Button>
-            </div>
-          </ErrorBoundary>
-        )}
+        <ErrorBoundary
+          fallbackMessage="An error occurred in the download manager. Please refresh the page and try again."
+        >
+          <ManualDownload
+            onStartDownload={handleManualDownload}
+            token={token}
+            defaultResolution={defaultResolution}
+          />
+        </ErrorBoundary>
       </div>
-
-      <DownloadSettingsDialog
-        open={showChannelSettingsDialog}
-        onClose={() => setShowChannelSettingsDialog(false)}
-        onConfirm={handleTriggerChannelDownloads}
-        defaultResolution={defaultResolution}
-        defaultVideoCount={defaultVideoCount}
-        mode="channel"
-        defaultResolutionSource="global"
-      />
     </Grid>
   );
 };
