@@ -118,7 +118,7 @@ describe('channelVideoFetcher', () => {
         uploader_url: 'https://www.youtube.com/@chan',
       }));
 
-      const result = await channelVideoFetcher.fetchChannelVideos('UCxxx', null, 'videos');
+      const result = await channelVideoFetcher.fetchChannelVideos('UCxxx', 'videos');
 
       expect(result.videos).toHaveLength(1);
       expect(result.videos[0]).toMatchObject({

@@ -211,13 +211,12 @@ class NewVideoScanScheduler {
         return;
       }
 
-      const mostRecentVideoDate = recentVideos.length > 0 ? recentVideos[0].publishedAt : null;
       const beforeCount = await ChannelVideo.count({
         where: { channel_id: channel.channel_id, media_type: mediaType },
       });
 
       const maxVideoCount = configModule.getConfig().channelScanVideoLimit || DEFAULT_SCAN_VIDEO_LIMIT;
-      await channelVideoFetcher.fetchAndSaveVideosViaYtDlp(channel, channel.channel_id, tabType, mostRecentVideoDate, maxVideoCount);
+      await channelVideoFetcher.fetchAndSaveVideosViaYtDlp(channel, channel.channel_id, tabType, maxVideoCount);
 
       const afterCount = await ChannelVideo.count({
         where: { channel_id: channel.channel_id, media_type: mediaType },

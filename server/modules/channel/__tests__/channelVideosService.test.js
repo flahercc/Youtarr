@@ -334,7 +334,7 @@ describe('channelVideosService', () => {
       await channelVideosService.getChannelVideos('UC123');
 
       expect(channelVideoFetcher.fetchAndSaveVideosViaYtDlp).toHaveBeenCalledWith(
-        mockChannel, 'UC123', 'videos', undefined, 5
+        mockChannel, 'UC123', 'videos', 5
       );
     });
 
@@ -357,7 +357,7 @@ describe('channelVideosService', () => {
       await channelVideosService.getChannelVideos('UC123');
 
       expect(channelVideoFetcher.fetchAndSaveVideosViaYtDlp).toHaveBeenCalledWith(
-        mockChannel, 'UC123', 'videos', undefined, channelVideoFetcher.DEFAULT_MAX_VIDEO_COUNT
+        mockChannel, 'UC123', 'videos', channelVideoFetcher.DEFAULT_MAX_VIDEO_COUNT
       );
     });
 

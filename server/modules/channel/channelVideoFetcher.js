@@ -15,31 +15,24 @@ class ChannelVideoFetcher {
   /**
    * Fetch channel videos from a specific tab via yt-dlp.
    * Uses canonical channel URL for stability when handles change.
+   * Always fetches exactly maxVideoCount videos deep - callers (the scan
+   * scheduler, channel-page auto-refresh) are expected to pass a value
+   * that already reflects the configured channelScanVideoLimit, so that
+   * setting is the actual, consistent fetch depth on every check, not
+   * just the first one.
    * @param {string} channelId - Channel ID to fetch videos for
-   * @param {Date|null} mostRecentVideoDate - Date of the most recent video we have
    * @param {string} tabType - Type of tab to fetch videos from
-   * @param {number} maxVideoCount - Upper bound on videos fetched for this tab
+   * @param {number} maxVideoCount - Number of videos fetched for this tab
    * @returns {Promise<Object>} - Object with videos array and current channel URL
    * @throws {Error} - If channel not found in database
    */
-  async fetchChannelVideos(channelId, mostRecentVideoDate = null, tabType, maxVideoCount = DEFAULT_MAX_VIDEO_COUNT) {
+  async fetchChannelVideos(channelId, tabType, maxVideoCount = DEFAULT_MAX_VIDEO_COUNT) {
     const channel = await Channel.findOne({
       where: { channel_id: channelId },
     });
 
     if (!channel) {
       throw new Error('Channel not found in database');
-    }
-
-    // Determine how many videos to fetch based on recency
-    // If we have recent data (within 10 days), fetch fewer videos for faster response
-    let videoCount = maxVideoCount; // Default/max for initial fetch or stale data
-    if (mostRecentVideoDate) {
-      const daysSinceLastVideo = Math.floor((Date.now() - new Date(mostRecentVideoDate).getTime()) / (1000 * 60 * 60 * 24));
-      if (daysSinceLastVideo <= 10) {
-        // Fetch 5 videos minimum, or 5 videos per day since last fetch, up to maxVideoCount
-        videoCount = Math.min(maxVideoCount, Math.max(5, daysSinceLastVideo * 5));
-      }
     }
 
     // Always use canonical URL based on channel ID for yt-dlp. This avoids the
@@ -51,7 +44,7 @@ class ChannelVideoFetcher {
       const args = YtdlpCommandBuilder.buildMetadataFetchArgs(canonicalUrl, {
         flatPlaylist: true,
         extractorArgs: 'youtubetab:approximate_date',
-        playlistEnd: videoCount
+        playlistEnd: maxVideoCount
       });
       const content = await channelYtdlpExecutor.executeYtDlpCommand(args, outputFilePath);
 
@@ -116,14 +109,13 @@ class ChannelVideoFetcher {
    * @param {Object} channel - Channel database record
    * @param {string} channelId - Channel ID
    * @param {string} tabType - Type of tab to fetch videos from
-   * @param {Date|null} mostRecentVideoDate - Date of the most recent video we have
    * @param {number} maxVideoCount - Upper bound on videos fetched for this tab
    * @returns {Promise<void>}
    * @throws {Error} - Re-throws yt-dlp errors
    */
-  async fetchAndSaveVideosViaYtDlp(channel, channelId, tabType, mostRecentVideoDate = null, maxVideoCount = DEFAULT_MAX_VIDEO_COUNT) {
+  async fetchAndSaveVideosViaYtDlp(channel, channelId, tabType, maxVideoCount = DEFAULT_MAX_VIDEO_COUNT) {
     try {
-      const result = await this.fetchChannelVideos(channelId, mostRecentVideoDate, tabType, maxVideoCount);
+      const result = await this.fetchChannelVideos(channelId, tabType, maxVideoCount);
       const { videos, currentChannelUrl } = result;
 
       const mediaType = MEDIA_TAB_TYPE_MAP[tabType];

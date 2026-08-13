@@ -112,10 +112,10 @@ describe('newVideoScanScheduler', () => {
 
       expect(Channel.findAll).toHaveBeenCalledWith({ where: { enabled: true } });
       expect(channelVideoFetcher.fetchAndSaveVideosViaYtDlp).toHaveBeenCalledWith(
-        expect.objectContaining({ channel_id: 'UC1' }), 'UC1', 'videos', null, 50
+        expect.objectContaining({ channel_id: 'UC1' }), 'UC1', 'videos', 50
       );
       expect(channelVideoFetcher.fetchAndSaveVideosViaYtDlp).toHaveBeenCalledWith(
-        expect.objectContaining({ channel_id: 'UC1' }), 'UC1', 'shorts', null, 50
+        expect.objectContaining({ channel_id: 'UC1' }), 'UC1', 'shorts', 50
       );
       expect(summary.channelsScanned).toBe(1);
       expect(summary.tabsScanned).toBe(2);
@@ -132,7 +132,7 @@ describe('newVideoScanScheduler', () => {
       await scheduler.scanAllChannels();
 
       expect(channelVideoFetcher.fetchAndSaveVideosViaYtDlp).toHaveBeenCalledWith(
-        expect.objectContaining({ channel_id: 'UC1' }), 'UC1', 'videos', null, 150
+        expect.objectContaining({ channel_id: 'UC1' }), 'UC1', 'videos', 150
       );
     });
 
@@ -144,7 +144,7 @@ describe('newVideoScanScheduler', () => {
       const summary = await scheduler.scanAllChannels();
 
       expect(channelVideoFetcher.fetchAndSaveVideosViaYtDlp).toHaveBeenCalledWith(
-        expect.objectContaining({ channel_id: 'UC1' }), 'UC1', 'videos', null, 50
+        expect.objectContaining({ channel_id: 'UC1' }), 'UC1', 'videos', 50
       );
       expect(summary.channelsScanned).toBe(1);
       expect(summary.tabsScanned).toBe(1);
@@ -182,7 +182,7 @@ describe('newVideoScanScheduler', () => {
       await scheduler.scanAllChannels(true);
 
       expect(channelVideoFetcher.fetchAndSaveVideosViaYtDlp).toHaveBeenCalledWith(
-        expect.objectContaining({ channel_id: 'UC1' }), 'UC1', 'videos', null, 50
+        expect.objectContaining({ channel_id: 'UC1' }), 'UC1', 'videos', 50
       );
     });
 

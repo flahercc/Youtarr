@@ -103,7 +103,6 @@ class ChannelVideosService {
     try {
       // First check if we need to refresh recent videos from YouTube
       const allVideos = await channelVideoQuery.fetchNewestVideosFromDb(channelId, 1, 0, 'off', '', 'date', 'desc', false, mediaType);
-      const mostRecentVideoDate = allVideos.length > 0 ? allVideos[0].publishedAt : null;
 
       if (shouldFetchFromYoutube && channelVideoFetcher.shouldRefreshChannelVideos(channel, allVideos.length, mediaType)) {
         // Use composite key to allow concurrent fetches for different tabs
@@ -126,7 +125,7 @@ class ChannelVideosService {
             // channel-page visit can't seed more undownloaded rows into the
             // New Videos queue than the configured limit allows.
             const maxVideoCount = configModule.getConfig().channelScanVideoLimit || channelVideoFetcher.DEFAULT_MAX_VIDEO_COUNT;
-            await channelVideoFetcher.fetchAndSaveVideosViaYtDlp(channel, channelId, tabType, mostRecentVideoDate, maxVideoCount);
+            await channelVideoFetcher.fetchAndSaveVideosViaYtDlp(channel, channelId, tabType, maxVideoCount);
             freshFetchPerformed = true;
           } finally {
             // Clear the active fetch record
