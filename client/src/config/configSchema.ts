@@ -116,6 +116,7 @@ export const CONFIG_FIELDS = {
   writeChannelPosters: { default: true, trackChanges: true },
   writeVideoNfoFiles: { default: true, trackChanges: true },
   writeVideoFanart: { default: false, trackChanges: true },
+  writeBackdropImages: { default: false, trackChanges: true },
 
   // Notifications
   notificationsEnabled: { default: false, trackChanges: true },
@@ -245,6 +246,7 @@ export const DEFAULT_CONFIG: ConfigState = {
   writeChannelPosters: CONFIG_FIELDS.writeChannelPosters.default,
   writeVideoNfoFiles: CONFIG_FIELDS.writeVideoNfoFiles.default,
   writeVideoFanart: CONFIG_FIELDS.writeVideoFanart.default,
+  writeBackdropImages: CONFIG_FIELDS.writeBackdropImages.default,
   notificationsEnabled: CONFIG_FIELDS.notificationsEnabled.default,
   appriseUrls: CONFIG_FIELDS.appriseUrls.default,
   autoRemovalEnabled: CONFIG_FIELDS.autoRemovalEnabled.default,

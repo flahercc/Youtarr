@@ -246,6 +246,7 @@ const initialize = async () => {
     const messageEmitter = require('./modules/messageEmitter');
     const watchStatusScheduler = require('./modules/mediaServers/watchStatusScheduler');
     const newVideoScanScheduler = require('./modules/channel/newVideoScanScheduler');
+    const channelBackdropBackfill = require('./modules/channel/channelBackdropBackfill');
     const { Channel } = require('./models');
     const { registerRoutes } = require('./routes');
 
@@ -288,6 +289,7 @@ const initialize = async () => {
     watchStatusScheduler.subscribe();
     newVideoScanScheduler.scheduleTask();
     newVideoScanScheduler.subscribe();
+    channelBackdropBackfill.subscribe();
     subscriptionImportModule.init({
       channelModule,
       jobModule,

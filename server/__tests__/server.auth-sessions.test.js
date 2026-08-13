@@ -279,6 +279,7 @@ const createServerModule = ({
         jest.doMock('node-cron', () => ({ schedule: jest.fn() }));
         jest.doMock('../modules/mediaServers/watchStatusScheduler', () => ({ scheduleTask: jest.fn(), subscribe: jest.fn() }));
         jest.doMock('../modules/channel/newVideoScanScheduler', () => ({ scheduleTask: jest.fn(), subscribe: jest.fn() }));
+        jest.doMock('../modules/channel/channelBackdropBackfill', () => ({ subscribe: jest.fn() }));
         jest.doMock('express-rate-limit', () => jest.fn(() => (req, res, next) => next()));
         jest.doMock('https', () => ({ get: jest.fn() }));
 
