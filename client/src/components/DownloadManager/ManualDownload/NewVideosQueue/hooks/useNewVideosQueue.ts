@@ -110,26 +110,38 @@ export function useNewVideosQueue(token: string | null): UseNewVideosQueueResult
     }
   }, [token, fetchQueue, postVideoAction]);
 
-  // Bulk ignore stays one request per video (playlists have no bulk-ignore
-  // route). Bulk download groups playlist videos by playlist so one
-  // multi-video playlist selection becomes one job, not N.
+  // A bulk action must collapse into as few requests as possible: the app's
+  // /api rate limiter caps a client at 100 requests/minute, and one request
+  // per selected video blows through that on any selection past ~100
+  // (previously fired 200+ simultaneous requests for a large "select all",
+  // most of which came back as 429s instead of succeeding).
+  //
+  // Download groups both sources: playlist videos by playlist (one job per
+  // playlist), channel videos into a single /triggerspecificdownloads call
+  // (with a videoChannelMap so each video still resolves its own channel's
+  // settings, same as the single-video download path).
+  // Ignore groups channel videos by channel via the existing bulk-ignore
+  // route; playlist videos still go one request each since there's no
+  // playlist bulk-ignore route.
   const runBulkAction = useCallback(async (
     videosToProcess: NewQueueVideo[],
     action: 'ignore' | 'download',
     failureFallback: string,
     authToken: string
   ) => {
+    const headers = { 'x-access-token': authToken };
     const units: Array<{ request: Promise<unknown>; videoCount: number }> = [];
 
     if (action === 'download') {
       const playlistGroups = new Map<string, NewQueueVideo[]>();
+      const channelVideos: NewQueueVideo[] = [];
       for (const video of videosToProcess) {
         if (video.source === 'playlist') {
           const group = playlistGroups.get(video.source_id) ?? [];
           group.push(video);
           playlistGroups.set(video.source_id, group);
         } else {
-          units.push({ request: postVideoAction(video, 'download', authToken), videoCount: 1 });
+          channelVideos.push(video);
         }
       }
       for (const [playlistId, group] of playlistGroups) {
@@ -137,14 +149,44 @@ export function useNewVideosQueue(token: string | null): UseNewVideosQueueResult
           request: axios.post(
             `/api/playlists/${playlistId}/download`,
             { videoIds: group.map((v) => v.youtube_id) },
-            { headers: { 'x-access-token': authToken } }
+            { headers }
           ),
           videoCount: group.length,
         });
       }
+      if (channelVideos.length > 0) {
+        units.push({
+          request: axios.post(
+            '/triggerspecificdownloads',
+            {
+              urls: channelVideos.map((v) => `https://www.youtube.com/watch?v=${v.youtube_id}`),
+              videoChannelMap: Object.fromEntries(channelVideos.map((v) => [v.youtube_id, v.source_id])),
+            },
+            { headers }
+          ),
+          videoCount: channelVideos.length,
+        });
+      }
     } else {
+      const channelGroups = new Map<string, NewQueueVideo[]>();
       for (const video of videosToProcess) {
-        units.push({ request: postVideoAction(video, 'ignore', authToken), videoCount: 1 });
+        if (video.source === 'channel') {
+          const group = channelGroups.get(video.source_id) ?? [];
+          group.push(video);
+          channelGroups.set(video.source_id, group);
+        } else {
+          units.push({ request: postVideoAction(video, 'ignore', authToken), videoCount: 1 });
+        }
+      }
+      for (const [channelId, group] of channelGroups) {
+        units.push({
+          request: axios.post(
+            `/api/channels/${channelId}/videos/bulk-ignore`,
+            { youtubeIds: group.map((v) => v.youtube_id) },
+            { headers }
+          ),
+          videoCount: group.length,
+        });
       }
     }
 

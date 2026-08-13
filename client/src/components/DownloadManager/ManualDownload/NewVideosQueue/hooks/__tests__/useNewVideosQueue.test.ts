@@ -53,6 +53,13 @@ const playlistVideo2: NewQueueVideo = {
   title: 'Second Playlist Video',
 };
 
+// Same channel as `video` (UC1), to exercise per-channel grouping.
+const videoSameChannel: NewQueueVideo = {
+  ...video,
+  youtube_id: 'ghi',
+  title: 'Third Video',
+};
+
 describe('useNewVideosQueue', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -191,43 +198,58 @@ describe('useNewVideosQueue', () => {
     );
   });
 
-  test('ignoreVideos removes all selected videos optimistically and posts one ignore call per video, including playlist videos', async () => {
-    axios.get.mockResolvedValueOnce({ data: { videos: [video, video2, playlistVideo] } });
+  test('ignoreVideos groups channel videos by channel into bulk-ignore calls, and posts one call per playlist video', async () => {
+    axios.get.mockResolvedValueOnce({ data: { videos: [video, videoSameChannel, video2, playlistVideo] } });
     axios.post.mockResolvedValue({ data: {} });
 
     const { result } = renderHook(() => useNewVideosQueue('t'));
-    await waitFor(() => expect(result.current.videos).toEqual([video, video2, playlistVideo]));
+    await waitFor(() => expect(result.current.videos).toEqual([video, videoSameChannel, video2, playlistVideo]));
 
     await act(async () => {
-      await result.current.ignoreVideos([video, video2, playlistVideo]);
+      await result.current.ignoreVideos([video, videoSameChannel, video2, playlistVideo]);
     });
 
     expect(result.current.videos).toEqual([]);
+    // Both UC1 videos collapse into one bulk-ignore call for that channel.
     expect(axios.post).toHaveBeenCalledWith(
-      '/api/channels/UC1/videos/abc/ignore', null, { headers: { 'x-access-token': 't' } }
+      '/api/channels/UC1/videos/bulk-ignore',
+      { youtubeIds: ['abc', 'ghi'] },
+      { headers: { 'x-access-token': 't' } }
     );
     expect(axios.post).toHaveBeenCalledWith(
-      '/api/channels/UC2/videos/def/ignore', null, { headers: { 'x-access-token': 't' } }
+      '/api/channels/UC2/videos/bulk-ignore',
+      { youtubeIds: ['def'] },
+      { headers: { 'x-access-token': 't' } }
     );
     expect(axios.post).toHaveBeenCalledWith(
       '/api/playlists/PL1/videos/plv1/ignore', null, { headers: { 'x-access-token': 't' } }
     );
+    expect(axios.post).toHaveBeenCalledTimes(3);
   });
 
-  test('downloadVideos posts one download call per channel video and groups playlist videos into one call per playlist', async () => {
-    axios.get.mockResolvedValueOnce({ data: { videos: [video, playlistVideo, playlistVideo2] } });
+  test('downloadVideos collapses all channel videos into one /triggerspecificdownloads call and groups playlist videos by playlist', async () => {
+    axios.get.mockResolvedValueOnce({ data: { videos: [video, videoSameChannel, video2, playlistVideo, playlistVideo2] } });
     axios.post.mockResolvedValue({ data: {} });
 
     const { result } = renderHook(() => useNewVideosQueue('t'));
-    await waitFor(() => expect(result.current.videos).toEqual([video, playlistVideo, playlistVideo2]));
+    await waitFor(() => expect(result.current.videos).toEqual([video, videoSameChannel, video2, playlistVideo, playlistVideo2]));
 
     await act(async () => {
-      await result.current.downloadVideos([video, playlistVideo, playlistVideo2]);
+      await result.current.downloadVideos([video, videoSameChannel, video2, playlistVideo, playlistVideo2]);
     });
 
     expect(result.current.videos).toEqual([]);
     expect(axios.post).toHaveBeenCalledWith(
-      '/api/channels/UC1/videos/abc/download', null, { headers: { 'x-access-token': 't' } }
+      '/triggerspecificdownloads',
+      {
+        urls: [
+          'https://www.youtube.com/watch?v=abc',
+          'https://www.youtube.com/watch?v=ghi',
+          'https://www.youtube.com/watch?v=def',
+        ],
+        videoChannelMap: { abc: 'UC1', ghi: 'UC1', def: 'UC2' },
+      },
+      { headers: { 'x-access-token': 't' } }
     );
     expect(axios.post).toHaveBeenCalledWith(
       '/api/playlists/PL1/download',
@@ -255,21 +277,21 @@ describe('useNewVideosQueue', () => {
     expect(result.current.videos).toEqual([video2]);
   });
 
-  test('a failed playlist group download counts all its videos as failed', async () => {
-    axios.get.mockResolvedValueOnce({ data: { videos: [video, playlistVideo, playlistVideo2] } });
+  test('a failed channel-video download group counts all its videos as failed', async () => {
+    axios.get.mockResolvedValueOnce({ data: { videos: [video, video2, playlistVideo, playlistVideo2] } });
     axios.post
-      .mockResolvedValueOnce({ data: {} }) // channel video succeeds
-      .mockRejectedValueOnce({ isAxiosError: true, response: { data: { error: 'nope' } } }); // playlist group fails
+      .mockRejectedValueOnce({ isAxiosError: true, response: { data: { error: 'nope' } } }) // channel videos batch fails
+      .mockResolvedValueOnce({ data: {} }); // playlist group succeeds
     axios.get.mockResolvedValueOnce({ data: { videos: [] } });
 
     const { result } = renderHook(() => useNewVideosQueue('t'));
-    await waitFor(() => expect(result.current.videos).toEqual([video, playlistVideo, playlistVideo2]));
+    await waitFor(() => expect(result.current.videos).toEqual([video, video2, playlistVideo, playlistVideo2]));
 
     await act(async () => {
-      await result.current.downloadVideos([video, playlistVideo, playlistVideo2]);
+      await result.current.downloadVideos([video, video2, playlistVideo, playlistVideo2]);
     });
 
-    expect(result.current.error).toBe('Failed to queue selected downloads. (2 of 3 failed)');
+    expect(result.current.error).toBe('Failed to queue selected downloads. (2 of 4 failed)');
   });
 
   test('ignoreVideos and downloadVideos are no-ops for an empty selection', async () => {
