@@ -1966,3 +1966,98 @@ describe('POST /api/playlists/:playlistId/videos/:ytId/unignore', () => {
     expect(res.json).toHaveBeenCalledWith({ error: 'Unignore failed' });
   });
 });
+
+describe('POST /api/playlists/:playlistId/videos/bulk-ignore', () => {
+  test('returns 400 when youtubeIds is missing or not a non-empty array', async () => {
+    const deps = buildDeps();
+    const handler = getHandler('post', '/api/playlists/:playlistId/videos/bulk-ignore', deps);
+    const res = createResponse();
+
+    await handler({ params: { playlistId: 'PLtest123' }, body: {}, log: loggerMock }, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: 'youtubeIds must be a non-empty array' });
+
+    const res2 = createResponse();
+    await handler({ params: { playlistId: 'PLtest123' }, body: { youtubeIds: [] }, log: loggerMock }, res2);
+    expect(res2.status).toHaveBeenCalledWith(400);
+  });
+
+  test('returns 404 for a soft-deleted playlist without updating any rows', async () => {
+    const deps = buildDeps();
+    deps.models.Playlist.findOne.mockResolvedValue(null);
+
+    const handler = getHandler('post', '/api/playlists/:playlistId/videos/bulk-ignore', deps);
+    const req = { params: { playlistId: 'PLdeleted' }, body: { youtubeIds: ['v1', 'v2'] }, log: loggerMock };
+    const res = createResponse();
+
+    await handler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Playlist not found' });
+    expect(deps.models.PlaylistVideo.update).not.toHaveBeenCalled();
+  });
+
+  test('marks every video as ignored and reports the success count', async () => {
+    const deps = buildDeps();
+    deps.models.PlaylistVideo.update.mockResolvedValue([1]);
+
+    const handler = getHandler('post', '/api/playlists/:playlistId/videos/bulk-ignore', deps);
+    const req = { params: { playlistId: 'PLtest123' }, body: { youtubeIds: ['vid1', 'vid2'] }, log: loggerMock };
+    const res = createResponse();
+
+    await handler(req, res);
+
+    expect(deps.models.PlaylistVideo.update).toHaveBeenCalledWith(
+      { ignored: true, ignored_at: expect.any(Date) },
+      { where: { playlist_id: 'PLtest123', youtube_id: 'vid1' } }
+    );
+    expect(deps.models.PlaylistVideo.update).toHaveBeenCalledWith(
+      { ignored: true, ignored_at: expect.any(Date) },
+      { where: { playlist_id: 'PLtest123', youtube_id: 'vid2' } }
+    );
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      message: 'Successfully ignored 2 of 2 videos',
+      results: [
+        { youtubeId: 'vid1', success: true },
+        { youtubeId: 'vid2', success: true },
+      ],
+    });
+  });
+
+  test('reports a partial success when some ids affect no rows', async () => {
+    const deps = buildDeps();
+    deps.models.PlaylistVideo.update
+      .mockResolvedValueOnce([1])
+      .mockResolvedValueOnce([0]);
+
+    const handler = getHandler('post', '/api/playlists/:playlistId/videos/bulk-ignore', deps);
+    const req = { params: { playlistId: 'PLtest123' }, body: { youtubeIds: ['vid1', 'missing'] }, log: loggerMock };
+    const res = createResponse();
+
+    await handler(req, res);
+
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      message: 'Successfully ignored 1 of 2 videos',
+      results: [
+        { youtubeId: 'vid1', success: true },
+        { youtubeId: 'missing', success: false },
+      ],
+    });
+  });
+
+  test('returns 500 on db error', async () => {
+    const deps = buildDeps();
+    deps.models.PlaylistVideo.update.mockRejectedValue(new Error('db error'));
+
+    const handler = getHandler('post', '/api/playlists/:playlistId/videos/bulk-ignore', deps);
+    const req = { params: { playlistId: 'PLtest123' }, body: { youtubeIds: ['vid1'] }, log: loggerMock };
+    const res = createResponse();
+
+    await handler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Bulk ignore failed' });
+  });
+});

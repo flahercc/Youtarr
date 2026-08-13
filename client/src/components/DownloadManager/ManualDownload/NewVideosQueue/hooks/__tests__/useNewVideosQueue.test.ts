@@ -198,15 +198,15 @@ describe('useNewVideosQueue', () => {
     );
   });
 
-  test('ignoreVideos groups channel videos by channel into bulk-ignore calls, and posts one call per playlist video', async () => {
-    axios.get.mockResolvedValueOnce({ data: { videos: [video, videoSameChannel, video2, playlistVideo] } });
+  test('ignoreVideos groups channel videos by channel and playlist videos by playlist into bulk-ignore calls', async () => {
+    axios.get.mockResolvedValueOnce({ data: { videos: [video, videoSameChannel, video2, playlistVideo, playlistVideo2] } });
     axios.post.mockResolvedValue({ data: {} });
 
     const { result } = renderHook(() => useNewVideosQueue('t'));
-    await waitFor(() => expect(result.current.videos).toEqual([video, videoSameChannel, video2, playlistVideo]));
+    await waitFor(() => expect(result.current.videos).toEqual([video, videoSameChannel, video2, playlistVideo, playlistVideo2]));
 
     await act(async () => {
-      await result.current.ignoreVideos([video, videoSameChannel, video2, playlistVideo]);
+      await result.current.ignoreVideos([video, videoSameChannel, video2, playlistVideo, playlistVideo2]);
     });
 
     expect(result.current.videos).toEqual([]);
@@ -221,8 +221,11 @@ describe('useNewVideosQueue', () => {
       { youtubeIds: ['def'] },
       { headers: { 'x-access-token': 't' } }
     );
+    // Both PL1 videos collapse into one bulk-ignore call for that playlist.
     expect(axios.post).toHaveBeenCalledWith(
-      '/api/playlists/PL1/videos/plv1/ignore', null, { headers: { 'x-access-token': 't' } }
+      '/api/playlists/PL1/videos/bulk-ignore',
+      { youtubeIds: ['plv1', 'plv2'] },
+      { headers: { 'x-access-token': 't' } }
     );
     expect(axios.post).toHaveBeenCalledTimes(3);
   });

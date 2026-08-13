@@ -838,6 +838,81 @@ function createPlaylistRoutes({ verifyToken, playlistModule, downloadModule, m3u
     }
   });
 
+  /**
+   * @swagger
+   * /api/playlists/{playlistId}/videos/bulk-ignore:
+   *   post:
+   *     summary: Ignore many playlist videos in one request
+   *     description: Same effect as the single-video ignore route, batched so a large selection doesn't need one request per video.
+   *     tags: [Playlists]
+   *     parameters:
+   *       - in: path
+   *         name: playlistId
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: YouTube playlist ID
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - youtubeIds
+   *             properties:
+   *               youtubeIds:
+   *                 type: array
+   *                 items:
+   *                   type: string
+   *     responses:
+   *       200:
+   *         description: Bulk ignore completed
+   *       400:
+   *         description: youtubeIds must be a non-empty array
+   *       404:
+   *         description: Playlist not found
+   *       500:
+   *         description: Internal server error
+   */
+  router.post('/api/playlists/:playlistId/videos/bulk-ignore', verifyToken, async (req, res) => {
+    const { playlistId } = req.params;
+    const { youtubeIds } = req.body;
+
+    if (!Array.isArray(youtubeIds) || youtubeIds.length === 0) {
+      return res.status(400).json({ error: 'youtubeIds must be a non-empty array' });
+    }
+
+    try {
+      const p = await findEnabledPlaylist(playlistId);
+      if (!p) return res.status(404).json({ error: 'Playlist not found' });
+
+      req.log.info({ playlist_id: playlistId, count: youtubeIds.length }, 'Bulk ignoring playlist videos');
+
+      const results = await Promise.all(
+        youtubeIds.map(async (youtubeId) => {
+          const [affectedCount] = await PlaylistVideo.update(
+            { ignored: true, ignored_at: new Date() },
+            { where: { playlist_id: playlistId, youtube_id: youtubeId } }
+          );
+          return { youtubeId, success: affectedCount > 0 };
+        })
+      );
+
+      const successCount = results.filter((r) => r.success).length;
+      req.log.info({ playlist_id: playlistId, successCount, total: youtubeIds.length }, 'Bulk ignore completed');
+
+      res.json({
+        success: true,
+        message: `Successfully ignored ${successCount} of ${youtubeIds.length} videos`,
+        results,
+      });
+    } catch (err) {
+      req.log.error({ err, playlist_id: playlistId }, 'bulk ignore failed');
+      res.status(500).json({ error: 'Bulk ignore failed' });
+    }
+  });
+
   return router;
 }
 
