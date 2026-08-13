@@ -80,7 +80,7 @@ Configuration can be modified through:
 - **Type**: `number`
 - **Default**: `50`
 - **Range**: 1-200
-- **Description**: Maximum number of most recent videos checked per channel tab during the scheduled scan, to find new videos for the Manual Downloads review queue. Playlists are unaffected by this limit - a playlist scan always re-lists the whole playlist (capped at 5000 entries).
+- **Description**: Maximum number of most recent videos checked per channel tab, to find new videos for the Manual Downloads review queue. Applies both to the scheduled/manual scan and to the automatic refresh that runs when you open a channel's page (e.g. right after adding a channel) - either way, this is the cap. It only limits how many *new* videos get checked per refresh; it does not retroactively shrink rows already fetched under a previous, higher limit. Playlists are unaffected by this limit - a playlist scan always re-lists the whole playlist (capped at 5000 entries).
 
 ### Files to Download per Channel
 - **Config Key**: `channelFilesToDownload`

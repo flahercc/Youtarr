@@ -307,6 +307,60 @@ describe('channelVideosService', () => {
       expect(result.freshFetchPerformed).toBe(true);
     });
 
+    // The auto-refresh fetch used to omit maxVideoCount entirely, silently
+    // falling back to channelVideoFetcher's hardcoded default (50) and
+    // ignoring channelScanVideoLimit - so a channel page visit (e.g. right
+    // after adding a channel) could seed far more undownloaded rows into the
+    // New Videos queue than the user configured.
+    test('passes the configured channelScanVideoLimit through to the auto-refresh fetch', async () => {
+      const Video = require('../../../models/video');
+      const mockChannel = {
+        ...mockChannelData,
+        lastFetchedByTab: JSON.stringify({ video: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString() }),
+        auto_download_enabled_tabs: 'video'
+      };
+
+      Channel.findOne.mockResolvedValue(mockChannel);
+      ChannelVideo.findAll.mockResolvedValue([freshlyChecked()]);
+      ChannelVideo.count.mockResolvedValue(1);
+      Video.findAll = jest.fn().mockResolvedValue([]);
+
+      const configModule = require('../../configModule');
+      configModule.getConfig.mockReturnValueOnce({ channelScanVideoLimit: 5 });
+
+      const channelVideoFetcher = require('../channelVideoFetcher');
+      jest.spyOn(channelVideoFetcher, 'fetchAndSaveVideosViaYtDlp').mockResolvedValue();
+
+      await channelVideosService.getChannelVideos('UC123');
+
+      expect(channelVideoFetcher.fetchAndSaveVideosViaYtDlp).toHaveBeenCalledWith(
+        mockChannel, 'UC123', 'videos', undefined, 5
+      );
+    });
+
+    test('falls back to the default max video count when channelScanVideoLimit is unset', async () => {
+      const Video = require('../../../models/video');
+      const mockChannel = {
+        ...mockChannelData,
+        lastFetchedByTab: JSON.stringify({ video: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString() }),
+        auto_download_enabled_tabs: 'video'
+      };
+
+      Channel.findOne.mockResolvedValue(mockChannel);
+      ChannelVideo.findAll.mockResolvedValue([freshlyChecked()]);
+      ChannelVideo.count.mockResolvedValue(1);
+      Video.findAll = jest.fn().mockResolvedValue([]);
+
+      const channelVideoFetcher = require('../channelVideoFetcher');
+      jest.spyOn(channelVideoFetcher, 'fetchAndSaveVideosViaYtDlp').mockResolvedValue();
+
+      await channelVideosService.getChannelVideos('UC123');
+
+      expect(channelVideoFetcher.fetchAndSaveVideosViaYtDlp).toHaveBeenCalledWith(
+        mockChannel, 'UC123', 'videos', undefined, channelVideoFetcher.DEFAULT_MAX_VIDEO_COUNT
+      );
+    });
+
     test('returns freshFetchPerformed=false when cache is fresh enough to skip yt-dlp', async () => {
       const Video = require('../../../models/video');
       const mockChannel = {

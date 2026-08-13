@@ -1,4 +1,5 @@
 const logger = require('../../logger');
+const configModule = require('../configModule');
 const Channel = require('../../models/channel');
 const ChannelVideo = require('../../models/channelvideo');
 const { TAB_TYPES, MEDIA_TAB_TYPE_MAP } = require('../tabsUtils');
@@ -120,8 +121,12 @@ class ChannelVideosService {
           });
 
           try {
-            // Fetch videos for the specified tab type
-            await channelVideoFetcher.fetchAndSaveVideosViaYtDlp(channel, channelId, tabType, mostRecentVideoDate);
+            // Fetch videos for the specified tab type, capped the same way the
+            // scheduled/manual New Videos scan is (channelScanVideoLimit) so a
+            // channel-page visit can't seed more undownloaded rows into the
+            // New Videos queue than the configured limit allows.
+            const maxVideoCount = configModule.getConfig().channelScanVideoLimit || channelVideoFetcher.DEFAULT_MAX_VIDEO_COUNT;
+            await channelVideoFetcher.fetchAndSaveVideosViaYtDlp(channel, channelId, tabType, mostRecentVideoDate, maxVideoCount);
             freshFetchPerformed = true;
           } finally {
             // Clear the active fetch record
