@@ -516,11 +516,13 @@ const initialize = async () => {
       }
     });
 
-    // General API rate limiter (more permissive)
+    // General API rate limiter (more permissive). Raised from 100: WebSocket-driven
+    // refetches (videosUpdated/jobsUpdated firing per video/job during a download)
+    // can legitimately burst well past 100 req/min with a page or two open.
     const apiLimiter = rateLimit({
       windowMs: 1 * 60 * 1000, // 1 minute
-      max: 100, // limit each IP to 100 requests per minute
-      message: 'Too many requests from this IP, please try again later',
+      max: 300, // limit each IP to 300 requests per minute
+      message: { error: 'Too many requests from this IP, please try again later' },
       standardHeaders: true,
       legacyHeaders: false,
       validate: {
@@ -528,6 +530,11 @@ const initialize = async () => {
         ip: false,
       },
       keyGenerator: (req) => getRateLimitAddress(req),
+      handler: (_req, res) => {
+        res.status(429).json({
+          error: 'Too many requests from this IP, please try again later',
+        });
+      },
     });
 
     // Rate limiter for YouTube API key validation. Each test round-trips to
