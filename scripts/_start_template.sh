@@ -4,6 +4,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # shellcheck source=scripts/_console_output.sh
 source "$SCRIPT_DIR/_console_output.sh"
+# shellcheck source=scripts/_env_helpers.sh
+source "$SCRIPT_DIR/_env_helpers.sh"
 
 # Pre-parse --dev flag before image selection (full arg parsing happens in _shared_start_tasks.sh)
 for arg in "$@"; do
@@ -34,8 +36,10 @@ elif [ "$USE_DEV_IMAGE" == "true" ]; then
   yt_detail "Docker image : $YOUTARR_IMAGE"
   yt_detail "For stable releases, run without --dev flag."
 else
-  # Use .env value if set, otherwise default to latest stable
-  export YOUTARR_IMAGE="${YOUTARR_IMAGE:-dialmaster/youtarr:latest}"
+  # Use the shell env value if set, otherwise fall back to .env, otherwise latest stable.
+  # (bash's ${VAR:-default} only sees the shell environment, and .env is never sourced
+  # into this shell, so YOUTARR_IMAGE must be read from the file explicitly here.)
+  export YOUTARR_IMAGE="${YOUTARR_IMAGE:-$(youtarr_get_env_file_value "$SCRIPT_DIR/../.env" "YOUTARR_IMAGE" "dialmaster/youtarr:latest")}"
   export LOG_LEVEL="${LOG_LEVEL:-info}"
   yt_info "Running in production mode."
   yt_detail "Docker image : $YOUTARR_IMAGE"
