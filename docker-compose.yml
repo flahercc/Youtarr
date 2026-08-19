@@ -47,6 +47,11 @@ services:
       retries: 5
       start_period: 30s
 
+  bgutil-provider:
+    image: brainicism/bgutil-ytdlp-pot-provider:latest
+    container_name: youtarr-bgutil-provider
+    restart: unless-stopped
+
   youtarr:
     image: ${YOUTARR_IMAGE:-dialmaster/youtarr:latest}
     container_name: youtarr
@@ -56,6 +61,8 @@ services:
     depends_on:
       youtarr-db:
         condition: service_healthy
+      bgutil-provider:
+        condition: service_started
     environment:
       # DEPRECATED but retained for backwards compatibility with old images for now
       IN_DOCKER_CONTAINER: 1

@@ -511,7 +511,7 @@ COMPOSE_FILE=docker-compose.yml:docker-compose.arm.yml
 
 **Solution #1**:
 
-Youtarr's Docker image includes yt-dlp which auto-updates on every release, update to the latest version if behind:
+Youtarr's Docker image bundles yt-dlp's **nightly** build (not the stable release) - YouTube-side breakage is often fixed on yt-dlp's master branch days to weeks before it reaches a tagged stable release, so tracking nightly keeps Youtarr working through YouTube's more frequent extractor changes. `yt-dlp -U` (Settings -> Core -> Automatically update yt-dlp) keeps tracking this same nightly channel. If downloads are failing, first make sure you're on a current image/yt-dlp build:
   - Via docker compose:
       ```bash
       docker compose down
@@ -537,7 +537,16 @@ YouTube is blocking your downloads.
 
 **Problem**: A video (or every video) fails with `unable to download video data: HTTP Error 403: Forbidden`, even after Youtarr's automatic retry. Metadata, thumbnails, and subtitles often download fine; only the video itself fails.
 
-Youtarr detects this pattern and shows a "Likely cause" diagnosis on the Downloads page, in Download History (expand the failed job's row), and in notifications. The right fix depends on whether cookies are enabled:
+Youtarr detects this pattern and shows a "Likely cause" diagnosis on the Downloads page, in Download History (expand the failed job's row), and in notifications.
+
+**First, check the PO token provider**: Youtarr ships a `bgutil-provider` sidecar container that supplies YouTube proof-of-origin (PO) tokens to yt-dlp. Without a working PO token, YouTube rejects many playback URLs with a 403 even when cookies are valid and fresh - this is the most common cause of persistent, every-video 403s.
+
+1. Confirm the container is running: `docker compose ps bgutil-provider`
+2. Check its logs for errors: `docker compose logs -f bgutil-provider`
+3. Look for `PO Token Providers: bgutil:http-...` (not `none`) in the yt-dlp debug output: `docker compose logs -f youtarr | grep -A2 "PO Token Providers"`
+4. If the container isn't present (older `docker-compose.yml` from before this was added), re-download the current `docker-compose.yml` or add the `bgutil-provider` service manually, then `docker compose up -d`
+
+If the PO token provider is running and reachable but downloads still fail, the right fix depends on whether cookies are enabled:
 
 **If cookies are enabled** (Settings -> Cookies):
 

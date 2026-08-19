@@ -1,4 +1,9 @@
 services:
+  bgutil-provider:
+    image: brainicism/bgutil-ytdlp-pot-provider:latest
+    container_name: youtarr-bgutil-provider-dev
+    restart: unless-stopped
+
   youtarr-db:
     image: mariadb:10.3
     container_name: youtarr-db-dev
@@ -52,6 +57,7 @@ services:
       - PLEX_URL=${PLEX_URL:-}
     depends_on:
       - youtarr-db
+      - bgutil-provider
     # Use Node 18+'s built-in watch mode for auto-restart on server changes
     command: ["node", "--watch", "server/server.js"]
     healthcheck:

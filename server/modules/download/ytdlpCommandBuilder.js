@@ -245,6 +245,11 @@ class YtdlpCommandBuilder {
     // Temp paths for yt-dlp's internal temp files
     args.push(...this.buildTempPathArgs());
 
+    // PO token provider: without one, YouTube 403s many playback URLs even
+    // with valid cookies. Points at the bgutil-provider sidecar (docker-compose.yml);
+    // yt-dlp falls back to no PO token (with a warning) if it's unreachable.
+    args.push('--extractor-args', 'youtubepot-bgutilhttp:base_url=http://bgutil-provider:4416');
+
     return args;
   }
 

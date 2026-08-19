@@ -58,7 +58,7 @@ describe('YtdlpCommandBuilder', () => {
       expect(result).toContain('--default-search');
       expect(result).toContain('ytsearch');
       expect(result).toContain('ytsearch25:Minecraft');
-      const extractorIdx = result.indexOf('--extractor-args');
+      const extractorIdx = result.lastIndexOf('--extractor-args');
       expect(extractorIdx).toBeGreaterThanOrEqual(0);
       expect(result[extractorIdx + 1]).toBe('youtubetab:approximate_date');
     });
@@ -1178,6 +1178,15 @@ describe('YtdlpCommandBuilder', () => {
       delete cfg.ytdlpDownloadRateLimit;
       const args = YtdlpCommandBuilder.buildCommonArgs(cfg);
       expect(args).not.toContain('--limit-rate');
+    });
+  });
+
+  describe('buildCommonArgs — PO token provider', () => {
+    test('points the bgutil HTTP provider at the sidecar container', () => {
+      const args = YtdlpCommandBuilder.buildCommonArgs(configModule.getConfig());
+      const i = args.indexOf('--extractor-args');
+      expect(i).toBeGreaterThanOrEqual(0);
+      expect(args[i + 1]).toBe('youtubepot-bgutilhttp:base_url=http://bgutil-provider:4416');
     });
   });
 

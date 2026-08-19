@@ -2,9 +2,10 @@
 
 ## Architecture Overview
 
-Youtarr uses Docker Compose with two containers:
+Youtarr uses Docker Compose with three containers:
 - **youtarr**: Main application container (Node.js/React)
 - **youtarr-db**: MariaDB database container
+- **bgutil-provider**: YouTube PO (proof-of-origin) token provider sidecar, used by yt-dlp so cookie-authenticated downloads aren't rejected with HTTP 403
 
 ### Compose Files
 
@@ -38,6 +39,11 @@ Youtarr ships four Compose files so each supported runtime can layer the right o
 - **Character Set**: utf8mb4 (full Unicode support)
 
 > **Docker Desktop/ARM/NAS users**: See [Named-Volume Database Override](#named-volume-database-override) below.
+
+### PO Token Provider Container (bgutil-provider)
+- **Image**: `brainicism/bgutil-ytdlp-pot-provider:latest`
+- **Port**: 4416 inside the Docker network only, not published to the host
+- **Purpose**: generates YouTube proof-of-origin tokens on request. yt-dlp's `--extractor-args youtubepot-bgutilhttp:base_url=http://bgutil-provider:4416` (set for every invocation in `server/modules/download/ytdlpCommandBuilder.js`) points at it. Without a working PO token, YouTube increasingly rejects playback URLs with `HTTP Error 403: Forbidden` even with valid cookies. If the container isn't reachable, yt-dlp logs a warning and falls back to unauthenticated requests rather than failing the whole run.
 
 ## ⚠️ Important: Do Not Mount the Migrations Directory
 
@@ -464,6 +470,7 @@ docker compose logs -f
 # Specific container
 docker compose logs -f youtarr
 docker compose logs -f youtarr-db
+docker compose logs -f bgutil-provider
 
 # Last 100 lines
 docker compose logs --tail=100

@@ -25,6 +25,12 @@ COPY migrations/ ./migrations/
 FROM python:3.11-slim AS apprise
 RUN pip install --no-cache-dir --target=/opt/apprise apprise
 
+# ---- yt-dlp PO token provider plugin ----
+# Talks to the bgutil-provider sidecar (docker-compose.yml) over HTTP to fetch
+# YouTube proof-of-origin tokens; without one, YouTube 403s many playback URLs.
+FROM python:3.11-slim AS ytdlp-plugins
+RUN pip install --no-cache-dir --target=/opt/yt-dlp-plugins bgutil-ytdlp-pot-provider
+
 # ---- Release ----
 FROM node:20-slim AS release
 WORKDIR /app
@@ -39,10 +45,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Download the latest yt-dlp release to a dedicated writable directory
-# so non-root users (YOUTARR_UID/YOUTARR_GID) can self-update at runtime
+# Download the latest yt-dlp NIGHTLY build to a dedicated writable directory
+# so non-root users (YOUTARR_UID/YOUTARR_GID) can self-update at runtime.
+# Nightly (not stable) because YouTube-side breakage is frequently fixed on
+# yt-dlp master days to weeks before it lands in a tagged stable release, and
+# a broken extractor means Youtarr can't download anything until it's fixed.
+# `yt-dlp -U` (config: Settings -> Core -> Automatically update yt-dlp)
+# continues tracking this same nightly channel on subsequent updates.
 RUN mkdir -p /opt/yt-dlp && \
-    curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /opt/yt-dlp/yt-dlp && \
+    curl -L https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /opt/yt-dlp/yt-dlp && \
     chmod 0777 /opt/yt-dlp /opt/yt-dlp/yt-dlp
 ENV PATH="/opt/yt-dlp:${PATH}"
 
@@ -52,7 +63,10 @@ RUN curl -fsSL https://deno.land/install.sh | sh
 
 # Copy Apprise from builder stage
 COPY --from=apprise /opt/apprise /opt/apprise
-ENV PYTHONPATH="/opt/apprise"
+
+# Copy yt-dlp PO token provider plugin from builder stage
+COPY --from=ytdlp-plugins /opt/yt-dlp-plugins /opt/yt-dlp-plugins
+ENV PYTHONPATH="/opt/apprise:/opt/yt-dlp-plugins"
 
 # Create apprise wrapper (the pip-installed script has wrong shebang for this image)
 RUN printf '#!/bin/sh\nexec python3 -c "from apprise.cli import main; main()" "$@"\n' > /usr/local/bin/apprise && \
