@@ -1,7 +1,10 @@
+const fs = require('fs-extra');
+const path = require('path');
 const logger = require('../../logger');
 const Channel = require('../../models/channel');
 const MessageEmitter = require('../messageEmitter.js');
 const { GLOBAL_DEFAULT_SENTINEL } = require('../filesystem');
+const configModule = require('../configModule');
 const channelIdentity = require('./channelIdentity');
 const channelMappers = require('./channelMappers');
 const channelMetadataFetcher = require('./channelMetadataFetcher');
@@ -110,6 +113,7 @@ class ChannelProvisioning {
       if (enableChannel && !foundChannel.enabled) {
         await foundChannel.update({ enabled: true });
         logger.info({ channelId: foundChannel.channel_id }, 'Re-enabled soft-deleted channel');
+        await this.backfillMissingThumbnailOnReenable(foundChannel);
       }
       if (emitMessage) {
         MessageEmitter.emitMessage(
@@ -198,6 +202,29 @@ class ChannelProvisioning {
       sub_folder: GLOBAL_DEFAULT_SENTINEL,
       video_quality: null,
     };
+  }
+
+  /**
+   * Re-enabling a soft-deleted channel skips metadata fetch entirely, so a
+   * channel whose original avatar/banner download failed (network hiccup,
+   * YouTube throttling) stays broken forever - remove+re-add can never repair
+   * it otherwise. Best-effort: never throws, never blocks the re-enable.
+   * @param {Object} channel - The re-enabled channel database record
+   */
+  async backfillMissingThumbnailOnReenable(channel) {
+    try {
+      const imagePath = path.join(configModule.getImagePath(), `channelthumb-${channel.channel_id}.jpg`);
+      if (fs.existsSync(imagePath)) {
+        return;
+      }
+      logger.info({ channelId: channel.channel_id }, 'Re-enabled channel missing cached thumbnail, re-fetching');
+      const channelUrl = channel.url || `https://www.youtube.com/channel/${channel.channel_id}`;
+      const channelData = await channelMetadataFetcher.fetchChannelMetadata(channelUrl);
+      await channelThumbnails.processChannelThumbnail(channelData, channel.channel_id, channelUrl);
+      await channelThumbnails.processChannelBanner(channelData, channel.channel_id);
+    } catch (err) {
+      logger.warn({ err, channelId: channel.channel_id }, 'Failed to backfill thumbnail on channel re-enable');
+    }
   }
 }
 

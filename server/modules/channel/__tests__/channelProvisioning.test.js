@@ -3,6 +3,7 @@
 const mockFactories = require('./mockFactories');
 
 jest.mock('fs');
+jest.mock('fs-extra', () => ({ existsSync: jest.fn().mockReturnValue(true) }));
 jest.mock('child_process');
 jest.mock('../../../logger');
 jest.mock('../../../models/channel', () => mockFactories.mockChannelModel());
@@ -531,6 +532,56 @@ describe('channelProvisioning', () => {
       expect(result.existing).toBe(true);
       expect(result.enabled).toBe(true);
       expect(result.sub_folder).toBe('MyFolder');
+    });
+
+    test('re-fetches and caches the thumbnail when re-enabling a channel whose cached image is missing', async () => {
+      const fsExtra = require('fs-extra');
+      const channelMetadataFetcher = require('../channelMetadataFetcher');
+      const channelThumbnails = require('../channelThumbnails');
+      fsExtra.existsSync.mockReturnValue(false);
+      jest.spyOn(channelMetadataFetcher, 'fetchChannelMetadata').mockResolvedValue({
+        channel_id: 'UC_EXISTING',
+        thumbnails: [{ id: 'avatar_uncropped', url: 'https://a/avatar.jpg' }],
+      });
+      const thumbSpy = jest.spyOn(channelThumbnails, 'processChannelThumbnail').mockResolvedValue();
+      const bannerSpy = jest.spyOn(channelThumbnails, 'processChannelBanner').mockResolvedValue();
+
+      const channel = makeExistingChannel(false);
+      Channel.findOne.mockResolvedValueOnce(channel);
+
+      await channelProvisioning.getChannelInfo('https://www.youtube.com/@existing', false, true);
+
+      expect(channelMetadataFetcher.fetchChannelMetadata).toHaveBeenCalledWith(channel.url);
+      expect(thumbSpy).toHaveBeenCalled();
+      expect(bannerSpy).toHaveBeenCalled();
+    });
+
+    test('skips the thumbnail re-fetch on re-enable when the cached image already exists', async () => {
+      const fsExtra = require('fs-extra');
+      const channelMetadataFetcher = require('../channelMetadataFetcher');
+      fsExtra.existsSync.mockReturnValue(true);
+      const fetchSpy = jest.spyOn(channelMetadataFetcher, 'fetchChannelMetadata').mockResolvedValue({});
+
+      const channel = makeExistingChannel(false);
+      Channel.findOne.mockResolvedValueOnce(channel);
+
+      await channelProvisioning.getChannelInfo('https://www.youtube.com/@existing', false, true);
+
+      expect(fetchSpy).not.toHaveBeenCalled();
+    });
+
+    test('does not throw when the thumbnail re-fetch fails on re-enable', async () => {
+      const fsExtra = require('fs-extra');
+      const channelMetadataFetcher = require('../channelMetadataFetcher');
+      fsExtra.existsSync.mockReturnValue(false);
+      jest.spyOn(channelMetadataFetcher, 'fetchChannelMetadata').mockRejectedValue(new Error('network error'));
+
+      const channel = makeExistingChannel(false);
+      Channel.findOne.mockResolvedValueOnce(channel);
+
+      const result = await channelProvisioning.getChannelInfo('https://www.youtube.com/@existing', false, true);
+
+      expect(result.enabled).toBe(true);
     });
   });
 
