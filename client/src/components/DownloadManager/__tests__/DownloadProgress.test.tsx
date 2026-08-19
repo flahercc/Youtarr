@@ -2,7 +2,7 @@ import React from 'react';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
-import DownloadProgress, { formatEta } from '../DownloadProgress';
+import DownloadProgress, { formatEta, mergeFinalSummaries } from '../DownloadProgress';
 import WebSocketContext from '../../../contexts/WebSocketContext';
 
 const mockNavigate = jest.fn();
@@ -337,6 +337,112 @@ describe('DownloadProgress', () => {
       expect(screen.getByText('Summary of last job')).toBeInTheDocument();
     });
     expect(screen.getByText(/✓ 2 videos downloaded, 1 queued for auto-retry/)).toBeInTheDocument();
+  });
+
+  test('folds a continuation job\'s summary into the still-visible one instead of replacing it', async () => {
+    renderWithContext(
+      <DownloadProgress
+        downloadProgressRef={mockDownloadProgressRef}
+        downloadInitiatedRef={mockDownloadInitiatedRef}
+        jobs={[]}
+        token="test-token"
+      />
+    );
+
+    const processCallback = getProcessCallback();
+
+    // First job (fresh start) completes: 6 videos downloaded.
+    await act(async () => {
+      processCallback({
+        finalSummary: {
+          totalDownloaded: 6,
+          totalSkipped: 0,
+          jobType: 'Manually Added Urls',
+          completedAt: '2026-08-19T16:17:54Z',
+        },
+      });
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/✓ 6 videos downloaded/)).toBeInTheDocument();
+    });
+
+    // A second, unrelated job was already queued behind it and starts now
+    // (clearPreviousSummary: false signals a continuation, not a fresh run).
+    await act(async () => {
+      processCallback({
+        text: 'Initiating download...',
+        clearPreviousSummary: false,
+      });
+    });
+
+    // Continuation job completes: 2 more videos downloaded.
+    await act(async () => {
+      processCallback({
+        finalSummary: {
+          totalDownloaded: 2,
+          totalSkipped: 0,
+          jobType: 'Playlist: TA',
+          completedAt: '2026-08-19T16:19:45Z',
+        },
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/✓ 8 videos downloaded/)).toBeInTheDocument();
+    });
+    expect(screen.getByText(/Multiple downloads.*Completed/)).toBeInTheDocument();
+  });
+
+  test('replaces (does not accumulate) the summary when the next job is a fresh, non-continuation start', async () => {
+    renderWithContext(
+      <DownloadProgress
+        downloadProgressRef={mockDownloadProgressRef}
+        downloadInitiatedRef={mockDownloadInitiatedRef}
+        jobs={[]}
+        token="test-token"
+      />
+    );
+
+    const processCallback = getProcessCallback();
+
+    await act(async () => {
+      processCallback({
+        finalSummary: {
+          totalDownloaded: 6,
+          totalSkipped: 0,
+          jobType: 'Manually Added Urls',
+          completedAt: '2026-08-19T16:17:54Z',
+        },
+      });
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/✓ 6 videos downloaded/)).toBeInTheDocument();
+    });
+
+    // The queue was idle before this job (clearPreviousSummary: true) - a
+    // genuinely fresh run, so it replaces rather than folds in.
+    await act(async () => {
+      processCallback({
+        text: 'Initiating download...',
+        clearPreviousSummary: true,
+      });
+    });
+
+    await act(async () => {
+      processCallback({
+        finalSummary: {
+          totalDownloaded: 2,
+          totalSkipped: 0,
+          jobType: 'Playlist: TA',
+          completedAt: '2026-08-19T16:19:45Z',
+        },
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/✓ 2 videos downloaded/)).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/✓ 8 videos downloaded/)).not.toBeInTheDocument();
   });
 
   test('renders termination summary as warning-shaped even with zero downloads', async () => {
@@ -1097,6 +1203,50 @@ describe('DownloadProgress', () => {
         expect(progressBar).toHaveAttribute('aria-valuenow', '46');
       });
     }
+  });
+
+  describe('mergeFinalSummaries', () => {
+    const baseA = {
+      totalDownloaded: 6,
+      totalSkipped: 1,
+      jobType: 'Manually Added Urls',
+      completedAt: '2026-08-19T16:17:54Z',
+    };
+    const baseB = {
+      totalDownloaded: 2,
+      totalSkipped: 0,
+      jobType: 'Playlist: TA',
+      completedAt: '2026-08-19T16:19:45Z',
+    };
+
+    test('sums numeric totals', () => {
+      const merged = mergeFinalSummaries(baseA, baseB);
+      expect(merged.totalDownloaded).toBe(8);
+      expect(merged.totalSkipped).toBe(1);
+    });
+
+    test('concatenates array fields', () => {
+      const merged = mergeFinalSummaries(
+        { ...baseA, failedVideos: [{ youtubeId: 'a', title: 'A', url: 'a', error: 'e' }] },
+        { ...baseB, failedVideos: [{ youtubeId: 'b', title: 'B', url: 'b', error: 'e' }] }
+      );
+      expect(merged.failedVideos).toHaveLength(2);
+    });
+
+    test('uses a combined label when job types differ', () => {
+      const merged = mergeFinalSummaries(baseA, baseB);
+      expect(merged.jobType).toBe('Multiple downloads');
+    });
+
+    test('keeps the shared job type when both summaries match', () => {
+      const merged = mergeFinalSummaries(baseA, { ...baseB, jobType: baseA.jobType });
+      expect(merged.jobType).toBe(baseA.jobType);
+    });
+
+    test('uses the later completedAt timestamp', () => {
+      const merged = mergeFinalSummaries(baseA, baseB);
+      expect(merged.completedAt).toBe(baseB.completedAt);
+    });
   });
 
   describe('formatEta', () => {

@@ -304,7 +304,7 @@ class DownloadModule {
         // Store temp file path for cleanup later
         this.downloadExecutor.tempChannelsFile = tempChannelsFile;
 
-        this.downloadExecutor.doDownload(args, jobId, jobType);
+        this.downloadExecutor.doDownload(args, jobId, jobType, 0, null, false, false, { isContinuation: isNextJob });
       } catch (err) {
         logger.error({ err }, 'Error in channel downloads');
         if (tempChannelsFile) {
@@ -375,8 +375,10 @@ class DownloadModule {
       });
 
       try {
-        // Execute this group's download (without starting next job)
-        await this.executeGroupDownload(group, jobId, groupJobType, jobData, true);
+        // Execute this group's download (without starting next job).
+        // Only the first group can be a queue continuation - later groups
+        // are the SAME job, not a separate queued job, so they always clear.
+        await this.executeGroupDownload(group, jobId, groupJobType, jobData, true, i === 0 && isNextJob);
         logger.info({ groupJobType }, 'Completed download group');
       } catch (err) {
         logger.error({ err, group: groupDesc }, 'Error processing download group');
@@ -534,9 +536,11 @@ class DownloadModule {
    * @param {string} jobType - The job type string for logging
    * @param {Object} jobData - Original job data with settings
    * @param {boolean} skipJobTransition - If true, don't refresh Plex or start next job
+   * @param {boolean} isContinuation - If true, this group's job was already queued behind
+   *   another job, so the client should fold this run's summary into the still-visible one
    * @returns {Promise} Resolves when group download completes
    */
-  async executeGroupDownload(group, jobId, jobType, jobData, skipJobTransition = false) {
+  async executeGroupDownload(group, jobId, jobType, jobData, skipJobTransition = false, isContinuation = false) {
     let tempChannelsFile = null;
     try {
       // Generate channels file for this specific group
@@ -596,7 +600,7 @@ class DownloadModule {
       this.downloadExecutor.tempChannelsFile = tempChannelsFile;
 
       // Execute download with skipJobTransition flag
-      await this.downloadExecutor.doDownload(args, jobId, jobType, 0, null, allowRedownload, skipJobTransition, { skipVideoFolder });
+      await this.downloadExecutor.doDownload(args, jobId, jobType, 0, null, allowRedownload, skipJobTransition, { skipVideoFolder, isContinuation });
     } catch (err) {
       logger.error({ err, jobType }, 'Error executing group download');
       if (tempChannelsFile) {
@@ -773,6 +777,7 @@ class DownloadModule {
           // the resolution priority in videoDownloadPostProcessFiles.js.
           ownerChannelId: channelId || null,
           ownerChannelMap: this.getJobDataValue(jobData, 'ownerChannelMap') || null,
+          isContinuation: isNextJob,
         }
       );
     }

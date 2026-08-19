@@ -398,6 +398,25 @@ describe('DownloadExecutor', () => {
       );
     });
 
+    it('should not clear the previous summary for a continuation job (already queued behind another)', async () => {
+      setTimeout(() => {
+        mockProcess.emit('exit', 0, null);
+      }, 10);
+
+      await executor.doDownload(mockArgs, mockJobId, mockJobType, 0, null, false, false, { isContinuation: true });
+
+      expect(MessageEmitter.emitMessage).toHaveBeenCalledWith(
+        'broadcast',
+        null,
+        'download',
+        'downloadProgress',
+        expect.objectContaining({
+          text: 'Initiating download...',
+          clearPreviousSummary: false
+        })
+      );
+    });
+
     it('should handle successful completion', async () => {
       VideoMetadataProcessor.processVideoMetadata.mockResolvedValue([
         { youtubeId: 'abc123', filePath: '/output/video.mp4', fileSize: '1024' }

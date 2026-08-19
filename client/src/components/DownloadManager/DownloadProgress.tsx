@@ -66,6 +66,26 @@ export const formatEta = (seconds: number): string => {
   return parts.join('');
 };
 
+// Combines a job's summary into the still-visible one from a job that just
+// completed immediately before it (see shouldAccumulateSummaryRef below),
+// so a small unrelated job finishing right after a user's batch doesn't
+// silently replace the count they were looking at.
+export const mergeFinalSummaries = (prev: FinalSummary, next: FinalSummary): FinalSummary => ({
+  totalDownloaded: (prev.totalDownloaded || 0) + (next.totalDownloaded || 0),
+  totalSkipped: (prev.totalSkipped || 0) + (next.totalSkipped || 0),
+  totalFailed: (prev.totalFailed || 0) + (next.totalFailed || 0),
+  totalAutoRetried: (prev.totalAutoRetried || 0) + (next.totalAutoRetried || 0),
+  totalMembersOnly: (prev.totalMembersOnly || 0) + (next.totalMembersOnly || 0),
+  totalTerminatedChannels: (prev.totalTerminatedChannels || 0) + (next.totalTerminatedChannels || 0),
+  totalTerminationFailures: (prev.totalTerminationFailures || 0) + (next.totalTerminationFailures || 0),
+  failedVideos: [...(prev.failedVideos || []), ...(next.failedVideos || [])],
+  diagnoses: [...(prev.diagnoses || []), ...(next.diagnoses || [])],
+  terminatedChannels: [...(prev.terminatedChannels || []), ...(next.terminatedChannels || [])],
+  terminationFailures: [...(prev.terminationFailures || []), ...(next.terminationFailures || [])],
+  jobType: prev.jobType === next.jobType ? next.jobType : 'Multiple downloads',
+  completedAt: next.completedAt,
+});
+
 const DownloadProgress: React.FC<DownloadProgressProps> = ({
   downloadProgressRef,
   downloadInitiatedRef,
@@ -86,6 +106,10 @@ const DownloadProgress: React.FC<DownloadProgressProps> = ({
   const [warningDetails, setWarningDetails] = useState<{ message: string; reason?: string } | null>(null);
   const [showTerminateDialog, setShowTerminateDialog] = useState(false);
   const [isTerminating, setIsTerminating] = useState(false);
+  // True when the job now starting was already queued behind the job whose
+  // summary is on screen (server sent clearPreviousSummary: false) - the
+  // next finalSummary should fold into the visible one instead of replacing it.
+  const shouldAccumulateSummaryRef = useRef(false);
   const navigate = useNavigate();
   const wsContext = useContext(WebSocketContext);
   if (!wsContext) {
@@ -254,11 +278,16 @@ const DownloadProgress: React.FC<DownloadProgressProps> = ({
 
   const applyPayload = useCallback(
     (payload: DownloadProgressPayload) => {
-      // Clear previous summary if explicitly requested
-      if (payload.clearPreviousSummary) {
+      // Clear previous summary if explicitly requested, or mark that the
+      // upcoming summary should fold into the still-visible one when the
+      // server says this job was already queued behind it.
+      if (payload.clearPreviousSummary === true) {
         setFinalSummary(null);
         setErrorDetails(null);
         setWarningDetails(null);
+        shouldAccumulateSummaryRef.current = false;
+      } else if (payload.clearPreviousSummary === false) {
+        shouldAccumulateSummaryRef.current = true;
       }
 
       // Check for warning messages (terminated downloads)
@@ -295,9 +324,10 @@ const DownloadProgress: React.FC<DownloadProgressProps> = ({
           });
         }
 
-        // Clear any previous final summary when new download starts
+        // Clear stale error/warning state when a new download starts. The
+        // final summary itself is handled above via clearPreviousSummary,
+        // so a continuation job's still-visible summary survives here.
         if (progress.state === 'initiating' || progress.state === 'downloading_video') {
-          setFinalSummary(null);
           setErrorDetails(null);
           setWarningDetails(null);
         }
@@ -331,10 +361,20 @@ const DownloadProgress: React.FC<DownloadProgressProps> = ({
         }
       }
 
-      // Handle final summary
+      // Handle final summary. A continuation job (queue was already busy)
+      // folds into the still-visible summary instead of replacing it, so a
+      // small unrelated job finishing right after doesn't hide the count
+      // the user was looking at.
       if (payload.finalSummary) {
-        setFinalSummary(payload.finalSummary);
-        // Summary will persist until next download starts
+        const incoming = payload.finalSummary;
+        // Capture before resetting below - setFinalSummary's updater runs
+        // later, so reading the ref inside it would see the reset value.
+        const shouldAccumulate = shouldAccumulateSummaryRef.current;
+        setFinalSummary((prev) =>
+          shouldAccumulate && prev ? mergeFinalSummaries(prev, incoming) : incoming
+        );
+        shouldAccumulateSummaryRef.current = false;
+        // Summary will persist until next non-continuation download starts
       }
 
       // Also check for video count info in text messages for backwards compatibility
@@ -358,11 +398,13 @@ const DownloadProgress: React.FC<DownloadProgressProps> = ({
         // Don't override server-provided counts
         // Completion tracking is handled by the server now
 
-        // Reset on new download session
+        // Reset on new download session - this client just initiated it, so
+        // always start a fresh summary for it regardless of queue state.
         if ((line.includes('[youtube:tab] Extracting URL:') || line.includes('[youtube] Extracting URL:')) && downloadInitiatedRef.current) {
           setVideoCount({ current: 0, total: 0, completed: 0, skipped: 0, skippedThisChannel: 0 });
           setShowProgress(true);
           setFinalSummary(null);
+          shouldAccumulateSummaryRef.current = false;
           downloadInitiatedRef.current = false;
         }
       }
@@ -389,6 +431,7 @@ const DownloadProgress: React.FC<DownloadProgressProps> = ({
     setErrorDetails(null);
     setWarningDetails(null);
     setFinalSummary(null);
+    shouldAccumulateSummaryRef.current = false;
   }, []);
 
   useCurrentActivitySeed({ token, liveMessageGenerationRef, applyPayload, resetActivityState });

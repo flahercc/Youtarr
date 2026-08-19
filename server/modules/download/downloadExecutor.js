@@ -143,6 +143,11 @@ class DownloadExecutor {
 
   async doDownload(args, jobId, jobType, urlCount = 0, originalUrls = null, allowRedownload = false, skipJobTransition = false, postProcessDirectives = {}) {
     const subfolderOverride = (postProcessDirectives || {}).subfolderOverride ?? null;
+    // A continuation job was already queued behind another job (isNextJob),
+    // so its predecessor's final summary is still the count the user is
+    // looking at - don't wipe it, let the client fold this job's totals into
+    // it instead. A fresh job (queue was idle) should clear the stale summary.
+    const isContinuationJob = !!(postProcessDirectives || {}).isContinuation;
     const initialCount = downloadResultProcessor.getCountOfDownloadedVideos();
     const config = configModule.getConfig();
     const monitor = new DownloadProgressMonitor(jobId, jobType);
@@ -263,7 +268,7 @@ class DownloadExecutor {
         {
           text: 'Initiating download...',
           progress: monitor.snapshot('initiating'),
-          clearPreviousSummary: true
+          clearPreviousSummary: !isContinuationJob
         }
       );
 

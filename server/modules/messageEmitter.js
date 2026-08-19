@@ -32,9 +32,11 @@ module.exports = {
           }
         };
       }
-      // Clear the stored state when a new download starts
-      if (payload.clearPreviousSummary ||
-          (payload.progress && payload.progress.state === 'initiating')) {
+      // Clear the stored state when a fresh (non-continuation) download starts.
+      // A continuation job (already queued behind another) sends
+      // clearPreviousSummary: false so a reconnecting client still replays
+      // the still-relevant summary instead of losing it.
+      if (payload.clearPreviousSummary === true) {
         lastDownloadState = null;
       }
     }

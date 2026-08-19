@@ -69,8 +69,23 @@ describe('messageEmitter', () => {
     MessageEmitter.emitMessage('broadcast', null, 'downloader', 'downloadProgress', progressComplete);
     expect(MessageEmitter.getLastMessages()).toHaveLength(1);
 
-    MessageEmitter.emitMessage('broadcast', null, 'downloader', 'downloadProgress', { progress: { state: 'initiating' } });
+    MessageEmitter.emitMessage('broadcast', null, 'downloader', 'downloadProgress', { progress: { state: 'initiating' }, clearPreviousSummary: true });
     expect(MessageEmitter.getLastMessages()).toEqual([]);
+  });
+
+  test('does not clear the stored state for a continuation job (clearPreviousSummary: false)', () => {
+    const progressComplete = { progress: { state: 'complete', processed: 5 } };
+
+    MessageEmitter.emitMessage('broadcast', null, 'downloader', 'downloadProgress', progressComplete);
+    expect(MessageEmitter.getLastMessages()).toHaveLength(1);
+
+    // A job already queued behind this one starting should NOT clear the
+    // still-relevant summary, so a reconnecting client still sees it.
+    MessageEmitter.emitMessage('broadcast', null, 'downloader', 'downloadProgress', {
+      progress: { state: 'initiating' },
+      clearPreviousSummary: false
+    });
+    expect(MessageEmitter.getLastMessages()).toHaveLength(1);
   });
 
   test('sends direct messages only to matching open clients', () => {
@@ -120,7 +135,8 @@ describe('messageEmitter', () => {
       expect(MessageEmitter.getLastFinalActivity()).not.toBeNull();
 
       MessageEmitter.emitMessage('broadcast', null, 'downloader', 'downloadProgress', {
-        progress: { state: 'initiating' }
+        progress: { state: 'initiating' },
+        clearPreviousSummary: true
       });
       expect(MessageEmitter.getLastFinalActivity()).toBeNull();
     });
