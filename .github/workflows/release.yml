@@ -2,8 +2,12 @@ name: Production Release
 run-name: ${{ github.event_name == 'workflow_dispatch' && (inputs.dry_run && 'Production Release — Dry Run' || 'Production Release — Manual') || 'Production Release — Auto' }}
 
 on:
-  push:
-    branches: [ main ]
+  # Fork note: the automatic `push: branches: [main]` trigger is removed because this
+  # fork lacks the credentials this workflow needs - `secrets.ACTION_RUNNER_TOKEN`
+  # (checkout/tagging PAT, absent here so "Checkout code" failed immediately) plus the
+  # Docker Hub pair. Left dispatch-only so it can still be run deliberately once those
+  # are configured. Note it also commits as upstream's service account (see "Configure
+  # Git user" below) - change that before publishing releases from this fork.
   workflow_dispatch:
     inputs:
       dry_run:
