@@ -267,10 +267,20 @@ When a code change creates or invalidates information in this file or in `docs/`
 - **Feature branches**: create from `dev`, merge back to `dev` via PR.
 
 ### Release
-- Merging to `dev` builds an RC image (`dev-latest`, `dev-rc.<sha>`).
-- Merging `dev` -> `main` triggers a production release with semantic versioning.
+- **This fork does not publish images.** Both release workflows are `workflow_dispatch`-only:
+  the automatic push triggers were removed because the fork does not inherit upstream's
+  credentials (`vars.DOCKERHUB_USERNAME`, `secrets.DOCKERHUB_TOKEN`,
+  `secrets.ACTION_RUNNER_TOKEN`), so every automatic run failed at Docker Hub login or at
+  checkout. Build locally with `./scripts/build-dev.sh` instead.
+- `coverage-badges.yml` only fires on a completed Production Release, so it no longer runs
+  automatically either.
+- To re-enable publishing: add those secrets/variables (`DOCKERHUB_USERNAME` goes under
+  Actions **Variables**, not Secrets), restore the `push:` triggers in
+  `.github/workflows/release-rc.yml` and `release.yml`, and change the hardcoded upstream
+  service-account identity in `release.yml`'s "Configure Git user" step.
+- Upstream behavior, for reference when merging: `dev` pushes build an RC image
+  (`dev-latest`, `dev-rc.<sha>`); `dev` -> `main` triggers a semver production release.
 - Commit prefixes: `feat:` (minor), `fix:` (patch), `BREAKING CHANGE:` (major).
-- Docker images auto-publish to `flahercc/youtarr` on release.
 
 ### PRs
 - Contributor PRs target `dev`, not `main`.

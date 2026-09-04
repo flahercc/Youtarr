@@ -1,8 +1,12 @@
 name: Release Candidate Build
 
 on:
-  push:
-    branches: [ dev ]
+  # Fork note: the automatic `push: branches: [dev]` trigger is removed because this
+  # fork has no Docker Hub credentials - `vars.DOCKERHUB_USERNAME` and
+  # `secrets.DOCKERHUB_TOKEN` are not inherited from the upstream repository, so the
+  # "Login to Docker Hub" step failed on every push with "Username and password
+  # required". Add those two, then restore the push trigger to re-enable RC builds.
+  workflow_dispatch:
 
 concurrency:
   group: release-rc-${{ github.ref }}
