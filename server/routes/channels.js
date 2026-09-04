@@ -228,6 +228,8 @@ module.exports = function createChannelRoutes({ verifyToken, channelModule, arch
    *         description: Cookies required
    *       404:
    *         description: Channel not found
+   *       422:
+   *         description: Channel has no downloadable videos; for Releases-only artist channels the message suggests subscribing to its release playlists instead
    *       503:
    *         description: Unable to connect to YouTube
    */
@@ -267,6 +269,12 @@ module.exports = function createChannelRoutes({ verifyToken, channelModule, arch
         return res.status(503).json({
           status: 'error',
           message: 'Unable to connect to YouTube. Please try again later.',
+          error: error.message
+        });
+      } else if (error.code === 'CHANNEL_RELEASES_ONLY') {
+        return res.status(422).json({
+          status: 'error',
+          message: 'This looks like a music/artist channel that publishes albums on its Releases tab instead of videos, so it can\'t be added as a channel. You can still get its music: copy the album playlist links from the channel\'s Releases tab on YouTube and add them on the Playlists page.',
           error: error.message
         });
       } else if (error.code === 'CHANNEL_EMPTY') {
@@ -552,6 +560,13 @@ module.exports = function createChannelRoutes({ verifyToken, channelModule, arch
    *               m3u_sort_order:
    *                 type: string
    *                 enum: [oldest_first, newest_first]
+   *               auto_removal_protected:
+   *                 type: boolean
+   *                 description: Exclude every video of this channel from auto-removal while the channel is subscribed. Setting true clears auto_removal_keep_recent_count.
+   *               auto_removal_keep_recent_count:
+   *                 type: integer
+   *                 nullable: true
+   *                 description: Auto-removal always keeps this many of the channel's most recent downloads. Mutually exclusive with auto_removal_protected; rejected while the channel is protected.
    *     responses:
    *       200:
    *         description: Settings updated successfully

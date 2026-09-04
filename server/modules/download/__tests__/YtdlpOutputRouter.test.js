@@ -35,7 +35,8 @@ const makeErrorTracker = () => ({
   currentVideoId: null,
   trackVideoStart: jest.fn(),
   trackVideoFromDestination: jest.fn(),
-  handleErrorLine: jest.fn().mockReturnValue(false)
+  handleErrorLine: jest.fn().mockReturnValue(false),
+  handleWarningLine: jest.fn().mockReturnValue(false)
 });
 
 const makeTimeoutController = () => ({
@@ -122,6 +123,16 @@ describe('YtdlpOutputRouter', () => {
       expect(MessageEmitter.emitMessage).not.toHaveBeenCalled();
     });
 
+    it('routes WARNING lines to the error tracker without suppressing them', () => {
+      router.handleStdoutChunk('WARNING: Unable to download video subtitles for \'en\': Read timed out.\n');
+
+      expect(errorTracker.handleWarningLine).toHaveBeenCalledWith(
+        'WARNING: Unable to download video subtitles for \'en\': Read timed out.',
+        'stdout'
+      );
+      expect(monitor.processProgress).toHaveBeenCalled();
+    });
+
     it('notes activity on the timeout controller for JSON progress lines', () => {
       router.handleStdoutChunk('{"percent":"50.0%","downloaded":"5242880","total":"10485760"}\n');
 
@@ -170,6 +181,24 @@ describe('YtdlpOutputRouter', () => {
 
       expect(errorTracker.handleErrorLine).toHaveBeenCalledWith('ERROR: first failure', 'stderr');
       expect(errorTracker.handleErrorLine).toHaveBeenCalledWith('ERROR: second failure', 'stderr');
+    });
+
+    it('routes WARNING lines to the error tracker after the ERROR lines in the same chunk', () => {
+      router.handleStderrChunk(
+        'ERROR: [download] Got error: Read timed out. Giving up after 2 retries\n' +
+        'WARNING: Unable to download video subtitles for \'en\': Read timed out.\n'
+      );
+
+      expect(errorTracker.handleErrorLine).toHaveBeenCalledWith(
+        'ERROR: [download] Got error: Read timed out. Giving up after 2 retries',
+        'stderr'
+      );
+      expect(errorTracker.handleWarningLine).toHaveBeenCalledWith(
+        'WARNING: Unable to download video subtitles for \'en\': Read timed out.',
+        'stderr'
+      );
+      expect(errorTracker.handleErrorLine.mock.invocationCallOrder[0])
+        .toBeLessThan(errorTracker.handleWarningLine.mock.invocationCallOrder[0]);
     });
 
     it('detects 403s on stderr and emits the cookies suggestion', () => {
@@ -424,6 +453,78 @@ describe('YtdlpOutputRouter', () => {
         'downloadProgress',
         { text: 'Some message', progress: null }
       );
+    });
+  });
+
+  describe('heartbeat', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+      jest.clearAllMocks();
+    });
+
+    afterEach(() => {
+      router.dispose();
+      jest.useRealTimers();
+    });
+
+    it('rebroadcasts the current monitor snapshot after a quiet interval', () => {
+      monitor.snapshot.mockReturnValue({ state: 'merging' });
+
+      router.startHeartbeat();
+      jest.advanceTimersByTime(25000);
+
+      expect(monitor.snapshot).toHaveBeenCalledWith();
+      expect(MessageEmitter.emitMessage).toHaveBeenCalledWith(
+        'broadcast',
+        null,
+        'download',
+        'downloadProgress',
+        { progress: { state: 'merging' } }
+      );
+    });
+
+    it('does not rebroadcast while output was recently emitted', () => {
+      router.startHeartbeat();
+
+      jest.advanceTimersByTime(20000);
+      router.emitProgressMessage('[Merger] Merging formats into "out.mp4"', { state: 'merging' });
+      MessageEmitter.emitMessage.mockClear();
+
+      jest.advanceTimersByTime(5000);
+
+      expect(MessageEmitter.emitMessage).not.toHaveBeenCalled();
+    });
+
+    it('resumes heartbeating once the quiet stretch reaches a full interval', () => {
+      router.startHeartbeat();
+
+      jest.advanceTimersByTime(20000);
+      router.emitProgressMessage('[Merger] Merging formats into "out.mp4"', { state: 'merging' });
+      MessageEmitter.emitMessage.mockClear();
+
+      // Ticks at 25s (5s of silence, skipped) and 50s (30s of silence, emits)
+      jest.advanceTimersByTime(30000);
+
+      expect(MessageEmitter.emitMessage).toHaveBeenCalledTimes(1);
+    });
+
+    it('dispose stops the heartbeat', () => {
+      router.startHeartbeat();
+      router.dispose();
+
+      jest.advanceTimersByTime(120000);
+
+      expect(MessageEmitter.emitMessage).not.toHaveBeenCalled();
+    });
+
+    it('restarting the heartbeat does not leak the previous interval', () => {
+      router.startHeartbeat();
+      router.startHeartbeat();
+      router.dispose();
+
+      jest.advanceTimersByTime(120000);
+
+      expect(MessageEmitter.emitMessage).not.toHaveBeenCalled();
     });
   });
 

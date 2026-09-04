@@ -52,9 +52,10 @@ Youtarr generates comprehensive NFO files containing:
 - **Title**: Video title with channel prefix
 - **Plot**: Full video description
 - **Premiered**: Original YouTube upload date
+- **Year**: Upload year
 - **Studio**: Channel name
 - **Genre**: YouTube categories
-- **Tag**: Video keywords (up to 10)
+- **Tag**: Video keywords (all of them; only the embedded MP4 metadata caps keywords at 10)
 - **Runtime**: Video duration in minutes
 - **Uniqueid**: YouTube video ID
 

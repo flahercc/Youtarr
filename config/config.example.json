@@ -66,6 +66,7 @@
   "uuid": "",
   "apiKeyRateLimit": 10,
   "autoUpdateYtdlp": false,
+  "ytdlpUpdateChannel": "stable",
   "ytdlpLastChecked": null,
   "ytdlpLastUpdated": null,
   "ytdlpLastResult": null,

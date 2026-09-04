@@ -21,9 +21,16 @@ COPY server/ ./server/
 COPY client/build/ ./client/build/
 COPY migrations/ ./migrations/
 
-# ---- Apprise ----
+# ---- Python deps for the runtime image ----
+# Keep this on the same Python minor as node:20-slim's python3 (bookworm -> 3.11);
+# curl_cffi ships compiled extensions.
 FROM python:3.11-slim AS apprise
 RUN pip install --no-cache-dir --target=/opt/apprise apprise
+# yt-dlp wants an impersonation target for YouTube subtitle requests and the
+# zipimport binary doesn't bundle one. Pinned one minor behind the newest
+# version yt-dlp accepts (yt_dlp/networking/_curlcffi.py) so an older
+# self-updated yt-dlp still loads it.
+RUN pip install --no-cache-dir --target=/opt/curl_cffi "curl-cffi>=0.10,<0.16"
 
 # ---- yt-dlp PO token provider plugin ----
 # Talks to the bgutil-provider sidecar (docker-compose.yml) over HTTP to fetch
@@ -34,6 +41,9 @@ RUN pip install --no-cache-dir --target=/opt/yt-dlp-plugins bgutil-ytdlp-pot-pro
 # ---- Release ----
 FROM node:20-slim AS release
 WORKDIR /app
+
+# Lets tools like Renovate resolve the source repo (and CHANGELOG) for this image
+LABEL org.opencontainers.image.source="https://github.com/DialmasterOrg/Youtarr"
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -61,12 +71,13 @@ ENV PATH="/opt/yt-dlp:${PATH}"
 ENV DENO_INSTALL="/usr/local"
 RUN curl -fsSL https://deno.land/install.sh | sh
 
-# Copy Apprise from builder stage
+# Copy Apprise and curl_cffi from the Python deps stage
 COPY --from=apprise /opt/apprise /opt/apprise
+COPY --from=apprise /opt/curl_cffi /opt/curl_cffi
 
 # Copy yt-dlp PO token provider plugin from builder stage
 COPY --from=ytdlp-plugins /opt/yt-dlp-plugins /opt/yt-dlp-plugins
-ENV PYTHONPATH="/opt/apprise:/opt/yt-dlp-plugins"
+ENV PYTHONPATH="/opt/apprise:/opt/curl_cffi:/opt/yt-dlp-plugins"
 
 # Create apprise wrapper (the pip-installed script has wrong shebang for this image)
 RUN printf '#!/bin/sh\nexec python3 -c "from apprise.cli import main; main()" "$@"\n' > /usr/local/bin/apprise && \

@@ -17,6 +17,7 @@ Complete guide for integrating Youtarr with Emby Media Server.
 Youtarr provides comprehensive Emby support through:
 - NFO metadata files with complete video information
 - Channel poster artwork
+- Optional channel and video backdrop art
 - Embedded MP4 metadata
 - Multi-library support for content organization
 - Compatible folder structure
@@ -80,6 +81,7 @@ Emby reads comprehensive NFO files containing:
 - **Title**: Video title with channel name
 - **Plot**: Complete YouTube description
 - **Premiered**: Original upload date
+- **Year**: Upload year (keeps Emby's production year accurate for sorting)
 - **Studios**: Channel/creator name
 - **Genres**: YouTube categories
 - **Tags**: Video keywords and topics
@@ -91,6 +93,8 @@ Emby reads comprehensive NFO files containing:
 Youtarr provides:
 - **`poster.jpg`**: Channel artwork in channel folders
 - **`<VIDEO NAME>.jpg`**: Video thumbnails in video folders
+- **`backdrop.jpg`**: Channel background art from the YouTube channel banner, written when "Create backdrop images" is enabled in Settings -> Core (off by default)
+- **`<VIDEO NAME>-backdrop.jpg`**: Per-video background art from the video thumbnail, controlled by the same setting (new downloads only)
 - Proper naming conventions for Emby recognition
 
 ### Embedded Metadata
@@ -193,7 +197,7 @@ Configure in Advanced settings:
 - **Save subtitles within media folders**: Yes (if using)
 
 **Image Settings**:
-- **Save artwork within media folders**: Yes
+- **Save artwork within media folders**: No (see the NFO saver warning in [Library Setup](#library-setup))
 - **Download images in advance**: Your preference
 - **Enable thumbnail generation**: Optional
 

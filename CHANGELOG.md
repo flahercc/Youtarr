@@ -1,5 +1,105 @@
 # Changelog
 
+## [v1.81.1](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.81.1) - 2026-09-01
+
+### [1.81.1](https://github.com/DialmasterOrg/Youtarr/compare/vv1.81.0...v1.81.1) (2026-09-01)
+
+
+### Bug Fixes
+
+* repair jobs uuid fk collation on existing dbs ([6eee944](https://github.com/DialmasterOrg/Youtarr/commit/6eee94481d531dd44fb8df597377f1c3296d21a0))
+* stop counting subtitle timeouts as failed ([7c6d111](https://github.com/DialmasterOrg/Youtarr/commit/7c6d111eeead55d81a8f3da137135ceac3dc4b7b)), closes [#793](https://github.com/DialmasterOrg/Youtarr/issues/793)
+* support Jellyfin 12.0 API key auth ([8a8f675](https://github.com/DialmasterOrg/Youtarr/commit/8a8f675dc76c19e4531ab60f23ecf94803d48338)), closes [#789](https://github.com/DialmasterOrg/Youtarr/issues/789)
+
+
+### Documentation
+
+* update CHANGELOG for v1.81.0 [skip ci] ([27f9b26](https://github.com/DialmasterOrg/Youtarr/commit/27f9b26e8e8f6fcd0a089a6563f2492629029de6))
+
+
+
+
+
+## [v1.81.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.81.0) - 2026-08-28
+
+## [1.81.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.80.0...v1.81.0) (2026-08-28)
+
+
+### Features
+
+* suggest playlists for releases-only channels ([dc984ca](https://github.com/DialmasterOrg/Youtarr/commit/dc984caabd4c1ed5c9a78606a44270d523504188)), closes [#616](https://github.com/DialmasterOrg/Youtarr/issues/616)
+
+
+### Bug Fixes
+
+* download progress stuck during processing ([2da339d](https://github.com/DialmasterOrg/Youtarr/commit/2da339d25a780bbc1bcab97b2f6be4f378f290c4)), closes [#749](https://github.com/DialmasterOrg/Youtarr/issues/749)
+
+
+### Documentation
+
+* update CHANGELOG for v1.80.0 [skip ci] ([587de1f](https://github.com/DialmasterOrg/Youtarr/commit/587de1f5da1a27168f7bf9eaa732dcd0b64b8054))
+* update docs for v1.80.0 [skip ci] ([95b95f3](https://github.com/DialmasterOrg/Youtarr/commit/95b95f3c802f3f46e96cf6c79b03c098ffef45b4))
+
+
+
+
+
+## [v1.80.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.80.0) - 2026-08-22
+
+## [1.80.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.79.0...v1.80.0) (2026-08-22)
+
+
+### Features
+
+* add channel-level auto-removal protection ([87ae5fe](https://github.com/DialmasterOrg/Youtarr/commit/87ae5fee74a721b214805a3c08140ff400f8bc19)), closes [#748](https://github.com/DialmasterOrg/Youtarr/issues/748)
+* add year tag to video NFO files ([c1bfb44](https://github.com/DialmasterOrg/Youtarr/commit/c1bfb442856f51774696aa1ab4b3881ebedc7cf7))
+* clarify channel auto-download requirements ([a6466a5](https://github.com/DialmasterOrg/Youtarr/commit/a6466a5fd6eeda552d519a27eb4b192b22e94d18))
+* clarify subfolder add flow in settings ([41b2d78](https://github.com/DialmasterOrg/Youtarr/commit/41b2d7829516f0be1e7931fd321d721d4eae5b50))
+
+
+### Bug Fixes
+
+* add OCI source label to release image ([f432a22](https://github.com/DialmasterOrg/Youtarr/commit/f432a223ac14d5f1f38f8963c8cd5b0d8accb388)), closes [#768](https://github.com/DialmasterOrg/Youtarr/issues/768)
+
+
+### Documentation
+
+* add Asustor App Central platform guide ([10e96af](https://github.com/DialmasterOrg/Youtarr/commit/10e96afa3c933fe946856df9dcfb79b1cb420884))
+* update CHANGELOG for v1.79.0 [skip ci] ([6debab5](https://github.com/DialmasterOrg/Youtarr/commit/6debab5d24efcc9560c0d998854f9b2169a108fb))
+
+
+
+
+
+## [v1.79.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.79.0) - 2026-08-19
+
+## [1.79.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.78.0...v1.79.0) (2026-08-19)
+
+
+### Features
+
+* add yt-dlp stable/nightly update channel ([b7b325c](https://github.com/DialmasterOrg/Youtarr/commit/b7b325cd98fe21c85e990e07fd9dc9b58f5159fe))
+
+
+### Bug Fixes
+
+* persist download history across restarts ([c8159e2](https://github.com/DialmasterOrg/Youtarr/commit/c8159e2c67a7c84c29468d42aa7b2335b5d710cf)), closes [#762](https://github.com/DialmasterOrg/Youtarr/issues/762)
+* show failed video info in download history ([cb6a151](https://github.com/DialmasterOrg/Youtarr/commit/cb6a1515d948c1419036a9dcb63a83617a118901)), closes [#762](https://github.com/DialmasterOrg/Youtarr/issues/762)
+
+
+### Build Systems
+
+* bump js-yaml to 4.3.1 to clear security audit ([0221f4d](https://github.com/DialmasterOrg/Youtarr/commit/0221f4dd58908e869658691016cc9510f0b26081)), closes [#762](https://github.com/DialmasterOrg/Youtarr/issues/762)
+
+
+### Documentation
+
+* update CHANGELOG for v1.78.0 [skip ci] ([3501e4f](https://github.com/DialmasterOrg/Youtarr/commit/3501e4f1f1f485780903a92e7522d26ad4ee481d))
+
+
+
+
+
 ## [v1.78.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.78.0) - 2026-08-07
 
 ## [1.78.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.77.0...v1.78.0) (2026-08-07)
