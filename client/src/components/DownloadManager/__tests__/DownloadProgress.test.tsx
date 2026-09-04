@@ -172,9 +172,10 @@ describe('DownloadProgress', () => {
       { state: 'downloading_subtitles', message: 'Downloading subtitles...' },
       { state: 'downloading_thumbnail', message: 'Downloading thumbnail...' },
       { state: 'processing_metadata', message: 'Processing metadata...' },
-      { state: 'merging', message: 'Merging formats...' },
+      { state: 'merging', message: 'Merging formats... this can take a while for large files' },
       { state: 'metadata', message: 'Adding metadata...' },
-      { state: 'processing', message: 'Processing file...' },
+      { state: 'processing', message: 'Processing file... this can take a while for large files' },
+      { state: 'extracting_audio', message: 'Extracting audio...' },
       { state: 'complete', message: 'Download completed' },
     ];
 
@@ -1137,7 +1138,7 @@ describe('DownloadProgress', () => {
 
     const processCallback = getProcessCallback();
 
-    const indeterminateStates = ['merging', 'metadata', 'processing', 'preparing', 'preparing_subtitles', 'processing_metadata'];
+    const indeterminateStates = ['merging', 'metadata', 'processing', 'extracting_audio', 'preparing', 'preparing_subtitles', 'processing_metadata'];
 
     for (const state of indeterminateStates) {
       await act(async () => {
@@ -1430,7 +1431,7 @@ describe('DownloadProgress', () => {
 
     const processCallback = getProcessCallback();
 
-    const nonDownloadStates = ['preparing', 'preparing_subtitles', 'processing_metadata', 'merging', 'metadata', 'processing'];
+    const nonDownloadStates = ['preparing', 'preparing_subtitles', 'processing_metadata', 'merging', 'metadata', 'processing', 'extracting_audio'];
 
     for (const state of nonDownloadStates) {
       await act(async () => {
@@ -1945,7 +1946,9 @@ describe('DownloadProgress', () => {
         screen.queryByText('No download activity at the moment')
       ).not.toBeInTheDocument();
       expect(screen.getByText('Channel update is running')).toBeInTheDocument();
-      expect(screen.getByText('Waiting for progress updates...')).toBeInTheDocument();
+      expect(
+        screen.getByText('The download is still running. Progress updates will appear here shortly.')
+      ).toBeInTheDocument();
     });
 
     test('shows queued state instead of the empty placeholder when only pending jobs exist', () => {
@@ -2602,7 +2605,7 @@ describe('DownloadProgress', () => {
       expect(screen.getByText(/Mystery Video/)).toBeInTheDocument();
     });
 
-    test('hides unknown video titles in failed videos list', async () => {
+    test('shows YouTube ID links for failed videos with unknown titles', async () => {
       renderWithContext(
         <DownloadProgress
           downloadProgressRef={mockDownloadProgressRef}
@@ -2644,8 +2647,12 @@ describe('DownloadProgress', () => {
       });
       expect(screen.getByText(/2 videos failed:/)).toBeInTheDocument();
       expect(screen.getByText('Video unavailable')).toBeInTheDocument();
-      // Should not show individual video details when titles are unknown
       expect(screen.queryByText(/Unknown/)).not.toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'video1' })).toHaveAttribute(
+        'href',
+        'https://www.youtube.com/watch?v=video1'
+      );
+      expect(screen.getByRole('link', { name: 'video2' })).toBeInTheDocument();
     });
 
     test('shows mixed known and unknown video titles', async () => {
@@ -2694,9 +2701,10 @@ describe('DownloadProgress', () => {
       await waitFor(() => {
         expect(screen.getByText('Summary of last job')).toBeInTheDocument();
       });
-      // Should show the known titles only
+      // Known titles render as text; unknown-titled videos render as ID links
       expect(screen.getByText(/Known Video Title/)).toBeInTheDocument();
       expect(screen.getByText(/Another Known Video/)).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'video2' })).toBeInTheDocument();
     });
 
     test('displays failed videos with successful downloads in summary', async () => {
@@ -3272,7 +3280,8 @@ describe('DownloadProgress', () => {
         'processing_metadata',
         'merging',
         'metadata',
-        'processing'
+        'processing',
+        'extracting_audio'
       ];
 
       for (const state of activeStates) {

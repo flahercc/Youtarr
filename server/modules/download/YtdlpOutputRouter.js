@@ -10,9 +10,12 @@ const { JobVideoDownload } = require('../../models');
 const { VIDEO_PERSISTED_MARKER } = require('../constants/outputMarkers');
 
 const PROGRESS_THROTTLE_MS = 250;
+// Must stay well under the client's 60s STALE_ACTIVITY_MS (useCurrentActivitySeed)
+// so the /api/jobs/current-activity snapshot is never considered stale mid-run.
+const PROGRESS_HEARTBEAT_MS = 25 * 1000;
 
 class YtdlpOutputRouter {
-  constructor({ jobId, config, monitor, errorTracker, timeoutController, cookiesEnabled = false }) {
+  constructor({ jobId, config, monitor, errorTracker, timeoutController, cookiesEnabled = false, heartbeatIntervalMs = PROGRESS_HEARTBEAT_MS }) {
     this.jobId = jobId;
     this.config = config;
     this.monitor = monitor;
@@ -32,6 +35,33 @@ class YtdlpOutputRouter {
     this.pendingProgressMessage = null;
     this.progressFlushTimer = null;
     this.lastEmittedProgressState = null;
+    this.heartbeatIntervalMs = heartbeatIntervalMs;
+    this.heartbeatTimer = null;
+  }
+
+  // yt-dlp goes silent for minutes during large merges and audio extraction.
+  // Rebroadcast the snapshot so clients and the monitor's lastActivityAt stay fresh.
+  startHeartbeat() {
+    this.stopHeartbeat();
+    this.heartbeatTimer = setInterval(() => {
+      if (Date.now() - this.lastProgressEmitTime < this.heartbeatIntervalMs) {
+        return;
+      }
+      MessageEmitter.emitMessage('broadcast', null, 'download', 'downloadProgress', {
+        progress: this.monitor.snapshot(),
+      });
+      this.lastProgressEmitTime = Date.now();
+    }, this.heartbeatIntervalMs);
+    if (typeof this.heartbeatTimer.unref === 'function') {
+      this.heartbeatTimer.unref();
+    }
+  }
+
+  stopHeartbeat() {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
   }
 
   handleStdoutChunk(chunk) {
@@ -113,6 +143,10 @@ class YtdlpOutputRouter {
           return;
         }
 
+        if (line.includes('WARNING:')) {
+          this.errorTracker.handleWarningLine(line, 'stdout');
+        }
+
         // Always try to process for state updates
         let structuredProgress = this.monitor.processProgress('{}', line, this.config);
 
@@ -150,17 +184,21 @@ class YtdlpOutputRouter {
       this.emitCookiesSuggestion();
     }
 
-    // Detect and track ERROR messages from stderr. Node streams can
-    // coalesce multiple lines into one chunk, so iterate per line rather
+    // Detect and track ERROR and WARNING messages from stderr. Node streams
+    // can coalesce multiple lines into one chunk, so iterate per line rather
     // than running a single regex over the whole chunk (which would only
-    // catch the first ERROR: occurrence).
-    if (dataStr.includes('ERROR:')) {
+    // catch the first occurrence). Order matters: a subtitle-failure WARNING
+    // undoes the ERROR before it.
+    if (dataStr.includes('ERROR:') || dataStr.includes('WARNING:')) {
       dataStr
         .split('\n')
         .map(line => line.trim())
-        .filter(line => line.includes('ERROR:'))
         .forEach(line => {
-          this.errorTracker.handleErrorLine(line, 'stderr');
+          if (line.includes('ERROR:')) {
+            this.errorTracker.handleErrorLine(line, 'stderr');
+          } else if (line.includes('WARNING:')) {
+            this.errorTracker.handleWarningLine(line, 'stderr');
+          }
         });
     }
 
@@ -347,6 +385,7 @@ class YtdlpOutputRouter {
 
   // Flush any pending throttled message before the final status broadcast.
   dispose() {
+    this.stopHeartbeat();
     if (this.progressFlushTimer) {
       clearTimeout(this.progressFlushTimer);
       this.progressFlushTimer = null;

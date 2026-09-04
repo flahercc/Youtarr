@@ -92,6 +92,10 @@ jest.mock('../../downloadModule', () => ({
   afterDownloadHook: jest.fn().mockResolvedValue(),
 }));
 
+jest.mock('../failedVideoEnricher', () => ({
+  enrichFailedVideos: jest.fn().mockResolvedValue()
+}));
+
 // Mock filesystem module
 jest.mock('../../filesystem', () => {
   const actualPathBuilder = jest.requireActual('../../filesystem/pathBuilder');
@@ -415,6 +419,27 @@ describe('DownloadExecutor', () => {
           clearPreviousSummary: false
         })
       );
+    });
+
+    it('rebroadcasts the monitor snapshot during quiet stretches while yt-dlp runs', async () => {
+      executor.progressHeartbeatMs = 20;
+
+      setTimeout(() => {
+        mockProcess.emit('exit', 0, null);
+      }, 100);
+
+      await executor.doDownload(mockArgs, mockJobId, mockJobType);
+
+      // Heartbeat payloads carry only the snapshot, never a text line
+      const heartbeatCalls = MessageEmitter.emitMessage.mock.calls.filter(
+        (call) =>
+          call[3] === 'downloadProgress' &&
+          call[4] &&
+          !('text' in call[4]) &&
+          call[4].progress &&
+          call[4].progress.state === 'initiating'
+      );
+      expect(heartbeatCalls.length).toBeGreaterThan(0);
     });
 
     it('should handle successful completion', async () => {
@@ -1829,8 +1854,6 @@ describe('DownloadExecutor', () => {
             failedVideos: expect.arrayContaining([
               expect.objectContaining({
                 youtubeId: 'nodata123',
-                title: 'Unknown',
-                channel: 'Unknown',
                 error: 'This video is not available'
               })
             ])

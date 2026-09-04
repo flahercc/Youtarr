@@ -12,6 +12,8 @@ Before setting up Youtarr, ensure you have:
 
 Choose your preferred installation method
 
+> Running on a NAS or Unraid? There are dedicated platform guides for [Synology](platforms/synology.md), [Unraid](platforms/unraid.md), and [Asustor](platforms/asustor.md) - start there instead.
+
 ### Method 1: First-Time Installation via `./start.sh` helper
 
 1. **Clone the repository**:
@@ -94,7 +96,7 @@ If you prefer to use standard `docker compose up` commands:
    - Navigate to `http://localhost:3087` (or your server's LAN IP)
    - If you set preset credentials in .env, use those to log in
    - If not, you'll be prompted to complete the setup wizard using the one-time token from `docker logs youtarr` or `config/setup-token`
-   - Configure Plex (and optionally Jellyfin or Emby for playlist sync) and other settings from the Configuration page
+   - Configure Plex (and optionally Jellyfin or Emby for playlist sync) and other settings from the Settings page
 
 > **Important**: Ensure the path you assign to `YOUTUBE_OUTPUT_DIR` already exists on the host and is writable before starting the stack. Otherwise Docker will create it as root-owned and the container may not be able to write downloads.
 
@@ -118,7 +120,7 @@ See [AUTHENTICATION.md](AUTHENTICATION.md)
 
 ## Configuration
 
-After logging in, configure Youtarr through the Configuration page.
+After logging in, configure Youtarr through the Settings page.
 
 ### Required Settings
 
@@ -145,7 +147,7 @@ The `config/complete.list` file tracks all downloaded videos and prevents re-dow
 
 **Storage Growth**: Downloads can consume significant disk space over time. The UI includes a storage status chip that shows total and free space for your selected directory/drive, making it easy to monitor and adjust limits/schedule as needed.
 
-**Automatic Video Removal**: Can purge old videos nightly at 2:00 AM once you configure age or free-space thresholds in the Configuration page. Space-based cleanup relies on the storage status chip reporting accurate disk usage.
+**Automatic Video Removal**: Can purge videos nightly at 2:00 AM once you configure an age threshold, a free-space threshold, or watched-based removal under Settings -> Auto Removal. Space-based cleanup relies on the storage status chip reporting accurate disk usage.
 
 ### File Management Restrictions
 
@@ -257,6 +259,10 @@ If you use standard Docker Compose commands:
    ```bash
    docker compose up -d
    ```
+
+#### Method 3: Asustor App Central
+
+If you installed Youtarr from App Central on an Asustor NAS, updates come through App Central only. `docker pull` won't work because the package pins the Youtarr version. See the [Asustor guide](platforms/asustor.md#updating) for details.
 
 ### What Happens During Updates
 

@@ -34,6 +34,7 @@ import {
   VideoCount,
 } from './types';
 import TerminateJobDialog from './TerminateJobDialog';
+import FailedVideoLineList from './FailedVideoLineList';
 
 interface DownloadProgressProps {
   downloadProgressRef: React.MutableRefObject<{
@@ -212,9 +213,10 @@ const DownloadProgress: React.FC<DownloadProgressProps> = ({
       case 'downloading_audio': return 'Downloading audio stream...';
       case 'downloading_thumbnail': return 'Downloading thumbnail...';
       case 'processing_metadata': return 'Processing metadata...';
-      case 'merging': return 'Merging formats...';
+      case 'merging': return 'Merging formats... this can take a while for large files';
       case 'metadata': return 'Adding metadata...';
-      case 'processing': return 'Processing file...';
+      case 'processing': return 'Processing file... this can take a while for large files';
+      case 'extracting_audio': return 'Extracting audio...';
       case 'complete': return 'Download completed';
       case 'terminated': return 'Download terminated';
       case 'error': return 'Download failed';
@@ -707,19 +709,9 @@ const DownloadProgress: React.FC<DownloadProgressProps> = ({
                           {group.videos[0].error}
                         </Typography>
 
-                        {/* Only show individual video details if titles are known */}
-                        {group.videos.some(v => v.title !== 'Unknown') && (
-                          <Box className="mt-2 pl-4">
-                            {group.videos
-                              .filter(v => v.title !== 'Unknown')
-                              .map((video, index) => (
-                                <Typography key={video.youtubeId || index} variant="caption" component="div" color="text.secondary">
-                                  • {video.title}
-                                  {video.channel && video.channel !== 'Unknown' && ` by ${video.channel}`}
-                                </Typography>
-                              ))}
-                          </Box>
-                        )}
+                        <Box className="mt-2 pl-4">
+                          <FailedVideoLineList videos={group.videos} />
+                        </Box>
                       </Box>
                     ));
                   })()}
@@ -742,6 +734,7 @@ const DownloadProgress: React.FC<DownloadProgressProps> = ({
                   currentProgress.state === 'merging' ||
                   currentProgress.state === 'metadata' ||
                   currentProgress.state === 'processing' ||
+                  currentProgress.state === 'extracting_audio' ||
                   currentProgress.state === 'preparing' ||
                   currentProgress.state === 'preparing_subtitles' ||
                   currentProgress.state === 'processing_metadata'
@@ -834,7 +827,9 @@ const DownloadProgress: React.FC<DownloadProgressProps> = ({
                     : `${pendingJobs.length} download jobs are queued`}
               </Typography>
               <Typography variant="caption" className="mt-2 block">
-                {activeJob ? 'Waiting for progress updates...' : 'Starting soon...'}
+                {activeJob
+                  ? 'The download is still running. Progress updates will appear here shortly.'
+                  : 'Starting soon...'}
               </Typography>
             </Box>
           </Box>

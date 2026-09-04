@@ -24,21 +24,19 @@ import {
   CircularProgress,
   Link,
   Typography,
-  Divider,
 } from '../../ui';
-import { CheckCircle2 as CheckCircleIcon, Download as SystemUpdateIcon, ArrowRight as ArrowForwardIcon } from 'lucide-react';
-import { YtDlpVersionInfo, YtDlpUpdateStatus } from '../hooks/useYtDlpUpdate';
 import { ConfigurationCard } from '../common/ConfigurationCard';
 import { InfoTooltip } from '../common/InfoTooltip';
 import SubtitleLanguageSelector from '../SubtitleLanguageSelector';
 import { VideoFilenameTemplate } from './components/VideoFilenameTemplate';
 import { SubfolderAutocomplete } from '../../shared/SubfolderAutocomplete';
 import { ManageSubfoldersDialog } from '../../shared/ManageSubfoldersDialog';
+import { AddSubfolderDialog } from '../../shared/AddSubfolderDialog';
+import { Plus as AddIcon, Settings as SettingsIcon } from '../../../lib/icons';
 import { useSubfolders } from '../../../hooks/useSubfolders';
 import { ConfigState, DeploymentEnvironment, PlatformManagedState } from '../types';
 import { reverseFrequencyMapping, getChannelFilesOptions } from '../helpers';
 import { FREQUENCY_MAPPING } from '../constants';
-import { formatDateTime } from '../../../utils/formatters';
 
 interface CoreSettingsSectionProps {
   config: ConfigState;
@@ -49,9 +47,6 @@ interface CoreSettingsSectionProps {
   token: string | null;
   filenameTemplateSaveRequirement?: string | null;
   onFilenameTemplatePreviewSuccess?: (prefix: string) => void;
-  ytDlpVersionInfo?: YtDlpVersionInfo;
-  ytDlpUpdateStatus?: YtDlpUpdateStatus;
-  onYtDlpUpdate?: () => void;
 }
 
 export const CoreSettingsSection: React.FC<CoreSettingsSectionProps> = ({
@@ -63,24 +58,27 @@ export const CoreSettingsSection: React.FC<CoreSettingsSectionProps> = ({
   token,
   filenameTemplateSaveRequirement,
   onFilenameTemplatePreviewSuccess,
-  ytDlpVersionInfo,
-  ytDlpUpdateStatus,
-  onYtDlpUpdate,
 }) => {
   // Fetch available subfolders
   const { subfolders, loading: subfoldersLoading, createSubfolder } = useSubfolders(token);
 
   // State for confirmation dialog when setting default subfolder
   const [manageOpen, setManageOpen] = useState(false);
+  const [addSubfolderOpen, setAddSubfolderOpen] = useState(false);
   const [pendingDefaultSubfolder, setPendingDefaultSubfolder] = useState<string | null>(null);
+  // True when the pending value came from the Add Subfolder dialog (already persisted);
+  // the confirmation dialog copy changes so Cancel doesn't read as undoing the add.
+  const [pendingIsNewSubfolder, setPendingIsNewSubfolder] = useState(false);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [affectedChannels, setAffectedChannels] = useState<{ count: number; channelNames: string[] }>({ count: 0, channelNames: [] });
   const [loadingAffectedChannels, setLoadingAffectedChannels] = useState(false);
   const [showAffectedList, setShowAffectedList] = useState(false);
-  const [showYtDlpUpdateDialog, setShowYtDlpUpdateDialog] = useState(false);
 
   // Handle default subfolder change with confirmation
-  const handleDefaultSubfolderChange = async (newValue: string | null) => {
+  const handleDefaultSubfolderChange = async (
+    newValue: string | null,
+    meta?: { isNewlyCreated?: boolean }
+  ) => {
     const currentValue = config.defaultSubfolder || '';
     const newValueNormalized = newValue || '';
 
@@ -91,6 +89,7 @@ export const CoreSettingsSection: React.FC<CoreSettingsSectionProps> = ({
 
     // Show dialog immediately with loading state
     setPendingDefaultSubfolder(newValue);
+    setPendingIsNewSubfolder(meta?.isNewlyCreated === true);
     setShowConfirmDialog(true);
     setLoadingAffectedChannels(true);
     setAffectedChannels({ count: 0, channelNames: [] });
@@ -116,13 +115,25 @@ export const CoreSettingsSection: React.FC<CoreSettingsSectionProps> = ({
     onConfigChange({ defaultSubfolder: pendingDefaultSubfolder || '' });
     setShowConfirmDialog(false);
     setPendingDefaultSubfolder(null);
+    setPendingIsNewSubfolder(false);
     setShowAffectedList(false);
   };
 
   const handleCancelDefaultSubfolder = () => {
     setShowConfirmDialog(false);
     setPendingDefaultSubfolder(null);
+    setPendingIsNewSubfolder(false);
     setShowAffectedList(false);
+  };
+
+  // Page-level Add Subfolder action: persist the new name, then offer to set
+  // it as the default via the confirmation dialog
+  const handleAddSubfolderFromPage = (name: string) => {
+    setAddSubfolderOpen(false);
+    createSubfolder(name).catch((err) => {
+      console.error('Failed to persist subfolder:', err);
+    });
+    handleDefaultSubfolderChange(name, { isNewlyCreated: true });
   };
 
   const [pendingFlatDefault, setPendingFlatDefault] = useState<boolean | null>(null);
@@ -638,9 +649,9 @@ export const CoreSettingsSection: React.FC<CoreSettingsSectionProps> = ({
                       onChange={handleDefaultSubfolderChange}
                       subfolders={subfolders}
                       loading={subfoldersLoading}
-                      createSubfolder={createSubfolder}
                       label="Default Subfolder"
                       helperText="Default download location for channels using 'Default Subfolder'"
+                      showAddAction={false}
                     />
                     <Box className="flex items-center min-h-[48px] mt-5">
                       <InfoTooltip
@@ -649,9 +660,30 @@ export const CoreSettingsSection: React.FC<CoreSettingsSectionProps> = ({
                       />
                     </Box>
                   </Box>
-                  <Button variant="text" size="sm" onClick={() => setManageOpen(true)}>
-                    Manage Subfolders
-                  </Button>
+                  <Box className="mt-1 flex flex-wrap items-center gap-2">
+                    <Button
+                      variant="text"
+                      size="sm"
+                      startIcon={<AddIcon size={14} />}
+                      onClick={() => setAddSubfolderOpen(true)}
+                    >
+                      Add Subfolder
+                    </Button>
+                    <Button
+                      variant="text"
+                      size="sm"
+                      startIcon={<SettingsIcon size={14} />}
+                      onClick={() => setManageOpen(true)}
+                    >
+                      Manage Subfolders
+                    </Button>
+                  </Box>
+                  <AddSubfolderDialog
+                    open={addSubfolderOpen}
+                    onClose={() => setAddSubfolderOpen(false)}
+                    onAdd={handleAddSubfolderFromPage}
+                    existingSubfolders={subfolders}
+                  />
                   <ManageSubfoldersDialog
                     open={manageOpen}
                     onClose={() => setManageOpen(false)}
@@ -729,152 +761,22 @@ export const CoreSettingsSection: React.FC<CoreSettingsSectionProps> = ({
         </Grid>
       </Grid>
 
-      {/* yt-dlp Version Section */}
-      {ytDlpVersionInfo && ytDlpVersionInfo.currentVersion && (
-        <>
-          <Divider className="mt-6 mb-4" />
-          <Box>
-            <Box className="flex items-center gap-3 flex-wrap mb-2">
-              <Typography variant="subtitle1" className="font-medium">
-                yt-dlp:
-              </Typography>
-              <Typography
-                variant="body1"
-                style={{ fontFamily: 'monospace', fontWeight: 500 }}
-              >
-                {ytDlpVersionInfo.currentVersion}
-              </Typography>
-              {!isPlatformManaged.ytdlpUpdates && ytDlpVersionInfo.updateAvailable && ytDlpVersionInfo.latestVersion ? (
-                <>
-                  <ArrowForwardIcon style={{ fontSize: 16 }} className="text-muted-foreground" />
-                  <Typography
-                    variant="body1"
-                    style={{ fontFamily: 'monospace', fontWeight: 500, color: 'var(--warning)' }}
-                  >
-                    {ytDlpVersionInfo.latestVersion}
-                  </Typography>
-                  <Button
-                    variant="contained"
-                    size="small"
-                    color="warning"
-                    startIcon={
-                      ytDlpUpdateStatus === 'updating' ? (
-                        <CircularProgress size={16} />
-                      ) : (
-                        <SystemUpdateIcon />
-                      )
-                    }
-                    onClick={() => setShowYtDlpUpdateDialog(true)}
-                    disabled={ytDlpUpdateStatus === 'updating'}
-                  >
-                    {ytDlpUpdateStatus === 'updating' ? 'Updating...' : 'Update'}
-                  </Button>
-                </>
-              ) : !isPlatformManaged.ytdlpUpdates ? (
-                <CheckCircleIcon color="success" fontSize="small" />
-              ) : null}
-              {isPlatformManaged.ytdlpUpdates && (
-                <Chip
-                  label={deploymentEnvironment.platform?.toLowerCase() === 'elfhosted' ? 'Managed by Elfhosted' : 'Platform Managed'}
-                  size="small"
-                />
-              )}
-            </Box>
-            {isPlatformManaged.ytdlpUpdates ? (
-              <Typography variant="caption" color="text.secondary">
-                yt-dlp is managed by {deploymentEnvironment.platform?.toLowerCase() === 'elfhosted' ? 'Elfhosted' : 'the platform'} and cannot be updated from Youtarr. Updates are applied automatically by the platform.
-              </Typography>
-            ) : (
-              <>
-                <Typography variant="caption" color="text.secondary">
-                  yt-dlp is the video download engine. If downloads are failing, try updating yt-dlp to the latest version.
-                </Typography>
-
-                <Box className="mt-4 flex items-center">
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        name="autoUpdateYtdlp"
-                        checked={!!config.autoUpdateYtdlp}
-                        onChange={handleCheckboxChange}
-                      />
-                    }
-                    label="Automatically update yt-dlp nightly"
-                  />
-                  <InfoTooltip
-                    text="Checks for a new yt-dlp release each night at 4:00 AM (server local time) and installs it automatically. Updates are skipped while a download is in progress and will be retried the following night. If an update fails, Youtarr keeps running on the previous version."
-                    onMobileClick={onMobileTooltipClick}
-                  />
-                </Box>
-
-                {(config.ytdlpLastChecked || config.ytdlpLastResult || config.ytdlpLastUpdated) && (
-                  <Box className="mt-1">
-                    {config.ytdlpLastChecked && (
-                      <Typography
-                        variant="caption"
-                        className="block"
-                        style={{ color: config.ytdlpLastResult?.status === 'error' ? 'var(--warning)' : undefined }}
-                        color={config.ytdlpLastResult?.status === 'error' ? undefined : 'text.secondary'}
-                      >
-                        Last checked: {formatDateTime(config.ytdlpLastChecked)}
-                        {config.ytdlpLastResult?.status === 'up-to-date' && ' — already up to date'}
-                        {config.ytdlpLastResult?.status === 'updated' && config.ytdlpLastResult.version && ` — updated to ${config.ytdlpLastResult.version}`}
-                        {config.ytdlpLastResult?.status === 'skipped' && ` — skipped: ${config.ytdlpLastResult.message || 'reason unknown'}`}
-                        {config.ytdlpLastResult?.status === 'error' && ` — update failed: ${config.ytdlpLastResult.message || 'reason unknown'}`}
-                      </Typography>
-                    )}
-                    {config.ytdlpLastUpdated && (
-                      <Typography variant="caption" color="text.secondary" className="block">
-                        Last updated: {formatDateTime(config.ytdlpLastUpdated)}
-                      </Typography>
-                    )}
-                  </Box>
-                )}
-              </>
-            )}
-          </Box>
-        </>
-      )}
-
-      {/* yt-dlp Update Confirmation Dialog */}
-      <Dialog
-        open={showYtDlpUpdateDialog}
-        onClose={() => setShowYtDlpUpdateDialog(false)}
-        aria-labelledby="ytdlp-update-dialog-title"
-        aria-describedby="ytdlp-update-dialog-description"
-      >
-        <DialogTitle id="ytdlp-update-dialog-title">Update yt-dlp?</DialogTitle>
-        <DialogContent>
-          <DialogContentText id="ytdlp-update-dialog-description">
-            This will update yt-dlp from{' '}
-            <strong>{ytDlpVersionInfo?.currentVersion || 'current version'}</strong> to{' '}
-            <strong>{ytDlpVersionInfo?.latestVersion || 'latest version'}</strong>.
-          </DialogContentText>
-          <DialogContentText className="mt-4">
-            Newer versions are not guaranteed to be fully compatible with Youtarr. Updating is only recommended if you are experiencing issues with downloading videos.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowYtDlpUpdateDialog(false)}>Cancel</Button>
-          <Button
-            onClick={() => {
-              setShowYtDlpUpdateDialog(false);
-              onYtDlpUpdate?.();
-            }}
-            variant="contained"
-            color="primary"
-          >
-            Update
-          </Button>
-        </DialogActions>
-      </Dialog>
-
       {/* Confirmation Dialog for Default Subfolder */}
       <Dialog open={showConfirmDialog} onClose={handleCancelDefaultSubfolder}>
-        <DialogTitle>Set Default Subfolder?</DialogTitle>
+        <DialogTitle>
+          {pendingIsNewSubfolder ? 'Set New Subfolder as Default?' : 'Set Default Subfolder?'}
+        </DialogTitle>
         <DialogContent>
+          {pendingIsNewSubfolder && (
+            <DialogContentText className="mb-2">
+              Subfolder <strong>{`__${pendingDefaultSubfolder}`}</strong> has been created and is
+              available anywhere subfolders can be selected.
+            </DialogContentText>
+          )}
           <DialogContentText>
-            Setting a default subfolder will affect where videos are downloaded for:
+            {pendingIsNewSubfolder
+              ? 'Would you also like to make it the default subfolder? This will affect where videos are downloaded for:'
+              : 'Setting a default subfolder will affect where videos are downloaded for:'}
           </DialogContentText>
           <Box component="ul" className="mt-2 pl-4">
             <li>Untracked channels (manual URL downloads)</li>
@@ -926,13 +828,15 @@ export const CoreSettingsSection: React.FC<CoreSettingsSectionProps> = ({
             </strong>
           </DialogContentText>
           <DialogContentText className="mt-2" style={{ fontStyle: 'italic' }}>
-            Existing videos will not be moved. Continue?
+            Existing videos will not be moved.
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCancelDefaultSubfolder}>Cancel</Button>
+          <Button onClick={handleCancelDefaultSubfolder}>
+            {pendingIsNewSubfolder ? "Don't Set as Default" : 'Cancel'}
+          </Button>
           <Button onClick={handleConfirmDefaultSubfolder} variant="contained" color="primary">
-            Confirm
+            Set as Default
           </Button>
         </DialogActions>
       </Dialog>

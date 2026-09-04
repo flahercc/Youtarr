@@ -15,6 +15,7 @@ const downloadResultProcessor = require('./downloadResultProcessor');
 const downloadCleanup = require('./downloadCleanup');
 const transient403RetryPlanner = require('./transient403RetryPlanner');
 const failureAdvisor = require('./failureAdvisor');
+const failedVideoEnricher = require('./failedVideoEnricher');
 const { runCompletionSideEffects } = require('./downloadCompletionEffects');
 const {
   computeOutcomeFlags,
@@ -178,6 +179,10 @@ async function finalizeDownloadJob({
     // Use successful videos for further processing (archive, database, etc.)
     videoData = successfulVideos;
 
+    // Best-effort: name failed videos from what the DB already knows so
+    // history, notifications, and run summaries can identify them.
+    await failedVideoEnricher.enrichFailedVideos(failedVideosList);
+
     await downloadResultProcessor.reconcileArchive({ allowRedownload, failedVideosList, videoData, errorTracker });
 
     const wasTerminated = Boolean(timeoutController.shutdownInProgress || timeoutController.shutdownReason || wasManuallyTerminated);
@@ -256,7 +261,8 @@ async function finalizeDownloadJob({
       failedCount: failedVideosList.length,
       unexpectedErrorCount: errorTracker.unexpectedErrorCount,
       botDetected,
-      httpForbiddenDetected
+      httpForbiddenDetected,
+      subtitleFailureCount: errorTracker.subtitleFailureCount || 0
     });
 
     const dataPayload = buildJobDataPayload({
@@ -333,7 +339,8 @@ async function finalizeDownloadJob({
         httpForbiddenDetected,
         cookiesEnabled,
         flags,
-        failureDetails
+        failureDetails,
+        subtitleFailureCount: errorTracker.subtitleFailureCount || 0
       });
       status = nonZero.status;
       output = nonZero.output;
@@ -456,7 +463,8 @@ async function finalizeDownloadJob({
       unexpectedErrorCount: errorTracker.unexpectedErrorCount,
       httpForbiddenDetected,
       cookiesEnabled,
-      autoRetryQueuedCount
+      autoRetryQueuedCount,
+      subtitleFailureCount: errorTracker.subtitleFailureCount || 0
     });
     const { debugFlags } = presentation;
 
@@ -473,6 +481,7 @@ async function finalizeDownloadJob({
       unexpectedErrorCount: errorTracker.unexpectedErrorCount,
       hasOnlyExpectedSkips: flags.hasOnlyExpectedSkips,
       hasOnlyHandledErrors: flags.hasOnlyHandledErrors,
+      hasOnlySubtitleFailures: flags.hasOnlySubtitleFailures,
       terminatedChannelCount: errorTracker.terminatedChannelIds.size,
       successCount: videoData.length,
       failureCount: failedVideosList.length,

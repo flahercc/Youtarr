@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { CoreSettingsSection } from '../CoreSettingsSection';
@@ -8,13 +8,14 @@ import { ConfigState, DeploymentEnvironment, PlatformManagedState } from '../../
 import { DEFAULT_CONFIG } from '../../../../config/configSchema';
 
 // Mock useSubfolders hook to prevent network requests
+const mockCreateSubfolder = jest.fn(() => Promise.resolve());
 jest.mock('../../../../hooks/useSubfolders', () => ({
   useSubfolders: () => ({
     subfolders: ['__Sports', '__Music', '__Tech'],
     loading: false,
     error: null,
     refetch: jest.fn(),
-    createSubfolder: jest.fn(() => Promise.resolve()),
+    createSubfolder: mockCreateSubfolder,
     deleteSubfolder: jest.fn(() => Promise.resolve()),
   }),
 }));
@@ -41,7 +42,7 @@ jest.mock('../../SubtitleLanguageSelector', () => ({
 jest.mock('../../../shared/SubfolderAutocomplete', () => ({
   SubfolderAutocomplete: function MockSubfolderAutocomplete(props: {
     value: string | null;
-    onChange: (value: string | null) => void;
+    onChange: (value: string | null, meta?: { isNewlyCreated?: boolean }) => void;
     label: string;
   }) {
     const React = require('react');
@@ -94,6 +95,8 @@ const createSectionProps = (
 describe('CoreSettingsSection Component', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    // Jest's resetMocks wipes the implementation before each test; restore it
+    mockCreateSubfolder.mockResolvedValue(undefined);
   });
 
   describe('Component Rendering', () => {
@@ -1434,7 +1437,7 @@ describe('CoreSettingsSection Component', () => {
       await screen.findByText('No tracked channels are currently using Default Subfolder.');
 
       // Click confirm
-      const confirmButton = screen.getByRole('button', { name: 'Confirm' });
+      const confirmButton = screen.getByRole('button', { name: 'Set as Default' });
       await user.click(confirmButton);
 
       expect(onConfigChange).toHaveBeenCalledWith({ defaultSubfolder: 'NewFolder' });
@@ -1487,190 +1490,110 @@ describe('CoreSettingsSection Component', () => {
 
       consoleSpy.mockRestore();
     });
-  });
 
-  describe('yt-dlp Auto-Update Toggle', () => {
-    const ytDlpVersionInfo = {
-      currentVersion: '2026.04.10',
-      latestVersion: '2026.04.10',
-      updateAvailable: false,
-    };
+    describe('when triggered by adding a new subfolder', () => {
+      // Drives the page-level Add Subfolder action: open the dialog, enter a
+      // name, and submit (scoped with within() because the page action and the
+      // dialog submit button share the accessible name 'Add Subfolder').
+      const openAddSubfolderDialog = async (user: ReturnType<typeof userEvent.setup>) => {
+        await user.click(screen.getByRole('button', { name: 'Add Subfolder' }));
+        const dialog = await screen.findByRole('dialog');
+        await user.type(within(dialog).getByLabelText('Subfolder Name'), 'NewFolder');
+        await user.click(within(dialog).getByRole('button', { name: 'Add Subfolder' }));
+      };
 
-    test('does not render auto-update toggle when no yt-dlp version is available', () => {
-      const props = createSectionProps();
-      renderWithProviders(<CoreSettingsSection {...props} />);
-      expect(
-        screen.queryByRole('checkbox', { name: /Automatically update yt-dlp nightly/i })
-      ).not.toBeInTheDocument();
-    });
-
-    test('renders auto-update toggle when yt-dlp version info is provided', () => {
-      const props = createSectionProps({ ytDlpVersionInfo });
-      renderWithProviders(<CoreSettingsSection {...props} />);
-      expect(
-        screen.getByRole('checkbox', { name: /Automatically update yt-dlp nightly/i })
-      ).toBeInTheDocument();
-    });
-
-    test('toggle reflects autoUpdateYtdlp false', () => {
-      const props = createSectionProps({
-        config: createConfig({ autoUpdateYtdlp: false }),
-        ytDlpVersionInfo,
+      beforeEach(() => {
+        mockFetch.mockResolvedValue({
+          ok: true,
+          json: jest.fn().mockResolvedValue({ count: 0, channelNames: [] })
+        });
       });
-      renderWithProviders(<CoreSettingsSection {...props} />);
-      const toggle = screen.getByRole('checkbox', { name: /Automatically update yt-dlp nightly/i });
-      expect(toggle).not.toBeChecked();
-    });
 
-    test('toggle reflects autoUpdateYtdlp true', () => {
-      const props = createSectionProps({
-        config: createConfig({ autoUpdateYtdlp: true }),
-        ytDlpVersionInfo,
+      test('renders Add Subfolder and Manage Subfolders as separate page actions', () => {
+        const props = createSectionProps();
+        renderWithProviders(<CoreSettingsSection {...props} />);
+
+        expect(screen.getByRole('button', { name: 'Add Subfolder' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Manage Subfolders' })).toBeInTheDocument();
       });
-      renderWithProviders(<CoreSettingsSection {...props} />);
-      const toggle = screen.getByRole('checkbox', { name: /Automatically update yt-dlp nightly/i });
-      expect(toggle).toBeChecked();
-    });
 
-    test('calls onConfigChange when toggled', async () => {
-      const user = userEvent.setup();
-      const onConfigChange = jest.fn();
-      const props = createSectionProps({
-        config: createConfig({ autoUpdateYtdlp: false }),
-        onConfigChange,
-        ytDlpVersionInfo,
+      test('persists the new subfolder via createSubfolder', async () => {
+        const user = userEvent.setup();
+        const props = createSectionProps({
+          config: createConfig({ defaultSubfolder: '' })
+        });
+        renderWithProviders(<CoreSettingsSection {...props} />);
+
+        await openAddSubfolderDialog(user);
+
+        await waitFor(() => expect(mockCreateSubfolder).toHaveBeenCalledWith('NewFolder'));
       });
-      renderWithProviders(<CoreSettingsSection {...props} />);
 
-      const toggle = screen.getByRole('checkbox', { name: /Automatically update yt-dlp nightly/i });
-      await user.click(toggle);
+      test('shows new-subfolder title and creation notice', async () => {
+        const user = userEvent.setup();
+        const props = createSectionProps({
+          config: createConfig({ defaultSubfolder: '' })
+        });
+        renderWithProviders(<CoreSettingsSection {...props} />);
 
-      expect(onConfigChange).toHaveBeenCalledWith({ autoUpdateYtdlp: true });
-    });
+        await openAddSubfolderDialog(user);
 
-    test('does not render the status caption when no checks have run yet', () => {
-      const props = createSectionProps({ ytDlpVersionInfo });
-      renderWithProviders(<CoreSettingsSection {...props} />);
-      expect(screen.queryByText(/Last checked:/i)).not.toBeInTheDocument();
-      expect(screen.queryByText(/Last updated:/i)).not.toBeInTheDocument();
-    });
-
-    test('renders "already up to date" caption after a successful no-op check', () => {
-      const props = createSectionProps({
-        config: createConfig({
-          ytdlpLastChecked: '2026-04-25T04:00:00.000Z',
-          ytdlpLastResult: { status: 'up-to-date' },
-        }),
-        ytDlpVersionInfo,
+        await screen.findByText('Set New Subfolder as Default?');
+        expect(
+          screen.getByText(/has been created and is available anywhere subfolders can be selected/)
+        ).toBeInTheDocument();
       });
-      renderWithProviders(<CoreSettingsSection {...props} />);
-      expect(screen.getByText(/Last checked:.*already up to date/i)).toBeInTheDocument();
-    });
 
-    test('renders "updated to <version>" caption and the last updated timestamp on a real update', () => {
-      const props = createSectionProps({
-        config: createConfig({
-          ytdlpLastChecked: '2026-04-25T04:00:00.000Z',
-          ytdlpLastUpdated: '2026-04-25T04:00:00.000Z',
-          ytdlpLastResult: { status: 'updated', version: '2026.04.20' },
-        }),
-        ytDlpVersionInfo,
+      test('"Don\'t Set as Default" closes the dialog without changing config', async () => {
+        const user = userEvent.setup();
+        const onConfigChange = jest.fn();
+        const props = createSectionProps({
+          config: createConfig({ defaultSubfolder: '' }),
+          onConfigChange
+        });
+        renderWithProviders(<CoreSettingsSection {...props} />);
+
+        await openAddSubfolderDialog(user);
+
+        await screen.findByText('Set New Subfolder as Default?');
+        await user.click(screen.getByRole('button', { name: "Don't Set as Default" }));
+
+        expect(onConfigChange).not.toHaveBeenCalled();
+        expect(screen.queryByText('Set New Subfolder as Default?')).not.toBeInTheDocument();
       });
-      renderWithProviders(<CoreSettingsSection {...props} />);
-      expect(screen.getByText(/updated to 2026\.04\.20/i)).toBeInTheDocument();
-      expect(screen.getByText(/Last updated:/i)).toBeInTheDocument();
-    });
 
-    test('renders "skipped" caption when an auto-update was skipped', () => {
-      const props = createSectionProps({
-        config: createConfig({
-          ytdlpLastChecked: '2026-04-25T04:00:00.000Z',
-          ytdlpLastResult: { status: 'skipped', message: 'Cannot update while downloads are in progress.' },
-        }),
-        ytDlpVersionInfo,
+      test('"Set as Default" applies the new subfolder as default', async () => {
+        const user = userEvent.setup();
+        const onConfigChange = jest.fn();
+        const props = createSectionProps({
+          config: createConfig({ defaultSubfolder: '' }),
+          onConfigChange
+        });
+        renderWithProviders(<CoreSettingsSection {...props} />);
+
+        await openAddSubfolderDialog(user);
+
+        await screen.findByText('Set New Subfolder as Default?');
+        await user.click(screen.getByRole('button', { name: 'Set as Default' }));
+
+        expect(onConfigChange).toHaveBeenCalledWith({ defaultSubfolder: 'NewFolder' });
       });
-      renderWithProviders(<CoreSettingsSection {...props} />);
-      expect(
-        screen.getByText(/skipped:.*downloads are in progress/i)
-      ).toBeInTheDocument();
-    });
 
-    test('renders "update failed" caption with message on error', () => {
-      const props = createSectionProps({
-        config: createConfig({
-          ytdlpLastChecked: '2026-04-25T04:00:00.000Z',
-          ytdlpLastResult: { status: 'error', message: 'Permission denied' },
-        }),
-        ytDlpVersionInfo,
+      test('selecting an existing subfolder keeps the standard title and Cancel button', async () => {
+        const user = userEvent.setup();
+        const props = createSectionProps({
+          config: createConfig({ defaultSubfolder: '' })
+        });
+        renderWithProviders(<CoreSettingsSection {...props} />);
+
+        await openSubfolderDialog(user);
+
+        await screen.findByText('Set Default Subfolder?');
+        expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+        expect(
+          screen.queryByText(/has been created and is available anywhere subfolders can be selected/)
+        ).not.toBeInTheDocument();
       });
-      renderWithProviders(<CoreSettingsSection {...props} />);
-      expect(screen.getByText(/update failed: Permission denied/i)).toBeInTheDocument();
-    });
-  });
-
-  describe('yt-dlp Section on Platform-Managed Deployments', () => {
-    const ytDlpVersionInfo = {
-      currentVersion: '2026.04.10',
-      latestVersion: '2026.04.20',
-      updateAvailable: true,
-    };
-
-    test('hides the manual Update button when yt-dlp is platform-managed', () => {
-      const props = createSectionProps({
-        ytDlpVersionInfo,
-        isPlatformManaged: createPlatformManagedState({ ytdlpUpdates: true }),
-        deploymentEnvironment: createDeploymentEnvironment({ platform: 'elfhosted' }),
-      });
-      renderWithProviders(<CoreSettingsSection {...props} />);
-      expect(screen.queryByRole('button', { name: /^Update$/i })).not.toBeInTheDocument();
-    });
-
-    test('hides the auto-update toggle when yt-dlp is platform-managed', () => {
-      const props = createSectionProps({
-        ytDlpVersionInfo,
-        isPlatformManaged: createPlatformManagedState({ ytdlpUpdates: true }),
-        deploymentEnvironment: createDeploymentEnvironment({ platform: 'elfhosted' }),
-      });
-      renderWithProviders(<CoreSettingsSection {...props} />);
-      expect(
-        screen.queryByRole('checkbox', { name: /Automatically update yt-dlp nightly/i })
-      ).not.toBeInTheDocument();
-    });
-
-    test('shows the Elfhosted-specific managed message and chip', () => {
-      const props = createSectionProps({
-        ytDlpVersionInfo,
-        isPlatformManaged: createPlatformManagedState({ ytdlpUpdates: true }),
-        deploymentEnvironment: createDeploymentEnvironment({ platform: 'elfhosted' }),
-      });
-      renderWithProviders(<CoreSettingsSection {...props} />);
-      expect(screen.getByText('Managed by Elfhosted')).toBeInTheDocument();
-      expect(
-        screen.getByText(/yt-dlp is managed by Elfhosted and cannot be updated from Youtarr/i)
-      ).toBeInTheDocument();
-    });
-
-    test('shows a generic platform-managed message when platform is not Elfhosted', () => {
-      const props = createSectionProps({
-        ytDlpVersionInfo,
-        isPlatformManaged: createPlatformManagedState({ ytdlpUpdates: true }),
-        deploymentEnvironment: createDeploymentEnvironment({ platform: null }),
-      });
-      renderWithProviders(<CoreSettingsSection {...props} />);
-      expect(screen.getByText('Platform Managed')).toBeInTheDocument();
-      expect(
-        screen.getByText(/yt-dlp is managed by the platform and cannot be updated from Youtarr/i)
-      ).toBeInTheDocument();
-    });
-
-    test('still shows the current yt-dlp version when platform-managed', () => {
-      const props = createSectionProps({
-        ytDlpVersionInfo,
-        isPlatformManaged: createPlatformManagedState({ ytdlpUpdates: true }),
-        deploymentEnvironment: createDeploymentEnvironment({ platform: 'elfhosted' }),
-      });
-      renderWithProviders(<CoreSettingsSection {...props} />);
-      expect(screen.getByText('2026.04.10')).toBeInTheDocument();
     });
   });
 });
