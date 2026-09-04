@@ -55,15 +55,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Download the latest yt-dlp NIGHTLY build to a dedicated writable directory
-# so non-root users (YOUTARR_UID/YOUTARR_GID) can self-update at runtime.
-# Nightly (not stable) because YouTube-side breakage is frequently fixed on
-# yt-dlp master days to weeks before it lands in a tagged stable release, and
-# a broken extractor means Youtarr can't download anything until it's fixed.
-# `yt-dlp -U` (config: Settings -> Core -> Automatically update yt-dlp)
-# continues tracking this same nightly channel on subsequent updates.
+# Download the latest yt-dlp release to a dedicated writable directory
+# so non-root users (YOUTARR_UID/YOUTARR_GID) can self-update at runtime
 RUN mkdir -p /opt/yt-dlp && \
-    curl -L https://github.com/yt-dlp/yt-dlp-nightly-builds/releases/latest/download/yt-dlp -o /opt/yt-dlp/yt-dlp && \
+    curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /opt/yt-dlp/yt-dlp && \
     chmod 0777 /opt/yt-dlp /opt/yt-dlp/yt-dlp
 ENV PATH="/opt/yt-dlp:${PATH}"
 

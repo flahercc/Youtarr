@@ -520,9 +520,9 @@ COMPOSE_FILE=docker-compose.yml:docker-compose.arm.yml
 
 Update yt-dlp. Most download failures are extractor breakage that a newer yt-dlp fixes.
 
-- Youtarr's Docker image bundles yt-dlp's **nightly** build (not the stable release) - YouTube-side breakage is often fixed on yt-dlp's master branch days to weeks before it reaches a tagged stable release, so tracking nightly keeps Youtarr working through YouTube's more frequent extractor changes.
-- The fastest fix is in-app: go to **Settings -> YT-DLP** and update yt-dlp manually. With **Automatically update yt-dlp daily (4:00 AM)** enabled this happens each night on its own. Set the **Update Channel** there to **Nightly** so in-app updates keep tracking the same channel the image ships.
-- Pulling a new image also updates the bundled build:
+- The fastest fix is in-app: go to **Settings -> YT-DLP** and update yt-dlp manually. With **Automatically update yt-dlp daily (4:00 AM)** enabled this happens each night on its own.
+- If the latest stable yt-dlp still fails, switch the **Update Channel** to **Nightly** on the same page. Nightly gets extractor fixes days earlier than stable.
+- Youtarr's Docker image also bundles the latest yt-dlp at release time, so pulling a new image updates it too:
   - Via docker compose:
       ```bash
       docker compose down
