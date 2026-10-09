@@ -7,6 +7,7 @@
 },*/
 
 export interface ChannelVideo {
+  activity?: 'queued' | 'downloading';
   id?: number;
   title: string;
   youtube_id: string;
@@ -18,6 +19,9 @@ export interface ChannelVideo {
   thumbnail: string;
   added: boolean;
   removed?: boolean;
+  // Listed in the download archive without a database record, so a download
+  // skips it unless re-downloading is allowed. Never true for ignored videos.
+  inArchive?: boolean;
   youtube_removed?: boolean;
   duration: number;
   availability?: string | null;

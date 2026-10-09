@@ -1,6 +1,7 @@
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import VideoActivityProvider from './providers/VideoActivityProvider';
 import './App.css';
 import packageJson from '../package.json';
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import axios from 'axios';
 import {
   BrowserRouter as Router,
@@ -452,7 +453,7 @@ function AppContent() {
   }, [fetchYtDlpVersionInfo]);
 
   return (
-    <>
+    <VideoActivityProvider token={token}>
         {/* Database Error Overlay - shows when database is unavailable or recovered */}
         {(dbStatus === 'error' || dbRecovered) && (
           <DatabaseErrorOverlay
@@ -559,7 +560,7 @@ function AppContent() {
         <Snackbar
           open={showTmpWarning}
           anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-          className="mt-16 w-full flex justify-center"
+          className="mt-16 w-full md:max-w-none flex justify-center"
           style={{ zIndex: 1210 }}
           onClose={() => setShowTmpWarning(false)}
         >
@@ -589,7 +590,7 @@ function AppContent() {
             </div>
           </Alert>
         </Snackbar>
-      </>
+      </VideoActivityProvider>
   );
 }
 

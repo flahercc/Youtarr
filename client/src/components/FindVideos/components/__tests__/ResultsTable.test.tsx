@@ -63,3 +63,14 @@ describe('ResultsTable', () => {
     expect(within(longRow).getByText('1:02:03')).toBeInTheDocument();
   });
 });
+
+test.each(['queued', 'downloading'] as const)('shows %s without a download checkbox', (status) => {
+  const toggle = jest.fn();
+  render(<ResultsTable
+    results={[makeResult({ status })]}
+    onResultClick={jest.fn()}
+    selection={{ isChecked: () => true, toggle }}
+  />);
+  expect(screen.getByText(status === 'queued' ? 'Queued…' : 'Downloading…')).toBeInTheDocument();
+  expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+});

@@ -129,6 +129,69 @@ The script runs `npm run build` for the client and then invokes `docker build`, 
   - Leave `AUTH_PRESET_USERNAME` and `AUTH_PRESET_PASSWORD` blank to configure your login via
     UI on first startup (credentials will be saved to `config/config.json`)
 
+### Development container ownership
+
+The development app honors `YOUTARR_UID` and `YOUTARR_GID`, just like production.
+Set both to your host user's numeric IDs (`id -u` and `id -g`) in `.env` when you
+want generated files to be owned by your development account. For example:
+
+```ini
+YOUTARR_UID=1000
+YOUTARR_GID=1000
+```
+
+Unset values retain the root (`0:0`) default. These settings apply to the app,
+not MariaDB. Older versions of `docker-compose.dev.yml` ignored these variables,
+so switching to development could run the app as root even with IDs configured.
+Changing `.env` or this Compose setting does not repair existing file ownership,
+and `docker start` alone does not apply a new container user.
+
+For an existing local development installation with mixed ownership:
+
+1. Stop the app before changing file ownership:
+
+   ```bash
+   docker stop youtarr-dev
+   ```
+
+2. Set the intended IDs in `.env`. For a **dedicated local checkout** whose app
+   should run as `1000:1000`, repair only its configuration and metadata paths:
+
+   ```bash
+   # Run from the repository root; replace the IDs if yours differ.
+   mkdir -p config jobs server/images
+   sudo chown -R 1000:1000 config jobs server/images
+   ```
+
+   This deliberately assigns these app files to the selected development user;
+   it preserves their existing permission modes. Check that the owner has write
+   access to the needed files and directories. Do not recursively chown the
+   repository, `database/`, database volumes, or a shared media library. Custom bind
+   mounts require using their actual host paths instead. If changing ownership
+   fails, check your storage permissions before continuing.
+
+3. Ensure the configured `YOUTUBE_OUTPUT_DIR` is also writable by the selected app
+   account. Repair ownership only for files belonging to this installation, or
+   arrange appropriate permissions for shared storage. Mounted source code must
+   remain readable by the app user too.
+
+4. Recreate the development containers through the normal startup command, then
+   verify the effective app user:
+
+   ```bash
+   ./scripts/start-dev.sh
+   docker inspect youtarr-dev --format '{{.Config.User}}'
+   docker exec youtarr-dev id
+   ```
+
+   The example configuration should report `1000:1000` and UID/GID 1000. Download
+   a small video and check ownership of newly generated metadata/images. If IDs
+   differ, check shell overrides and custom Compose files. Merely restarting the
+   old container retains its old user setting.
+
+These steps repair files created by older development containers. Before backup
+or restore, stop the app again with `docker stop youtarr-dev`.
+
 ### 4. Start Development Environment
 
 **Step 1: Full Docker Development**
@@ -141,8 +204,7 @@ Build and run the full stack using the pre-built static frontend served by the a
 ```
 
 This starts:
-- **Backend** on http://localhost:3011 (Node.js Express server with `--watch` for auto-restart)
-- **Frontend (static, served by the app container)** on http://localhost:3087
+- **Backend and static frontend** on http://localhost:3087 (the Node.js Express server listens on port 3011 inside the container; only host port 3087, or `YOUTARR_HOST_PORT`, is published)
 - **MariaDB** database on the internal Docker network only
 
 Optional flags:
@@ -165,7 +227,7 @@ npm run dev
 Then access:
 - **Frontend (HMR)** at http://localhost:3000
 
-The Vite dev server will proxy API and WebSocket requests to the backend at port `3011` so API calls work the same as the full-stack run.
+The Vite dev server will proxy API and WebSocket requests to the backend on host port `3087` (override with `VITE_BACKEND_PORT`) so API calls work the same as the full-stack run.
 
 The dev server binds to all interfaces (`0.0.0.0`) by default so workflows that reach the host from another network namespace (Docker, WSL2, remote dev containers) work without extra configuration. Override with the `VITE_HOST` env var (e.g. `VITE_HOST=localhost npm run dev`) if you want to bind to loopback only.
 
@@ -224,7 +286,7 @@ The development setup is a "build-and-test-in-Docker" workflow that ensures your
 3. Builds a Docker image with the pre-built static files
 
 **Runtime Phase** (`./scripts/start-dev.sh`):
-- Runs the Node.js Express server with `node --watch server/server.js` - backend code changes auto-restart the server without a rebuild
+- Runs the Node.js Express server from the mounted `./server/` source - backend code changes take effect after a container restart (`docker restart youtarr-dev`), without a rebuild
 - Serves the pre-built React static files from `/app/client/build` (frontend changes require a rebuild unless you are running the Vite dev server)
 - Application accessible at http://localhost:3087
 
@@ -238,14 +300,20 @@ volumes:
   - ./server/images:/app/server/images                     # Generated thumbnails
   - ./config:/app/config                                   # Configuration files
   - ./jobs:/app/jobs                                       # Job state
-  # Backend source and migrations for hot reload with --watch
+  # Backend source and migrations (picked up on container restart)
   - ./server:/app/server
   - ./migrations:/app/migrations
   - ./package.json:/app/package.json
   - ./package-lock.json:/app/package-lock.json
 ```
 
-**Backend hot reload:** `./server/` is mounted and the container runs `node --watch server/server.js`, so backend code changes auto-restart the server without a rebuild. Check the container logs to confirm the restart.
+**Backend changes:** `./server/` is mounted, so backend code changes need only a container restart, not a rebuild:
+
+```bash
+docker restart youtarr-dev
+```
+
+There is no automatic reload on save. `docker-compose.dev.yml` sets `command: ["node", "--watch", "server/server.js"]`, but the image's entrypoint (`scripts/docker-entrypoint-simple.sh`) ignores its arguments and always starts `node /app/server/server.js`, so `--watch` never takes effect.
 
 **Frontend:** `client/src/` is NOT mounted. Frontend changes reach the running app one of two ways:
 - **Full rebuild**: `./scripts/build-dev.sh` rebuilds the static bundle that the app container serves at http://localhost:3087.
@@ -261,8 +329,8 @@ You **must** rebuild (`./scripts/build-dev.sh`) for:
 - First time setup.
 
 You **do not** need to rebuild for:
-- Backend code changes (server/*.js, modules, routes) - `node --watch` picks them up automatically.
-- New migration files - `./migrations/` is mounted, though you still need to restart the container for them to run.
+- Backend code changes (server/*.js, modules, routes) - `./server/` is mounted; run `docker restart youtarr-dev` to load them.
+- New migration files - `./migrations/` is mounted; the same container restart runs them.
 - Frontend changes while the Vite dev server is running - Vite HMR updates the browser.
 
 ### Benefits of This Approach
@@ -288,7 +356,7 @@ cd client
 npm run dev
 
 # Make code changes - frontend updates instantly!
-# Backend changes auto-restart via --watch
+# Backend changes: run `docker restart youtarr-dev` to load them
 
 # View logs
 docker compose -f docker-compose.dev.yml logs -f youtarr
@@ -396,6 +464,24 @@ npm run test:coverage
 npm run test:watch
 ```
 
+### External Cookie Validation Tests
+
+The backend Jest suites cover external-file handling and process cleanup. A
+separate Python suite checks the helper against yt-dlp's actual cookie loader,
+including malformed records and suppression of cookie values in diagnostics.
+It runs locally without contacting YouTube or downloading videos:
+
+```bash
+python3 -m unittest discover -s server/utils/__tests__ -p 'test_validate_cookies.py'
+```
+
+This requires Python and yt-dlp's platform-independent zipimport executable on
+`PATH`, the distribution used by the Docker image. Alternatively, set
+`YOUTARR_TEST_YTDLP` to that executable's absolute path. CI downloads the current
+release and runs this suite in the **yt-dlp Cookie Loader Tests** job, required
+by **All Checks**. The helper imports that executable so the parser follows
+yt-dlp updates; it does not maintain a separate installation or format parser.
+
 ### Frontend Tests
 
 ```bash
@@ -433,7 +519,7 @@ Create `.vscode/launch.json`:
       "type": "node",
       "request": "attach",
       "name": "Docker: Attach to Node",
-      "remoteRoot": "/usr/src/app",
+      "remoteRoot": "/app",
       "localRoot": "${workspaceFolder}",
       "protocol": "inspector",
       "port": 9229,
@@ -444,13 +530,19 @@ Create `.vscode/launch.json`:
 }
 ```
 
-Modify `docker-compose.yml` to expose debug port:
+Expose the inspector from the `youtarr` service in `docker-compose.dev.yml` (locally, do not commit), then restart with `./scripts/start-dev.sh`:
 ```yaml
 ports:
-  - "3011:3011"
-  - "9229:9229"  # Debug port
-command: node --inspect=0.0.0.0:9229 server/server.js
+  - "${YOUTARR_HOST_PORT:-3087}:3011"
+  - "127.0.0.1:9229:9229"  # Debug port, published on host loopback only
+environment:
+  # ...keep the existing entries and add:
+  - NODE_OPTIONS=--inspect=0.0.0.0:9229
 ```
+
+> **Security warning**: the Node.js inspector lets anyone who can connect to it run arbitrary code in the container, with no Youtarr authentication. Always publish it on `127.0.0.1` as shown, never as plain `"9229:9229"` (which listens on every host interface), and remove these lines when you finish debugging. The `0.0.0.0` inside `NODE_OPTIONS` is only the container-side address that Docker's port forwarding needs. See the [Node.js debugging security notes](https://nodejs.org/learn/getting-started/debugging#security-implications).
+
+Use `NODE_OPTIONS` rather than a `command:` override. The image's entrypoint ignores the compose `command` and always starts `node /app/server/server.js`, but every `node` process reads `NODE_OPTIONS`. The app code lives at `/app` in the container, which is why `remoteRoot` above is `/app`.
 
 **Option 2: Logger Debugging**
 
@@ -492,6 +584,14 @@ const sequelize = new Sequelize({
 Then set `LOG_LEVEL=debug` in your `.env` to see the queries.
 
 ## API Development
+
+### Documentation site checks
+
+Run `npm run docs:check` from the repository root to generate the documentation and run the documentation generator tests. This requires the root and `website/` dependencies to be installed. CI runs the same check before building the site.
+
+If documentation links point to missing files or unpublished Markdown pages, the generator reports all of those failures together. Each error includes the source file and line, the link target, the path it tried to find, and a suggested correction when it can identify the intended file. GitHub Actions also receives file-and-line error annotations. These errors stop generation; the documentation site build performs additional checks, including heading anchors.
+
+Relative links start from the document's own folder. For example, a guide in `docs/` links to a sibling page using `BACKUP_RESTORE.md`, without another `docs/` prefix. A leading `/` is treated as a filesystem-root path by the generator. For repository files that aren't published as site assets, such as Compose YAML files, use full GitHub URLs so the links work on the published site too.
 
 ### API Documentation (Swagger)
 
@@ -587,6 +687,7 @@ WebSocket shares the HTTP port (3011 in container, 3087 on host) and emits:
 - `channelsUpdated` - Channel list changed
 - `videosUpdated` - A video's database rows were persisted mid-batch
 - `rescanStatus` - Filesystem rescan started or finished
+- `scheduledTaskStatus` - A scheduled task run started or finished (payload `{ key }`); the Scheduling page refetches `/api/schedules`
 - `channelTabsDetected` - Tab detection finished for a channel
 - `progress` / `complete` / `error` (source `subscriptionImport`) - Subscription import job updates
 
@@ -680,6 +781,27 @@ Releases are automated via GitHub Actions with a two-stage workflow:
    - Builds optimized Docker image (~600MB)
    - Pushes `latest` and `vX.X.X` tags to Docker Hub
 
+The production workflow uses `scripts/release-notes.js` to strip the generated
+version heading before sharing notes with GitHub Releases and Discord. Each
+`CHANGELOG.md` entry has one `##` release heading, followed by the category
+headings and a full comparison link. Dry runs prepare and display the same entry
+without updating the file or publishing a release.
+
+Tag creation passes the unprefixed `new_version` to the tagging action and pins
+the tag to the version-bump commit. Historical `vvX.X.X` tags are retained: they
+can still be selected as the commit-analysis baseline during the transition to
+new single-prefix tags. Public comparison links use the corresponding `vX.X.X`
+release tags, whose existence is checked before publishing. These old tag pairs
+can point to different commits, so canonical release comparisons can omit a
+version-bump commit present in the legacy range. The dry-run output shows both
+the canonical previous tag and the actual commit-analysis baseline.
+
+Release-note regression checks can be run separately from the application suites:
+
+```bash
+node --test --test-concurrency=1 scripts/tests/release-notes.test.js
+```
+
 ## Troubleshooting Development Issues
 
 ### Containers Won't Start
@@ -701,8 +823,8 @@ docker compose down -v
 
 ```bash
 # Find process using port
-lsof -i :3011  # Mac/Linux
-netstat -ano | findstr :3011  # Windows
+lsof -i :3087  # Mac/Linux (or your YOUTARR_HOST_PORT)
+netstat -ano | findstr :3087  # Windows
 
 # Or stop all Docker containers
 docker compose down
@@ -730,9 +852,9 @@ docker compose down
 Backend and frontend reload differently in the dev setup.
 
 **Backend code changes** (`server/*.js`, `server/modules/`, `server/routes/`, `migrations/`):
-- `./server/` and `./migrations/` are volume-mounted into the container and the container runs `node --watch`.
-- Saves auto-restart the server within a few seconds; check the container logs to confirm the restart fired.
-- No rebuild required. (New migration files still require a container restart to actually run.)
+- `./server/` and `./migrations/` are volume-mounted into the container, but nothing reloads on save.
+- Run `docker restart youtarr-dev` to load backend changes and run new migrations.
+- No rebuild required.
 
 **Frontend code changes** (`client/src/`):
 - `client/src/` is NOT mounted into the app container; the static bundle is baked into the image at build time.
@@ -744,7 +866,7 @@ Backend and frontend reload differently in the dev setup.
 ./scripts/start-dev.sh  # automatically stops and restarts containers
 ```
 
-If a backend change is not being picked up, verify the container is actually running `node --watch` (`docker compose -f docker-compose.dev.yml logs youtarr` should show restart messages when you save) and that you edited a file under `./server/`.
+If a backend change is not being picked up, confirm you restarted the container after saving (`docker compose -f docker-compose.dev.yml logs youtarr` shows `Starting Node.js server...` on each start) and that you edited a file under `./server/`.
 
 ### Module Not Found Errors
 
@@ -802,3 +924,23 @@ Use React DevTools Profiler to identify performance bottlenecks.
 When working on changes that interact with platform-managed deployments, see the dedicated developer guides:
 
 - [Elfhosted](development/ELFHOSTED.md) - environment variables, behavior switches, and how to spoof an Elfhosted deployment locally for testing.
+
+## Backup and restore script validation
+
+The Python regression suite uses temporary fixtures and does not contact Docker
+or a database. Run it from the repository root:
+
+```bash
+python3 -m unittest discover -s scripts/tests -p 'test_backup_restore.py'
+```
+
+CI runs this command in a dedicated Python job required by `All Checks`.
+The local pre-commit hook does not run it. Coverage includes database client
+versions, monitoring mounts, table-name handling, database permissions and roles,
+and restore preflight failures.
+
+Fixture tests do not establish compatibility with real database servers. Validate
+backup/restore round trips and failed-import recovery on disposable installations,
+including bundled MariaDB 10.3 and external MariaDB 11.4/MySQL 8, as appropriate
+to the change. Use separate databases and storage, never a live installation's
+database volume.

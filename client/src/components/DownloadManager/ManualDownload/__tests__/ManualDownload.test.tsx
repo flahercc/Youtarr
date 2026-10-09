@@ -313,9 +313,9 @@ describe('ManualDownload', () => {
     });
   });
 
-  test('handles download error', async () => {
+  test('shows the reason when the download cannot start', async () => {
     mockedAxios.post.mockResolvedValueOnce({ data: mockValidationResponse });
-    mockOnStartDownload.mockRejectedValueOnce(new Error('Download failed'));
+    mockOnStartDownload.mockRejectedValueOnce(new Error('Downloads are paused: storage limit reached'));
 
     render(<ManualDownload onStartDownload={mockOnStartDownload} token={mockToken} />);
     fireEvent.click(screen.getByTestId('validate-button'));
@@ -325,9 +325,54 @@ describe('ManualDownload', () => {
     await screen.findByTestId('download-settings-dialog');
     fireEvent.click(screen.getByTestId('confirm-download'));
 
-    await waitFor(() => {
-      expect(screen.getByText('Failed to start download. Please try again.')).toBeInTheDocument();
-    });
+    expect(await screen.findByText('Downloads are paused: storage limit reached')).toBeInTheDocument();
+  });
+
+  test('falls back to a generic message when the failure has no reason', async () => {
+    mockedAxios.post.mockResolvedValueOnce({ data: mockValidationResponse });
+    mockOnStartDownload.mockRejectedValueOnce(new Error(''));
+
+    render(<ManualDownload onStartDownload={mockOnStartDownload} token={mockToken} />);
+    fireEvent.click(screen.getByTestId('validate-button'));
+    await screen.findByTestId('manual-video-test123');
+
+    fireEvent.click(screen.getByTestId('trigger-download-selected'));
+    await screen.findByTestId('download-settings-dialog');
+    fireEvent.click(screen.getByTestId('confirm-download'));
+
+    expect(await screen.findByText('Failed to start download. Please try again.')).toBeInTheDocument();
+  });
+
+  test('keeps the download queue when the download cannot start', async () => {
+    mockedAxios.post.mockResolvedValueOnce({ data: mockValidationResponse });
+    mockOnStartDownload.mockRejectedValueOnce(new Error('Downloads are paused: storage limit reached'));
+
+    render(<ManualDownload onStartDownload={mockOnStartDownload} token={mockToken} />);
+    fireEvent.click(screen.getByTestId('validate-button'));
+    await screen.findByTestId('manual-video-test123');
+
+    fireEvent.click(screen.getByTestId('trigger-download-selected'));
+    await screen.findByTestId('download-settings-dialog');
+    fireEvent.click(screen.getByTestId('confirm-download'));
+    await screen.findByText('Downloads are paused: storage limit reached');
+
+    expect(screen.getByTestId('manual-video-test123')).toBeInTheDocument();
+  });
+
+  test('hides the added-to-list message when the download cannot start', async () => {
+    mockedAxios.post.mockResolvedValueOnce({ data: mockValidationResponse });
+    mockOnStartDownload.mockRejectedValueOnce(new Error('Downloads are paused: storage limit reached'));
+
+    render(<ManualDownload onStartDownload={mockOnStartDownload} token={mockToken} />);
+    fireEvent.click(screen.getByTestId('validate-button'));
+    await screen.findByText('Video added to download list.');
+
+    fireEvent.click(screen.getByTestId('trigger-download-selected'));
+    await screen.findByTestId('download-settings-dialog');
+    fireEvent.click(screen.getByTestId('confirm-download'));
+    await screen.findByText('Downloads are paused: storage limit reached');
+
+    expect(screen.queryByText('Video added to download list.')).not.toBeInTheDocument();
   });
 
   test('marks the queue as downloading while a download is in flight', async () => {

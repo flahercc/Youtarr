@@ -78,7 +78,7 @@ In the library settings:
 ### NFO Support
 
 Jellyfin reads NFO files containing:
-- **Title**: Video title with channel prefix
+- **Title**: Video title as it appears on YouTube (the NFO title never includes the channel name)
 - **Plot**: Full YouTube description
 - **Premiered**: Original upload date
 - **Year**: Upload year
@@ -117,6 +117,8 @@ The library and metadata setup above is all you need for downloaded videos to sh
 Once connected, open a playlist in Youtarr and turn on its Jellyfin sync chip. See [Media Server Playlists](../MEDIA_SERVER_PLAYLISTS.md) for how syncing, ordering, and updates work.
 
 Connecting Jellyfin also enables watch status sync: Youtarr periodically pulls per-video watch state (played, percent watched, last watched) for every user on the server and shows it as Watched chips and filters on its listing pages. It's one-way; Youtarr never marks anything watched on Jellyfin. Jellyfin decides when a video counts as played: **Maximum resume percentage** under Server -> Playback -> Resume. Settings live under **Settings -> Watch Status**; see [Track Watch Status from Media Servers](../USAGE_GUIDE.md#track-watch-status-from-media-servers).
+
+Videos inside Jellyfin Collections remain available for watch status and native playlist sync with **Group movies into collections** enabled. You do not need to change that display setting.
 
 ### Visibility
 

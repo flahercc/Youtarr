@@ -81,6 +81,11 @@ Channel.init(
       allowNull: true,
       defaultValue: null,
     },
+    additional_tags: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      defaultValue: null,
+    },
     title_filter_regex: {
       type: DataTypes.TEXT,
       allowNull: true,
@@ -130,12 +135,23 @@ Channel.init(
       allowNull: true,
       defaultValue: null,
     },
+    tab_video_counts: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      defaultValue: null,
+    },
+    tab_counts_attempted_at: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      defaultValue: null,
+    },
   },
   {
     sequelize,
     modelName: 'Channel',
     timestamps: false,
     tableName: 'channels',
+    underscored: true,
   }
 );
 

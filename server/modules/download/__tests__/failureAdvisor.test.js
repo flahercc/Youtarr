@@ -13,6 +13,7 @@ const failedVideo = (overrides = {}) => ({
 
 const context = (overrides = {}) => ({
   cookiesEnabled: false,
+  anonymousRetry: false,
   httpForbiddenDetected: false,
   botDetected: false,
   ...overrides,
@@ -38,6 +39,20 @@ describe('failureAdvisor', () => {
 
       expect(videos[0].diagnosisKey).toBe('http-403-cookies-disabled');
       expect(diagnoses[0].message).toMatch(/uploading YouTube cookies/i);
+    });
+
+    it('diagnoses a 403 during the no-cookies fallback without recommending cookies', () => {
+      const videos = [failedVideo()];
+      const diagnoses = adviseFailures(videos, context({
+        cookiesEnabled: false,
+        anonymousRetry: true,
+      }));
+
+      expect(videos[0].diagnosisKey).toBe('http-403-anonymous-retry');
+      expect(diagnoses[0].key).toBe('http-403-anonymous-retry');
+      expect(diagnoses[0].message).toMatch(/no-cookies fallback/i);
+      expect(diagnoses[0].message).toMatch(/genuinely unavailable/i);
+      expect(diagnoses[0].message).not.toMatch(/upload.*cookies|set.*cookies|enable.*cookies|re-export/i);
     });
 
     it('matches fragment-shaped failures only when the run-level 403 flag is set', () => {
@@ -71,6 +86,20 @@ describe('failureAdvisor', () => {
       expect(diagnoses[0].message).toMatch(/upload youtube cookies/i);
     });
 
+    it('diagnoses a bot check during the no-cookies fallback without recommending cookies', () => {
+      const videos = [failedVideo({ error: 'Sign in to confirm you\'re not a bot' })];
+      const diagnoses = adviseFailures(videos, context({
+        cookiesEnabled: false,
+        anonymousRetry: true,
+      }));
+
+      expect(videos[0].diagnosisKey).toBe('bot-check-anonymous-retry');
+      expect(diagnoses[0].key).toBe('bot-check-anonymous-retry');
+      expect(diagnoses[0].message).toMatch(/no-cookies fallback/i);
+      expect(diagnoses[0].message).toMatch(/genuinely unavailable/i);
+      expect(diagnoses[0].message).not.toMatch(/upload.*cookies|set.*cookies|enable.*cookies|re-export/i);
+    });
+
     it('applies bot-check advice to download failures when bot detection fired run-wide', () => {
       const videos = [failedVideo({ error: 'Unable to extract video data' })];
       adviseFailures(videos, context({ botDetected: true }));
@@ -91,6 +120,46 @@ describe('failureAdvisor', () => {
       adviseFailures(videos, context({ cookiesEnabled: true }));
 
       expect(videos[0].diagnosisKey).toBe('bot-check-cookies-enabled');
+    });
+  });
+
+  describe('out-of-space advice', () => {
+    const mergeFailure = (overrides = {}) => failedVideo({ error: 'Conversion failed!', ...overrides });
+
+    it('diagnoses a failure the finalizer measured as out of temp space', () => {
+      const videos = [mergeFailure()];
+      const diagnoses = adviseFailures(videos, context({ outOfSpaceVideoIds: new Set(['abc123def45']) }));
+
+      expect(videos[0].diagnosisKey).toBe('temp-out-of-space');
+      expect(diagnoses).toHaveLength(1);
+      expect(diagnoses[0].count).toBe(1);
+      expect(diagnoses[0].message).toMatch(/temporary download folder/i);
+      expect(diagnoses[0].message).toMatch(/twice/i);
+    });
+
+    it('does not assume where the temp folder lives or that the setting can be changed', () => {
+      const diagnoses = adviseFailures([mergeFailure()], context({ outOfSpaceVideoIds: new Set(['abc123def45']) }));
+
+      expect(diagnoses[0].message).toMatch(/server log names the folder/i);
+      expect(diagnoses[0].message).not.toMatch(/inside the container|docker|turning it off/i);
+    });
+
+    it('leaves a failed merge undiagnosed when it was not measured as out of space', () => {
+      const videos = [mergeFailure()];
+      const diagnoses = adviseFailures(videos, context({ outOfSpaceVideoIds: new Set(['othervideo1']) }));
+
+      expect(videos[0].diagnosisKey).toBeUndefined();
+      expect(diagnoses).toEqual([]);
+    });
+
+    it('prefers out-of-space over a run-wide bot check', () => {
+      const videos = [mergeFailure({ error: 'unable to download video data: [Errno 28] No space left on device' })];
+      adviseFailures(videos, context({
+        botDetected: true,
+        outOfSpaceVideoIds: new Set(['abc123def45']),
+      }));
+
+      expect(videos[0].diagnosisKey).toBe('temp-out-of-space');
     });
   });
 

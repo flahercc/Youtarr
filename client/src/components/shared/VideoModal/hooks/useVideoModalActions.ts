@@ -1,3 +1,5 @@
+import { useVideoActivity } from '../../../../providers/VideoActivityProvider';
+import { useLocalVideoStatus } from '../../../../hooks/useLocalVideoStatus';
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -64,6 +66,25 @@ export function useVideoModalActions({
   onClose,
 }: UseVideoModalActionsParams): UseVideoModalActionsReturn {
   const [localVideo, setLocalVideo] = useState<VideoModalData>(video);
+  const { snapshot } = useVideoActivity();
+  const statuses = useLocalVideoStatus([video.youtubeId], token);
+  const activity = snapshot.videos[video.youtubeId]?.state;
+  useEffect(() => {
+    const current = statuses[video.youtubeId];
+    if (!current) return;
+    setLocalVideo(previous => previous.youtubeId !== current.youtubeId ? previous : ({
+      ...previous,
+      status: previous.isIgnored ? 'ignored' : current.status === 'never_downloaded' && previous.status === 'members_only' ? 'members_only' : current.status,
+      isDownloaded: current.status === 'downloaded',
+      inArchive: current.inArchive ?? false,
+      databaseId: current.databaseId ?? null,
+      filePath: current.filePath ?? null,
+      fileSize: current.fileSize ?? null,
+      audioFilePath: current.audioFilePath ?? null,
+      audioFileSize: current.audioFileSize ?? null,
+      addedAt: current.addedAt ?? null,
+    }));
+  }, [statuses, video.youtubeId]);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [downloadDialogOpen, setDownloadDialogOpen] = useState(false);
   const [ratingDialogOpen, setRatingDialogOpen] = useState(false);
@@ -168,6 +189,10 @@ export function useVideoModalActions({
 
   const handleDownloadConfirm = useCallback(async (settings: DownloadSettings | null) => {
     setDownloadDialogOpen(false);
+    if (snapshot.videos[localVideo.youtubeId]?.state) {
+      showSnackbar('This video is already queued or downloading', 'error');
+      return;
+    }
 
     const url = `https://www.youtube.com/watch?v=${localVideo.youtubeId}`;
     const overrideSettings = settings
@@ -187,6 +212,7 @@ export function useVideoModalActions({
       channelId: localVideo.channelId,
     });
 
+    if (success === null) return;
     if (success) {
       onDownloadQueued?.(localVideo.youtubeId);
       onClose();
@@ -194,7 +220,7 @@ export function useVideoModalActions({
     } else {
       showSnackbar('Failed to queue download', 'error');
     }
-  }, [localVideo.youtubeId, localVideo.channelId, triggerDownloads, showSnackbar, onDownloadQueued, onClose, navigate]);
+  }, [localVideo.youtubeId, localVideo.channelId, triggerDownloads, showSnackbar, onDownloadQueued, onClose, navigate, snapshot]);
 
   const handleRatingApply = useCallback(async (rating: string | null) => {
     if (!localVideo.databaseId) {
@@ -224,7 +250,7 @@ export function useVideoModalActions({
   }, [localVideo.databaseId, localVideo.youtubeId, token, showSnackbar, onRatingChanged]);
 
   return {
-    localVideo,
+    localVideo: activity ? { ...localVideo, status: activity } : localVideo,
     snackbar,
     deleteDialogOpen,
     downloadDialogOpen,

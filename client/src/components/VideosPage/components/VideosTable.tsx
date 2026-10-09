@@ -1,4 +1,5 @@
 import React from 'react';
+import VideoActivityChip from '../../shared/VideoActivityChip';
 import {
   Paper,
   Table,
@@ -290,6 +291,7 @@ function VideosTable({
                   </TableCell>
                   <TableCell>
                     <Stack direction="row" spacing={0.5} className="flex-wrap gap-1" onClick={(e) => e.stopPropagation()}>
+                      <VideoActivityChip youtubeId={video.youtubeId} />
                       {!video.removed && (video.filePath || video.audioFilePath) && (
                         <DownloadFormatIndicator
                           filePath={video.filePath}

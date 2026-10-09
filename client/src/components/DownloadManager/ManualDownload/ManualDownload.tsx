@@ -12,7 +12,7 @@ interface ManualDownloadProps {
     urls: string[],
     settings?: DownloadSettings | null,
     videoChannelMap?: Record<string, string>
-  ) => void;
+  ) => Promise<void>;
   token: string | null;
   defaultResolution?: string;
 }
@@ -46,6 +46,8 @@ const ManualDownload: React.FC<ManualDownloadProps> = ({ onStartDownload, token,
     const videos = pendingDownload;
     setPendingDownload(null);
     if (!videos || videos.length === 0) return;
+    setErrorMessage(null);
+    setSuccessMessage(null);
 
     setIsDownloading(true);
     try {
@@ -65,7 +67,11 @@ const ManualDownload: React.FC<ManualDownloadProps> = ({ onStartDownload, token,
       removeVideos(videos.map(v => v.youtubeId));
     } catch (error) {
       console.error('Error starting download:', error);
-      setErrorMessage('Failed to start download. Please try again.');
+      setErrorMessage(
+        error instanceof Error && error.message
+          ? error.message
+          : 'Failed to start download. Please try again.'
+      );
     } finally {
       setIsDownloading(false);
     }

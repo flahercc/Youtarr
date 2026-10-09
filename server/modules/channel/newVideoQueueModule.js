@@ -102,9 +102,9 @@ class NewVideoQueueModule {
       title: row.title,
       thumbnail: row.thumbnail,
       duration: row.duration,
-      // added_at is stamped at discovery time and only overwritten to the
-      // real download timestamp once a video is downloaded, so for the
-      // still-undownloaded rows landing here it's a reliable first-seen time.
+      // added_at is stamped once at discovery and never overwritten (refresh
+      // excludes it from updateOnDuplicate; download times live in
+      // downloaded_at), so it is a reliable first-seen time.
       first_seen_at: row.added_at,
       published_at: row.published_at,
     }));

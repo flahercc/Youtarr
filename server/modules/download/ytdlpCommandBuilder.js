@@ -3,6 +3,8 @@ const configModule = require('../configModule');
 const tempPathManager = require('./tempPathManager');
 const logger = require('../../logger');
 const customArgsParser = require('./customArgsParser');
+const archiveModule = require('../archiveModule');
+const { mergeCookiePlayerClients } = require('./cookiePlayerClients');
 const {
   CHANNEL_TEMPLATE,
   composeVideoFileTemplate,
@@ -120,6 +122,22 @@ class YtdlpCommandBuilder {
     return videoFormat;
   }
 
+  /**
+   * Format-sort args for video downloads.
+   *
+   * [ext=mp4] no longer implies H.264: YouTube serves AV1 in MP4 as well, and
+   * yt-dlp's default sort ranks av01 above avc1, so bestvideo picks AV1. That
+   * hits the h265 selector too, since YouTube rarely has HEVC and it falls
+   * through to plain [ext=mp4]. Sort on resolution first and codec second so
+   * the requested resolution still wins and AVC is only preferred between
+   * formats of equal resolution. Sorting on codec alone would pick 1080p AVC
+   * over 2160p AV1.
+   * @returns {string[]} - Array of yt-dlp args
+   */
+  static buildFormatSortArgs() {
+    return ['-S', 'res,vcodec:avc'];
+  }
+
   // Build Sponsorblock args based on configuration
   static buildSponsorblockArgs(config) {
     const args = [];
@@ -205,7 +223,7 @@ class YtdlpCommandBuilder {
    * @returns {string[]}
    */
   static buildCommonArgs(config, options = {}) {
-    const { skipSleepRequests = false } = options;
+    const { skipSleepRequests = false, cookiesEnabled = true } = options;
     const args = [];
 
     // IP family (replaces previously-hardcoded -4)
@@ -238,13 +256,14 @@ class YtdlpCommandBuilder {
 
     // Cookies
     const cookiesPath = configModule.getCookiesPath();
-    if (cookiesPath) {
+    if (cookiesEnabled && cookiesPath) {
       args.push('--cookies', cookiesPath);
     }
 
     // Temp paths for yt-dlp's internal temp files
     args.push(...this.buildTempPathArgs());
 
+    args.push('--cache-dir', configModule.getYtdlpCacheDir());
     // PO token provider: without one, YouTube 403s many playback URLs even
     // with valid cookies. Points at the bgutil-provider sidecar (docker-compose.yml);
     // yt-dlp falls back to no PO token (with a warning) if it's unreachable.
@@ -291,6 +310,24 @@ class YtdlpCommandBuilder {
   }
 
   /**
+   * Custom args for commands that extract video formats. With cookies in play
+   * the cookie player clients get merged in; see cookiePlayerClients.js for
+   * why that's a merge and not a second token.
+   *
+   * @param {Object} config
+   * @returns {string[]}
+   */
+  static buildVideoExtractionCustomArgs(config, options = {}) {
+    const customArgs = this.buildCustomArgs(config);
+    const { cookiesEnabled = true } = options;
+
+    if (!cookiesEnabled || !configModule.getCookiesPath()) {
+      return customArgs;
+    }
+    return mergeCookiePlayerClients(customArgs);
+  }
+
+  /**
    * Build arguments for fetching metadata (channel info, video info, etc.)
    * @param {string} url - URL to fetch
    * @param {Object} options - Options object
@@ -299,13 +336,24 @@ class YtdlpCommandBuilder {
    * @param {string} options.playlistItems - Specific playlist items
    * @param {string} options.extractorArgs - Extractor arguments
    * @param {boolean} options.skipSleepRequests - Skip sleep between requests (for single fetches)
+   * @param {boolean} options.cookiesEnabled - Pass the configured cookies (default true)
+   * @param {boolean} options.streamEntries - Print one JSON line per playlist entry as each page
+   *   arrives instead of a single JSON document at exit (no playlist-level fields)
    * @returns {string[]} - Complete args array
    */
   static buildMetadataFetchArgs(url, options = {}) {
     const config = configModule.getConfig();
-    const args = [...this.buildCommonArgs(config, { skipSleepRequests: options.skipSleepRequests })];
+    const args = [...this.buildCommonArgs(config, {
+      skipSleepRequests: options.skipSleepRequests,
+      cookiesEnabled: options.cookiesEnabled,
+    })];
 
-    args.push('--skip-download', '--dump-single-json');
+    args.push('--skip-download');
+    if (options.streamEntries) {
+      args.push('--dump-json', '--lazy-playlist');
+    } else {
+      args.push('--dump-single-json');
+    }
 
     if (options.flatPlaylist) {
       args.push('--flat-playlist');
@@ -324,7 +372,10 @@ class YtdlpCommandBuilder {
     }
 
     // Custom user args last (yt-dlp last-wins) but before URL operand
-    args.push(...this.buildCustomArgs(config));
+    // Flat listings don't make player requests, so they skip the cookie clients.
+    args.push(...(options.flatPlaylist
+      ? this.buildCustomArgs(config)
+      : this.buildVideoExtractionCustomArgs(config)));
 
     args.push(url);
     return args;
@@ -398,7 +449,7 @@ class YtdlpCommandBuilder {
       '--write-auto-sub',      // Fallback to auto-generated if manual not available
       '--sub-langs', language,
       '--convert-subs', 'srt',
-      '--sleep-subtitles', '2' // Add 2 second delay between subtitle requests to avoid rate limiting
+      '--sleep-subtitles', '5' // Add 5 second delay between subtitle requests to avoid rate limiting
     );
 
     return args;
@@ -445,11 +496,12 @@ class YtdlpCommandBuilder {
 
     // Add title regex filter if specified
     if (filterConfig.titleFilterRegex) {
-      // Escape backslashes and single quotes for Python string literal
+      // yt-dlp's match_str splits filters on unescaped '&' and, inside a quoted
+      // value, only unescapes the quote character. Backslashes pass through
+      // untouched, so doubling them would turn `\d` into a literal backslash.
       const escapedRegex = filterConfig.titleFilterRegex
-        .replace(/\\/g, '\\\\') // Escape backslashes first
-        // eslint-disable-next-line quotes
-        .replace(/'/g, "\\'"); // Escape single quotes
+        .replace(/'/g, '\\\'')
+        .replace(/&/g, '\\&');
       additionalFilters.push(`title ~= '${escapedRegex}'`);
     }
 
@@ -536,6 +588,7 @@ class YtdlpCommandBuilder {
       // Clean @ prefix from uploader_id when it's used as fallback
       '--replace-in-metadata', 'uploader_id', '^@', '',
       '-f', this.buildFormatString(res, videoCodec, audioFormat),
+      ...(audioFormat === 'mp3_only' ? [] : this.buildFormatSortArgs()),
       // Only force MP4 remux when sources might be webm (1440p+).
       // At <=1080p the format selector already picks MP4 sources.
       ...(this.resolutionRequiresNonMp4Source(res) ? ['--merge-output-format', 'mp4'] : []),
@@ -553,7 +606,7 @@ class YtdlpCommandBuilder {
 
     // Only use download archive if NOT allowing re-downloads
     if (!allowRedownload) {
-      args.push('--download-archive', './config/complete.list');
+      args.push('--download-archive', archiveModule.getArchivePath());
     }
 
     // Build match filter with any channel-specific filtering
@@ -579,7 +632,7 @@ class YtdlpCommandBuilder {
     // Custom user args MUST be appended last so yt-dlp's last-wins semantics
     // let users override managed defaults like --retries / --fragment-retries.
     // The URL list (-a tempChannelsFile) is appended later by downloadModule.
-    args.push(...this.buildCustomArgs(config));
+    args.push(...this.buildVideoExtractionCustomArgs(config));
 
     return args;
   }
@@ -593,8 +646,15 @@ class YtdlpCommandBuilder {
    * @param {boolean} skipVideoFolder - If true, skip the video subfolder level (flat structure)
    * @returns {string[]} - Array of yt-dlp command arguments
    */
-  static getBaseCommandArgsForManualDownload(resolution, allowRedownload = false, audioFormat = null, skipVideoFolder = false) {
+  static getBaseCommandArgsForManualDownload(
+    resolution,
+    allowRedownload = false,
+    audioFormat = null,
+    skipVideoFolder = false,
+    options = {}
+  ) {
     const config = configModule.getConfig();
+    const { cookiesEnabled = true } = options;
     const res = resolution || config.preferredResolution || '1080';
     const videoCodec = config.videoCodec || 'default';
 
@@ -603,7 +663,7 @@ class YtdlpCommandBuilder {
 
     // Start with common args (includes -4, proxy, sleep-requests, cookies)
     const args = [
-      ...this.buildCommonArgs(config),
+      ...this.buildCommonArgs(config, { cookiesEnabled }),
       '--windows-filenames',  // Sanitize filenames for Windows/Plex compatibility
       '--ffmpeg-location', configModule.ffmpegPath,
       '--socket-timeout', String(config.downloadSocketTimeoutSeconds || 30),
@@ -620,6 +680,7 @@ class YtdlpCommandBuilder {
       // Clean @ prefix from uploader_id when it's used as fallback
       '--replace-in-metadata', 'uploader_id', '^@', '',
       '-f', this.buildFormatString(res, videoCodec, audioFormat),
+      ...(audioFormat === 'mp3_only' ? [] : this.buildFormatSortArgs()),
       // Only force MP4 remux when sources might be webm (1440p+).
       // At <=1080p the format selector already picks MP4 sources.
       ...(this.resolutionRequiresNonMp4Source(res) ? ['--merge-output-format', 'mp4'] : []),
@@ -637,7 +698,7 @@ class YtdlpCommandBuilder {
 
     // Only use download archive if NOT allowing re-downloads
     if (!allowRedownload) {
-      args.push('--download-archive', './config/complete.list');
+      args.push('--download-archive', archiveModule.getArchivePath());
     }
 
     args.push(
@@ -660,7 +721,7 @@ class YtdlpCommandBuilder {
     // Custom user args MUST be appended last so yt-dlp's last-wins semantics
     // let users override managed defaults like --retries / --fragment-retries.
     // URL operands are appended later by downloadModule.
-    args.push(...this.buildCustomArgs(config));
+    args.push(...this.buildVideoExtractionCustomArgs(config, { cookiesEnabled }));
 
     return args;
   }

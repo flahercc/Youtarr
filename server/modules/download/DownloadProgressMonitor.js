@@ -181,6 +181,7 @@ class DownloadProgressMonitor {
   buildPayload(state, progress, videoInfo) {
     return {
       jobId: this.jobId,
+      youtubeId: this.youtubeId || null,
       progress,
       stalled: state === 'stalled',
       state,

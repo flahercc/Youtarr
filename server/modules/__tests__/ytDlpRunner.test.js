@@ -2,6 +2,8 @@
 const path = require('path');
 const { EventEmitter } = require('events');
 
+jest.mock('../../logger', () => ({ warn: jest.fn(), info: jest.fn() }));
+
 describe('YtDlpRunner', () => {
   class MockChildProcess extends EventEmitter {
     constructor() {

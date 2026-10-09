@@ -10,6 +10,7 @@ const channelMappers = require('./channelMappers');
 const channelMetadataFetcher = require('./channelMetadataFetcher');
 const channelThumbnails = require('./channelThumbnails');
 const tabManager = require('./tabManager');
+const tabVideoCounts = require('./tabVideoCounts');
 
 class ChannelProvisioning {
   /**
@@ -186,6 +187,9 @@ class ChannelProvisioning {
     let tabResult = null;
     if (!skipTabDetection) {
       tabResult = await tabManager.detectAndSaveChannelTabs(properChannelId);
+      if (enableChannel) {
+        this._countTabVideosInBackground(properChannelId, emitMessage);
+      }
     }
 
     if (emitMessage) {
@@ -237,6 +241,19 @@ class ChannelProvisioning {
     } catch (err) {
       logger.warn({ err, channelId: channel.channel_id }, 'Failed to backfill thumbnail on channel re-enable');
     }
+  }
+
+  // Counts arrive a few seconds after the channel is added; the Subscriptions
+  // page reloads on the broadcast. Failures only log: the scheduled refresh
+  // and the channel page both retry.
+  _countTabVideosInBackground(channelId, emitMessage) {
+    tabVideoCounts.refreshChannel(channelId)
+      .then((result) => {
+        if (emitMessage && result.status === 'refreshed') {
+          MessageEmitter.emitMessage('broadcast', null, 'channel', 'channelsUpdated', { text: 'Channel video counts updated' });
+        }
+      })
+      .catch((err) => logger.warn({ err, channelId }, 'Failed to count channel tab videos'));
   }
 }
 

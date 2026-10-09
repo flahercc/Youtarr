@@ -89,6 +89,7 @@ ChannelVideo.init(
     modelName: 'ChannelVideo',
     tableName: 'channelvideos',
     timestamps: false,
+    underscored: true,
   }
 );
 

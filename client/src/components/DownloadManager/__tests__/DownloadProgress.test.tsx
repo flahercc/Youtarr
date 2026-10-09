@@ -309,6 +309,35 @@ describe('DownloadProgress', () => {
     expect(screen.getByText(/Channel update.*Completed/)).toBeInTheDocument();
   });
 
+  test('names a download job that failed in the final summary', async () => {
+    renderWithContext(
+      <DownloadProgress
+        downloadProgressRef={mockDownloadProgressRef}
+        downloadInitiatedRef={mockDownloadInitiatedRef}
+        jobs={[]}
+        token="test-token"
+      />
+    );
+
+    const processCallback = getProcessCallback();
+
+    await act(async () => {
+      processCallback({
+        finalSummary: {
+          totalDownloaded: 0,
+          totalSkipped: 0,
+          jobType: 'Channel Downloads',
+          jobIssues: [{ status: 'Failed', reason: 'No valid channel URLs to download.', byUser: false }],
+        },
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('✗ Download job failed (No valid channel URLs to download)')).toBeInTheDocument();
+    });
+    expect(screen.queryByText('No new videos downloaded')).not.toBeInTheDocument();
+  });
+
   test('displays queued auto-retries in the final summary', async () => {
     renderWithContext(
       <DownloadProgress
@@ -655,6 +684,70 @@ describe('DownloadProgress', () => {
 
     await user.click(screen.getByRole('button', { name: 'Go to Settings' }));
     expect(mockNavigate).toHaveBeenCalledWith('/settings/cookies');
+  });
+
+  test('does not offer cookie settings when the no-cookies fallback fails', async () => {
+    renderWithContext(
+      <DownloadProgress
+        downloadProgressRef={mockDownloadProgressRef}
+        downloadInitiatedRef={mockDownloadInitiatedRef}
+        jobs={[]}
+        token="test-token"
+      />
+    );
+
+    const processCallback = getProcessCallback();
+
+    await act(async () => {
+      processCallback({
+        error: true,
+        text: 'Bot detection encountered during the no-cookies fallback. The fallback also failed, so this video may be genuinely unavailable.',
+        errorCode: 'NO_COOKIES_FALLBACK_FAILED',
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Download Failed')).toBeInTheDocument();
+    });
+
+    expect(
+      screen.getByText(/Bot detection encountered during the no-cookies fallback/)
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Go to Settings' })
+    ).not.toBeInTheDocument();
+  });
+
+  test('does not offer cookie settings for a recoverable no-cookies fallback 403', async () => {
+    renderWithContext(
+      <DownloadProgress
+        downloadProgressRef={mockDownloadProgressRef}
+        downloadInitiatedRef={mockDownloadInitiatedRef}
+        jobs={[]}
+        token="test-token"
+      />
+    );
+
+    const processCallback = getProcessCallback();
+
+    await act(async () => {
+      processCallback({
+        error: true,
+        text: 'HTTP 403 detected during the no-cookies fallback. If this retry fails, the video may be genuinely unavailable.',
+        errorCode: 'NO_COOKIES_FALLBACK_403',
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Download Failed')).toBeInTheDocument();
+    });
+
+    expect(
+      screen.getByText(/HTTP 403 detected during the no-cookies fallback/)
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Go to Settings' })
+    ).not.toBeInTheDocument();
   });
 
   test('displays generic error without settings button', async () => {

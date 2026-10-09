@@ -247,12 +247,18 @@ const createServerModule = ({
         jest.doMock('../modules/plexModule', () => ({}));
         const downloadModuleMock = {
           downloadSpecificUrl: jest.fn().mockResolvedValue({ success: true, jobId: 'test-job-id' }),
-          doGroupedManualDownloads: jest.fn().mockResolvedValue(undefined)
+          doGroupedManualDownloads: jest.fn().mockImplementation(async ({ body }) => {
+            const { normalizeUrlToVideoId } = jest.requireActual('../modules/youtubeUrlParser');
+            const acceptedIds = body.urls.map(url => normalizeUrlToVideoId(url).id);
+            return { queued: acceptedIds.length, acceptedIds, alreadyActiveIds: [] };
+          })
         };
         jest.doMock('../modules/downloadModule', () => downloadModuleMock);
         jest.doMock('../modules/jobModule', () => ({
           getRunningJobs: jest.fn(() => []),
-          getRunningJobsWithFreshVideos: jest.fn().mockResolvedValue([])
+          getRunningJobsWithFreshVideos: jest.fn().mockResolvedValue([]),
+          onJobAbandoned: jest.fn(),
+          onJobEnded: jest.fn()
         }));
         jest.doMock('../modules/videosModule', () => ({}));
         jest.doMock('../modules/videoMetadataModule', () => ({
@@ -317,6 +323,11 @@ const createServerModule = ({
           previewTemplate: jest.fn(),
           validateTemplate: jest.fn().mockResolvedValue({ ok: true })
         }));
+        // Same reason: cookieTest also loads ytDlpRunner.
+        jest.doMock('../modules/cookieTest', () => ({
+          run: jest.fn(),
+          isBusyError: jest.fn(() => false)
+        }));
         jest.doMock('../models/channelvideo', () => ({
           update: jest.fn().mockResolvedValue([1])
         }));
@@ -325,6 +336,16 @@ const createServerModule = ({
         jest.doMock('../modules/mediaServers/watchStatusScheduler', () => ({ scheduleTask: jest.fn(), subscribe: jest.fn() }));
         jest.doMock('../modules/channel/newVideoScanScheduler', () => ({ scheduleTask: jest.fn(), subscribe: jest.fn() }));
         jest.doMock('../modules/channel/channelBackdropBackfill', () => ({ subscribe: jest.fn() }));
+        jest.doMock('../modules/channel/tabVideoCounts', () => ({ setRunHistory: jest.fn(), setDownloadActivityCheck: jest.fn(), refreshAtStartup: jest.fn().mockResolvedValue({}) }));
+        jest.doMock('../modules/channel/autoDownloadScheduler', () => ({ setRunTracker: jest.fn() }));
+        jest.doMock('../modules/download/downloadRunTracker', () => ({ isActive: jest.fn(), getUnfinishedJobs: jest.fn() }));
+        jest.doMock('../modules/logLevelSync', () => ({ apply: jest.fn(), subscribe: jest.fn() }));
+        jest.doMock('../modules/storageGuard', () => ({
+          initialize: jest.fn().mockResolvedValue({ paused: false, reasons: [] }),
+          refresh: jest.fn().mockResolvedValue({ paused: false, reasons: [] }),
+          isPausedError: jest.fn(() => false),
+          describe: jest.fn(() => ''),
+        }));
         jest.doMock('express-rate-limit', () => jest.fn(() => (req, res, next) => next()));
         jest.doMock('https', () => ({ get: jest.fn() }));
         jest.doMock('fs', () => ({
@@ -808,6 +829,11 @@ describe('API Key Authentication - Security Tests', () => {
       expect(res.statusCode).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.message).toContain('queued');
+      expect(res.body).toMatchObject({
+        queued: 1,
+        acceptedIds: ['dQw4w9WgXcQ'],
+        alreadyActiveIds: []
+      });
     });
 
     test('forwards channel attribution from validation metadata as videoChannelMap', async () => {
@@ -1151,4 +1177,3 @@ describe('URL Length Validation - Security Tests', () => {
     expect(res.statusCode).toBe(200);
   });
 });
-

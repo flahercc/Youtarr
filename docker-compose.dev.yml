@@ -22,6 +22,10 @@ services:
       dockerfile: Dockerfile
     image: ${YOUTARR_IMAGE:-youtarr-dev:latest}
     container_name: youtarr-dev
+    # Match production: honor the configured app identity in local development.
+    # Existing root/other-user-owned files need a one-time ownership repair;
+    # see docs/DEVELOPMENT.md (Development container ownership).
+    user: "${YOUTARR_UID:-0}:${YOUTARR_GID:-0}"
     # Expose backend on host port 3087 by default (container still listens on 3011).
     # The Vite dev server proxies to http://127.0.0.1:3087 by default.
     ports:
@@ -40,6 +44,9 @@ services:
       - NODE_ENV=development
       - DEV_MODE=true
       - LOG_LEVEL=${LOG_LEVEL:-debug}
+      - LOG_FILE_MAX_SIZE=${LOG_FILE_MAX_SIZE:-}
+      - LOG_FILE_MAX_COUNT=${LOG_FILE_MAX_COUNT:-}
+      - TZ=${TZ:-UTC}
       - DB_HOST=youtarr-db
       - DB_PORT=3306
       - DB_NAME=${DB_NAME:-youtarr}
@@ -50,6 +57,8 @@ services:
       - AUTH_PRESET_USERNAME=${AUTH_PRESET_USERNAME:-}
       - AUTH_PRESET_PASSWORD=${AUTH_PRESET_PASSWORD:-}
       - TRUST_PROXY=${TRUST_PROXY:-}
+      # Optional external cookies; /app/config uses the existing mount (see docs/CONFIG.md).
+      - YOUTARR_COOKIES_FILE=${YOUTARR_COOKIES_FILE:-}
       # Platform-spoof env vars (used by ./scripts/start-dev.sh --as-elfhosted and full Elfhosted spoofs).
       # Empty when unset on the host, so non-Elfhosted dev runs are unaffected.
       - PLATFORM=${PLATFORM:-}

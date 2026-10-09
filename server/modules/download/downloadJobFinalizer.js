@@ -1,3 +1,4 @@
+const videoActivity = require('./videoActivity');
 // Finalization of a finished yt-dlp run: derives the terminal job status,
 // persists it, broadcasts the final WebSocket payload, reports to the run
 // tracker, dispatches notifications, and triggers completion side effects.
@@ -16,6 +17,8 @@ const downloadCleanup = require('./downloadCleanup');
 const transient403RetryPlanner = require('./transient403RetryPlanner');
 const failureAdvisor = require('./failureAdvisor');
 const failedVideoEnricher = require('./failedVideoEnricher');
+const tempSpaceProbe = require('./tempSpaceProbe');
+const { containsHttp403 } = require('./ytdlpStderrSignals');
 const { runCompletionSideEffects } = require('./downloadCompletionEffects');
 const {
   computeOutcomeFlags,
@@ -35,12 +38,38 @@ const BENIGN_STDERR_WARNING_PATTERNS = [
   // Emitted because our output template (-o) is an absolute temp path, so
   // yt-dlp ignores the --paths temp: redirect. The download still succeeds.
   /WARNING:.*--paths is ignored since an absolute path is given/i,
+  // Printed on every free-account cookie run: mweb's https formats need a PO
+  // token we don't have, so yt-dlp drops them and carries on with the other
+  // clients.
+  /WARNING:.*require a GVS PO Token/i,
+  // Account-level SABR experiment: the router already broadcast its own
+  // warning; the download itself completes on the fallback clients.
+  /WARNING:.*SABR-only streaming experiment/i,
 ];
 
 // True when everything yt-dlp wrote to stderr is known-benign warnings (or
 // whitespace). Used to avoid flagging a clean, exit-0 download as "Complete
 // with Warnings" over informational noise like the subtitle impersonation
 // notice. Returns false for empty stderr so callers keep their own guard.
+
+// Terminal statuses a download run should report as a problem with the job
+// itself, beyond its per-video counts.
+const JOB_ISSUE_STATUSES = new Set(['Error', 'Failed', 'Terminated', 'Killed']);
+
+// The job-level problem to hand the run, read back from the status the
+// branches above persisted (they differ in how they choose it), or null. An
+// error whose failed videos were all handed to an automatic retry is the
+// retry's to report: its own result says whether they finally downloaded.
+function describeJobIssue(jobId, { wasManuallyTerminated, failuresHandedOff }) {
+  const job = jobModule.getJob(jobId);
+  const status = job && job.status;
+  if (!JOB_ISSUE_STATUSES.has(status)) return null;
+  const terminated = status === 'Terminated' || status === 'Killed';
+  if (!terminated && failuresHandedOff) return null;
+  const reason = (terminated && job.notes) || job.output || status;
+  return { status, reason, byUser: terminated && Boolean(wasManuallyTerminated) };
+}
+
 function stderrHasOnlyBenignWarnings(stderrBuffer = '') {
   const lines = String(stderrBuffer)
     .split('\n')
@@ -137,6 +166,9 @@ async function finalizeDownloadJob({
   tempChannelsFile,
   onTempChannelsFileCleaned,
   enqueueAutoRetry = null,
+  cookiesEnabled = Boolean(configModule.getCookiesPath()),
+  anonymousRetry = false,
+  stdioClosed = true,
 }) {
   // True once the job's terminal status has been persisted; the catch
   // below must not overwrite it with 'Error' for failures that happen
@@ -158,13 +190,10 @@ async function finalizeDownloadJob({
       logger.info('Bot detection found in stderr buffer');
     }
 
-    if (!httpForbiddenDetected && stderrBuffer) {
-      const lowerStderr = stderrBuffer.toLowerCase();
-      if (lowerStderr.includes('http error 403') || lowerStderr.includes('403: forbidden')) {
-        httpForbiddenDetected = true;
-        logger.info('HTTP 403 detected in stderr buffer');
-        router.emitCookiesSuggestion();
-      }
+    if (!httpForbiddenDetected && stderrBuffer && containsHttp403(stderrBuffer)) {
+      httpForbiddenDetected = true;
+      logger.info('HTTP 403 detected in stderr buffer');
+      router.emitCookiesSuggestion();
     }
 
     // Wait for terminated-channel lookups before deriving finalState.
@@ -175,7 +204,12 @@ async function finalizeDownloadJob({
     const videoCount = urlsToProcess.length;
     let videoData = await VideoMetadataProcessor.processVideoMetadata(urlsToProcess);
 
-    const { successfulVideos, failedVideosList } = downloadResultProcessor.partitionDownloadResults(videoData, errorTracker, urlsToProcess);
+    const { successfulVideos, failedVideosList } = downloadResultProcessor.partitionDownloadResults(
+      videoData,
+      errorTracker,
+      urlsToProcess,
+      router.archiveSkippedIds
+    );
     // Use successful videos for further processing (archive, database, etc.)
     videoData = successfulVideos;
 
@@ -187,7 +221,13 @@ async function finalizeDownloadJob({
 
     const wasTerminated = Boolean(timeoutController.shutdownInProgress || timeoutController.shutdownReason || wasManuallyTerminated);
 
-    // Auto-retry transient 403 failures. Enqueue while this job is still
+    // Failed attempts have ended; release them before retry admission. Keep
+    // successful/unprocessed IDs until persistence or the terminal job update.
+    for (const video of failedVideosList) {
+      videoActivity.finish(jobId, video.youtubeId);
+    }
+
+    // Auto-retry eligible download failures. Enqueue while this job is still
     // In Progress so the retry queues as Pending behind it, and read job data
     // now, before the terminal update replaces it. Handed-off failures are
     // tagged so run summaries and notifications report the post-retry outcome
@@ -203,6 +243,7 @@ async function finalizeDownloadJob({
         wasTerminated,
         sourceJobData,
         maxAttempts: configModule.getConfig().downloadAutoRetryCount,
+        cookiesEnabled,
       });
       if (retryPlan) {
         try {
@@ -221,10 +262,10 @@ async function finalizeDownloadJob({
           autoRetryQueuedCount = retryPlan.retryVideos.length;
           logger.info(
             { jobId, count: autoRetryQueuedCount, attempt: retryPlan.nextAttempt },
-            'Queued auto-retry job for transient 403 failures'
+            'Queued auto-retry job for retryable download failures'
           );
         } catch (err) {
-          logger.error({ err, jobId }, 'Failed to enqueue auto-retry for transient 403 failures');
+          logger.error({ err, jobId }, 'Failed to enqueue auto-retry for retryable download failures');
         }
       }
     }
@@ -234,19 +275,26 @@ async function finalizeDownloadJob({
     const reportableFailedVideos = failedVideosList.filter((video) => !video.autoRetryQueued);
 
     // Cookie state drives both the failure diagnoses and the cookie-related
-    // terminal messages below: with cookies enabled, "set cookies" advice is
-    // exactly backwards (stale cookies are the usual cause).
-    const cookiesEnabled = Boolean(configModule.getCookiesPath());
+    // terminal messages below. Use the effective state supplied by the
+    // executor so anonymous retries remain anonymous throughout finalization.
 
     // Reportable failures are final by construction (the auto-retry already
     // failed or was never possible), so diagnose them. A diagnosis failure
     // must never break finalization.
     let diagnoses = [];
     try {
+      // Measured here, while the failed videos' files are still in temp; the
+      // cleanup further down frees the space this looks at.
+      const outOfSpaceVideoIds = await tempSpaceProbe.findOutOfSpaceFailures(
+        reportableFailedVideos,
+        partialDestinations
+      );
       diagnoses = failureAdvisor.adviseFailures(reportableFailedVideos, {
         cookiesEnabled,
+        anonymousRetry,
         httpForbiddenDetected,
         botDetected,
+        outOfSpaceVideoIds,
       });
     } catch (err) {
       logger.error({ err, jobId }, 'Failure advisor threw; continuing without diagnoses');
@@ -284,9 +332,16 @@ async function finalizeDownloadJob({
 
     if (botDetected) {
       status = 'Error';
-      output = cookiesEnabled
-        ? 'Bot detection encountered even though cookies are configured - they are likely expired or rotated.'
-        : 'Bot detection encountered. Please set cookies in your Configuration.';
+      output = anonymousRetry
+        ? 'Bot detection encountered during the no-cookies fallback. The fallback also failed, so this video may be genuinely unavailable.'
+        : cookiesEnabled
+          ? 'Bot detection encountered even though cookies are configured - they are likely expired or rotated.'
+          : 'Bot detection encountered. Please set cookies in your Configuration.';
+
+      // Same leftovers, and the same guard, as the non-zero exit branch below.
+      if (stdioClosed) {
+        await downloadCleanup.cleanupInProgressVideos(jobId);
+      }
 
       await persistCompletedVideosBeforeTerminalUpdate(jobId, videoData, failedVideosList);
       await jobModule.updateJob(jobId, {
@@ -294,12 +349,14 @@ async function finalizeDownloadJob({
         endDate: Date.now(),
         output: output,
         data: dataPayload,
-        notes: cookiesEnabled
-          ? 'YouTube requires authentication and your uploaded cookies appear stale. Re-export fresh cookies from your browser and upload them in Settings -> Cookies.'
-          : 'YouTube requires authentication. Enable cookies in Configuration to resolve this issue.',
-        error: 'COOKIES_REQUIRED'
+        notes: anonymousRetry
+          ? 'The no-cookies fallback was also rejected by YouTube. This video may be genuinely unavailable.'
+          : cookiesEnabled
+            ? 'YouTube requires authentication and your uploaded cookies appear stale. Re-export fresh cookies from your browser and upload them in Settings -> Cookies.'
+            : 'YouTube requires authentication. Enable cookies in Configuration to resolve this issue.',
+        error: anonymousRetry ? 'NO_COOKIES_FALLBACK_FAILED' : 'COOKIES_REQUIRED'
       });
-      jobErrorCode = 'COOKIES_REQUIRED';
+      jobErrorCode = anonymousRetry ? 'NO_COOKIES_FALLBACK_FAILED' : 'COOKIES_REQUIRED';
     } else if (timeoutController.shutdownInProgress || timeoutController.shutdownReason || wasManuallyTerminated) {
       // Handle timeout/graceful shutdown or manual termination
       await downloadCleanup.cleanupInProgressVideos(jobId);
@@ -327,6 +384,14 @@ async function finalizeDownloadJob({
     } else if (code !== 0) {
       // Download actually failed (non-zero exit code)
       await downloadCleanup.cleanupPartialFiles(Array.from(partialDestinations));
+      // A video that failed after its streams finished downloading (a failed
+      // merge, say) leaves them whole in temp, and they are not .part files.
+      // Left there they can fill the disk before the next job's temp clean.
+      // Skipped when yt-dlp's output never closed: a post-processor child may
+      // still be moving a finished video out of temp.
+      if (stdioClosed) {
+        await downloadCleanup.cleanupInProgressVideos(jobId);
+      }
 
       const failureDetails = monitor.lastParsed || null;
 
@@ -338,6 +403,7 @@ async function finalizeDownloadJob({
         terminatedChannelCount: errorTracker.terminatedChannelIds.size,
         httpForbiddenDetected,
         cookiesEnabled,
+        anonymousRetry,
         flags,
         failureDetails,
         subtitleFailureCount: errorTracker.subtitleFailureCount || 0
@@ -463,6 +529,7 @@ async function finalizeDownloadJob({
       unexpectedErrorCount: errorTracker.unexpectedErrorCount,
       httpForbiddenDetected,
       cookiesEnabled,
+      anonymousRetry,
       autoRetryQueuedCount,
       subtitleFailureCount: errorTracker.subtitleFailureCount || 0
     });
@@ -554,7 +621,12 @@ async function finalizeDownloadJob({
 
     // Fold this job's totals into the run; it emits one aggregated summary + notification when its last job finishes.
     if (runActive) {
+      const jobIssue = describeJobIssue(jobId, {
+        wasManuallyTerminated,
+        failuresHandedOff: autoRetryQueuedCount > 0 && reportableFailedVideos.length === 0 && !botDetected,
+      });
       downloadRunTracker.recordJobResult(runId, jobId, {
+        ...(jobIssue ? { jobIssue } : {}),
         totalDownloaded: videoData.length,
         totalSkipped: monitor.videoCount.skipped || 0,
         totalFailed: reportableFailedVideos.length,

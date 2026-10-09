@@ -10,8 +10,13 @@ export interface Playlist {
   uploader: string | null;
   thumbnail: string | null;
   video_count: number;
+  // Videos with a file on disk now; downloaded-then-deleted videos are not counted.
+  downloaded_count?: number;
   enabled: boolean;
   auto_download: boolean;
+  auto_download_baseline_at?: string | null;
+  auto_download_baseline_id?: number | null;
+  auto_download_setup_error?: 'PLAYLIST_TOO_LARGE' | 'PLAYLIST_REFRESH_INCOMPLETE' | null;
   sync_to_plex: boolean;
   sync_to_jellyfin: boolean;
   sync_to_emby: boolean;
@@ -28,11 +33,15 @@ export interface Playlist {
 }
 
 export interface PlaylistVideo {
+  activity?: 'queued' | 'downloading';
   id: number;
   playlist_id: string;
   youtube_id: string;
   position: number;
-  added_at: string | null;
+  /** @deprecated Compatibility alias for first_seen_at. */
+  added_at?: string | null;
+  first_seen_at?: string | null;
+  downloaded_at?: string | null;
   channel_id: string | null;
   ignored: boolean;
   ignored_at: string | null;
@@ -66,6 +75,18 @@ export interface MediaServerStatus {
   emby: boolean;
 }
 
+/** A playlist Youtarr has saved before, as reported by the add-playlist preview. */
+export interface PlaylistExistingSubscription {
+  /** True when the playlist is subscribed now; false when it was removed and can be restored. */
+  enabled: boolean;
+  settings: {
+    auto_download: boolean | null;
+    default_sub_folder: string | null;
+    video_quality: string | null;
+    audio_format: string | null;
+  };
+}
+
 export interface PlaylistPreview {
   title: string;
   url: string;
@@ -74,6 +95,7 @@ export interface PlaylistPreview {
   description: string | null;
   video_count: number;
   playlist_id: string;
+  existing_subscription?: PlaylistExistingSubscription | null;
 }
 
 export interface PlaylistSubscribeSettings {

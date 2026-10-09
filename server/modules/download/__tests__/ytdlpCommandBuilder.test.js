@@ -5,7 +5,12 @@ jest.mock('../../configModule', () => ({
   getConfig: jest.fn(),
   directoryPath: '/mock/youtube/output',
   ffmpegPath: '/usr/bin/ffmpeg',
-  getCookiesPath: jest.fn()
+  getCookiesPath: jest.fn(),
+  getYtdlpCacheDir: jest.fn(() => '/app/config/.yt-dlp-cache')
+}));
+
+jest.mock('../../archiveModule', () => ({
+  getArchivePath: jest.fn(() => '/app/config/complete.list')
 }));
 
 // Mock tempPathManager
@@ -294,6 +299,17 @@ describe('YtdlpCommandBuilder', () => {
     });
   });
 
+  describe('buildFormatSortArgs', () => {
+    it('sorts on resolution before codec', () => {
+      expect(YtdlpCommandBuilder.buildFormatSortArgs()).toEqual(['-S', 'res,vcodec:avc']);
+    });
+
+    it('puts res ahead of vcodec, so a higher resolution beats an AVC stream below it', () => {
+      const [, sort] = YtdlpCommandBuilder.buildFormatSortArgs();
+      expect(sort.indexOf('res')).toBeLessThan(sort.indexOf('vcodec'));
+    });
+  });
+
   describe('buildOutputPath', () => {
     it('should always build path using temp path (staging is always enabled)', () => {
       tempPathManager.getTempBasePath.mockReturnValue('/mock/youtube/output/.youtarr_tmp');
@@ -468,7 +484,7 @@ describe('YtdlpCommandBuilder', () => {
         '--write-auto-sub',
         '--sub-langs', 'en',
         '--convert-subs', 'srt',
-        '--sleep-subtitles', '2'
+        '--sleep-subtitles', '5'
       ]);
     });
 
@@ -483,7 +499,7 @@ describe('YtdlpCommandBuilder', () => {
         '--write-auto-sub',
         '--sub-langs', 'es',
         '--convert-subs', 'srt',
-        '--sleep-subtitles', '2'
+        '--sleep-subtitles', '5'
       ]);
     });
 
@@ -498,7 +514,7 @@ describe('YtdlpCommandBuilder', () => {
         '--write-auto-sub',
         '--sub-langs', 'en,es,fr',
         '--convert-subs', 'srt',
-        '--sleep-subtitles', '2'
+        '--sleep-subtitles', '5'
       ]);
     });
 
@@ -575,13 +591,22 @@ describe('YtdlpCommandBuilder', () => {
       expect(result).toBe('availability!=subscriber_only & !is_live & live_status!=is_upcoming & title ~= \'tutorial\'');
     });
 
-    it('should escape backslashes in title regex', () => {
+    it('passes backslashes through unchanged, since yt-dlp does not unescape them', () => {
       const filterConfig = {
         hasGroupingCriteria: true,
         titleFilterRegex: '\\d+' // Match one or more digits
       };
       const result = YtdlpCommandBuilder.buildMatchFilters(filterConfig);
-      expect(result).toBe('availability!=subscriber_only & !is_live & live_status!=is_upcoming & title ~= \'\\\\d+\'');
+      expect(result).toBe('availability!=subscriber_only & !is_live & live_status!=is_upcoming & title ~= \'\\d+\'');
+    });
+
+    it('escapes ampersands so yt-dlp does not split the filter on them', () => {
+      const filterConfig = {
+        hasGroupingCriteria: true,
+        titleFilterRegex: 'Q&A'
+      };
+      const result = YtdlpCommandBuilder.buildMatchFilters(filterConfig);
+      expect(result).toBe('availability!=subscriber_only & !is_live & live_status!=is_upcoming & title ~= \'Q\\&A\'');
     });
 
     it('should escape single quotes in title regex', () => {
@@ -593,13 +618,13 @@ describe('YtdlpCommandBuilder', () => {
       expect(result).toBe('availability!=subscriber_only & !is_live & live_status!=is_upcoming & title ~= \'Let\\\'s Go\'');
     });
 
-    it('should escape both backslashes and quotes in complex regex', () => {
+    it('escapes quotes while keeping backslashes in a complex regex', () => {
       const filterConfig = {
         hasGroupingCriteria: true,
         titleFilterRegex: 'Part \\d+: It\'s Here'
       };
       const result = YtdlpCommandBuilder.buildMatchFilters(filterConfig);
-      expect(result).toBe('availability!=subscriber_only & !is_live & live_status!=is_upcoming & title ~= \'Part \\\\d+: It\\\'s Here\'');
+      expect(result).toBe('availability!=subscriber_only & !is_live & live_status!=is_upcoming & title ~= \'Part \\d+: It\\\'s Here\'');
     });
 
     it('should combine all filters when specified', () => {
@@ -736,6 +761,21 @@ describe('YtdlpCommandBuilder', () => {
       expect(result[cookiesIndex + 1]).toBe('/path/to/cookies.txt');
     });
 
+    it('should omit cookies when cookiesEnabled is false', () => {
+      configModule.getCookiesPath.mockReturnValue('/cookies/file.txt');
+
+      const result = YtdlpCommandBuilder.getBaseCommandArgsForManualDownload(
+        undefined,
+        false,
+        null,
+        false,
+        { cookiesEnabled: false }
+      );
+
+      expect(result).not.toContain('--cookies');
+      expect(result).not.toContain('/cookies/file.txt');
+    });
+
     it('should include sponsorblock args when configured', () => {
       mockConfig.sponsorblockEnabled = true;
       mockConfig.sponsorblockCategories = { sponsor: true };
@@ -847,6 +887,9 @@ describe('YtdlpCommandBuilder', () => {
       const formatString = result[formatIndex + 1];
       expect(formatString).toContain('[vcodec^=hev]');
       expect(formatString).toBe('bestvideo[height<=1080][ext=mp4][vcodec^=hev]+bestaudio[ext=m4a]/bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best');
+      // YouTube rarely has HEVC, so the fallback needs the sort to avoid AV1
+      const sortIndex = result.indexOf('-S');
+      expect(result.slice(sortIndex, sortIndex + 2)).toEqual(['-S', 'res,vcodec:avc']);
     });
 
     it('should combine custom resolution with h264 codec', () => {
@@ -1041,6 +1084,8 @@ describe('YtdlpCommandBuilder', () => {
       const formatString = result[formatIndex + 1];
       expect(formatString).toContain('[vcodec^=hev]');
       expect(formatString).toBe('bestvideo[height<=1080][ext=mp4][vcodec^=hev]+bestaudio[ext=m4a]/bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best');
+      const sortIndex = result.indexOf('-S');
+      expect(result.slice(sortIndex, sortIndex + 2)).toEqual(['-S', 'res,vcodec:avc']);
     });
 
     it('should combine custom resolution with h264 codec', () => {
@@ -1190,6 +1235,28 @@ describe('YtdlpCommandBuilder', () => {
     });
   });
 
+  describe('buildCommonArgs — yt-dlp cache', () => {
+    test('points --cache-dir at the config volume', () => {
+      const args = YtdlpCommandBuilder.buildCommonArgs(mockConfig);
+      const i = args.indexOf('--cache-dir');
+      expect(args[i + 1]).toBe('/app/config/.yt-dlp-cache');
+    });
+  });
+
+  describe('download archive path', () => {
+    test('channel downloads use the absolute archive path', () => {
+      const args = YtdlpCommandBuilder.getBaseCommandArgs();
+      const i = args.indexOf('--download-archive');
+      expect(args[i + 1]).toBe('/app/config/complete.list');
+    });
+
+    test('manual downloads use the absolute archive path', () => {
+      const args = YtdlpCommandBuilder.getBaseCommandArgsForManualDownload();
+      const i = args.indexOf('--download-archive');
+      expect(args[i + 1]).toBe('/app/config/complete.list');
+    });
+  });
+
   describe('buildCommonArgs — custom args isolation', () => {
     test('does NOT include custom args (they are appended by each builder, not by buildCommonArgs)', () => {
       configModule.getConfig.mockReturnValue({
@@ -1305,6 +1372,109 @@ describe('YtdlpCommandBuilder', () => {
       const args = YtdlpCommandBuilder.buildMetadataFetchArgs('https://x/y');
       expect(args[args.length - 1]).toBe('https://x/y');
       expect(args.slice(-3, -1)).toEqual(['--concurrent-fragments', '4']);
+    });
+
+    test('buildMetadataFetchArgs dumps a single JSON document by default', () => {
+      const args = YtdlpCommandBuilder.buildMetadataFetchArgs('https://x/y');
+      expect(args).toContain('--dump-single-json');
+      expect(args).not.toContain('--lazy-playlist');
+    });
+
+    test('buildMetadataFetchArgs passes the configured cookies by default', () => {
+      configModule.getCookiesPath.mockReturnValue('/cookies/file.txt');
+      const args = YtdlpCommandBuilder.buildMetadataFetchArgs('https://x/y', { flatPlaylist: true });
+      expect(args).toEqual(expect.arrayContaining(['--cookies', '/cookies/file.txt']));
+    });
+
+    test('buildMetadataFetchArgs omits cookies when cookiesEnabled is false', () => {
+      configModule.getCookiesPath.mockReturnValue('/cookies/file.txt');
+      const args = YtdlpCommandBuilder.buildMetadataFetchArgs('https://x/y', { flatPlaylist: true, cookiesEnabled: false });
+      expect(args).not.toContain('--cookies');
+    });
+
+    test('buildMetadataFetchArgs streams one JSON line per entry when streamEntries is set', () => {
+      const args = YtdlpCommandBuilder.buildMetadataFetchArgs('https://x/y', { flatPlaylist: true, streamEntries: true });
+      expect(args).toEqual(expect.arrayContaining(['--dump-json', '--lazy-playlist']));
+      expect(args).not.toContain('--dump-single-json');
+    });
+  });
+
+  describe('cookie player clients', () => {
+    const MANAGED_TOKEN = 'youtube:player_client=default,mweb,web_safari';
+    const youtubeTokens = (args) => args.filter((a) => /^youtube:/i.test(a));
+
+    test('getBaseCommandArgs selects the cookie player clients when cookies are enabled', () => {
+      configModule.getCookiesPath.mockReturnValue('/path/to/cookies.txt');
+      const args = YtdlpCommandBuilder.getBaseCommandArgs();
+
+      const idx = args.indexOf(MANAGED_TOKEN);
+      expect(idx).toBeGreaterThan(0);
+      expect(args[idx - 1]).toBe('--extractor-args');
+    });
+
+    test('getBaseCommandArgs leaves player clients to yt-dlp when cookies are disabled', () => {
+      configModule.getCookiesPath.mockReturnValue(null);
+      const args = YtdlpCommandBuilder.getBaseCommandArgs();
+
+      expect(youtubeTokens(args)).toEqual([]);
+    });
+
+    test('getBaseCommandArgsForManualDownload selects the cookie player clients when cookies are enabled', () => {
+      configModule.getCookiesPath.mockReturnValue('/path/to/cookies.txt');
+      const args = YtdlpCommandBuilder.getBaseCommandArgsForManualDownload();
+
+      expect(args).toContain(MANAGED_TOKEN);
+    });
+
+    test('keeps the managed youtubetab extractor args alongside the youtube player clients', () => {
+      configModule.getCookiesPath.mockReturnValue('/path/to/cookies.txt');
+      const args = YtdlpCommandBuilder.getBaseCommandArgs();
+
+      expect(args).toContain('youtubetab:tab=videos;sort=dd');
+      expect(youtubeTokens(args)).toHaveLength(1);
+    });
+
+    test('folds the player clients into a user-supplied youtube: extractor arg so neither is lost', () => {
+      configModule.getCookiesPath.mockReturnValue('/path/to/cookies.txt');
+      mockConfig.ytdlpCustomArgs = '--extractor-args youtube:lang=en';
+      const args = YtdlpCommandBuilder.getBaseCommandArgs();
+
+      expect(youtubeTokens(args)).toEqual(['youtube:lang=en;player_client=default,mweb,web_safari']);
+    });
+
+    test('lets a user-supplied player_client override the managed list', () => {
+      configModule.getCookiesPath.mockReturnValue('/path/to/cookies.txt');
+      mockConfig.ytdlpCustomArgs = '--extractor-args youtube:player_client=web_safari';
+      const args = YtdlpCommandBuilder.getBaseCommandArgs();
+
+      expect(youtubeTokens(args)).toEqual(['youtube:player_client=web_safari']);
+    });
+
+    test('still ends with unrelated custom args so yt-dlp last-wins holds', () => {
+      configModule.getCookiesPath.mockReturnValue('/path/to/cookies.txt');
+      mockConfig.ytdlpCustomArgs = '--concurrent-fragments 4';
+      const args = YtdlpCommandBuilder.getBaseCommandArgs();
+
+      expect(args).toContain(MANAGED_TOKEN);
+      expect(args.slice(-2)).toEqual(['--concurrent-fragments', '4']);
+    });
+
+    test('buildMetadataFetchArgs selects the cookie player clients for a single-video fetch', () => {
+      configModule.getCookiesPath.mockReturnValue('/path/to/cookies.txt');
+      const args = YtdlpCommandBuilder.buildMetadataFetchArgs('https://www.youtube.com/watch?v=abc');
+
+      expect(args).toContain(MANAGED_TOKEN);
+    });
+
+    test('buildMetadataFetchArgs skips the player clients for flat playlist listings', () => {
+      configModule.getCookiesPath.mockReturnValue('/path/to/cookies.txt');
+      const args = YtdlpCommandBuilder.buildMetadataFetchArgs('https://www.youtube.com/@chan/videos', {
+        flatPlaylist: true,
+        extractorArgs: 'youtubetab:approximate_date',
+      });
+
+      expect(youtubeTokens(args)).toEqual([]);
+      expect(args).toContain('youtubetab:approximate_date');
     });
   });
 });

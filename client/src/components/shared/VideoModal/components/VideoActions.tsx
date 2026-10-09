@@ -47,7 +47,7 @@ function VideoActions({
 }: VideoActionsProps) {
   const isDownloadedAndPresent = video.isDownloaded && video.status !== 'missing';
   const showProtect = isDownloadedAndPresent;
-  const showDownload = !isDownloadedAndPresent;
+  const showDownload = !isDownloadedAndPresent && video.status !== 'queued' && video.status !== 'downloading';
   const showIgnore = (!isDownloadedAndPresent || video.isIgnored) && allowIgnore;
   const showDelete = isDownloadedAndPresent;
   const mediaTypeInfo = getMediaTypeInfo(video.mediaType);

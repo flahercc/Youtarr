@@ -144,6 +144,13 @@ describe('videoStatus Utility', () => {
     });
   });
 
+  test.each(['queued', 'downloading'] as const)('shows %s over stored flags without changing them', activity => {
+    const video = { ...baseMockVideo, activity, ignored: true, added: true, removed: true };
+    expect(getVideoStatus(video)).toBe(activity);
+    expect(video.ignored).toBe(true);
+    expect(getVideoStatus({ ...video, activity: undefined })).toBe('ignored');
+  });
+
   describe('getStatusColor', () => {
     test('returns "success" for downloaded status', () => {
       expect(getStatusColor('downloaded')).toBe('success');

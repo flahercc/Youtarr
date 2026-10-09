@@ -10,6 +10,7 @@ config/jobs.json
 config/config.json
 config/config.json.*
 config/cookies.user.txt
+config/cookies.external.txt*
 config/setup-token
 config/*.env
 database
@@ -34,6 +35,8 @@ client/node_modules
 jobs/*
 config/jobs/*
 config/images/*
+config/.yt-dlp-cache/
+config/logs/
 
 # misc
 .DS_Store
@@ -74,3 +77,17 @@ client/build-storybook/
 # Storybook test artifacts
 .out_storybook_
 .storyshots
+
+# Serializes backup/restore operations for this installation
+.backup-restore.lock
+
+# Python script/test bytecode caches
+__pycache__/
+
+# Private restore staging may contain configuration and cookies
+.youtarr-restore-*/
+
+# Docusaurus generated files
+website/.generated/
+website/build/
+website/.docusaurus/

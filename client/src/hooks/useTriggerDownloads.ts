@@ -1,4 +1,5 @@
-import { useState, useCallback } from 'react';
+import { useVideoActivity } from '../providers/VideoActivityProvider';
+import { useState, useCallback, useRef } from 'react';
 
 interface DownloadOverrideSettings {
   resolution?: string;
@@ -17,22 +18,28 @@ interface TriggerDownloadsParams {
 }
 
 interface UseTriggerDownloadsResult {
-  triggerDownloads: (params: TriggerDownloadsParams) => Promise<boolean>;
+  // null means a concurrent submission was ignored; callers should leave their UI alone.
+  triggerDownloads: (params: TriggerDownloadsParams) => Promise<boolean | null>;
   loading: boolean;
   error: Error | null;
 }
 
 export function useTriggerDownloads(token: string | null): UseTriggerDownloadsResult {
+  const { refresh } = useVideoActivity();
+  const submitting = useRef(false);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<Error | null>(null);
 
   const triggerDownloads = useCallback(
-    async ({ urls, overrideSettings, channelId, videoChannelMap }: TriggerDownloadsParams): Promise<boolean> => {
+    async ({ urls, overrideSettings, channelId, videoChannelMap }: TriggerDownloadsParams): Promise<boolean | null> => {
       if (!token) {
         setError(new Error('No authentication token provided'));
         return false;
       }
 
+      if (submitting.current) return null;
+      if (!urls.length) return false;
+      submitting.current = true;
       setLoading(true);
       setError(null);
 
@@ -71,16 +78,18 @@ export function useTriggerDownloads(token: string | null): UseTriggerDownloadsRe
           throw new Error(`Failed to trigger downloads: ${response.statusText}`);
         }
 
+        refresh();
         return true;
       } catch (err) {
         console.error('Error triggering downloads:', err);
         setError(err instanceof Error ? err : new Error('Unknown error'));
         return false;
       } finally {
+        submitting.current = false;
         setLoading(false);
       }
     },
-    [token]
+    [token, refresh]
   );
 
   return {
