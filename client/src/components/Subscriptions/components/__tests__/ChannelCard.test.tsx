@@ -1,10 +1,19 @@
+import { useLocation } from 'react-router-dom';
 import React from 'react';
 import { screen, within, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import ChannelCard from '../ChannelCard';
 import { Channel } from '../../../../types/Channel';
-import { renderWithProviders } from '../../../../test-utils';
+import { renderWithProviders as renderWithBaseProviders } from '../../../../test-utils';
+
+function CurrentPath() {
+  return <output data-testid="current-path">{useLocation().pathname}</output>;
+}
+
+function renderWithProviders(ui: React.ReactElement) {
+  return renderWithBaseProviders(<>{ui}<CurrentPath /></>);
+}
 
 // Mock the chip components
 jest.mock('../chips', () => ({
@@ -19,9 +28,12 @@ jest.mock('../chips', () => ({
     }
     return React.createElement('div', attrs, `Quality: ${videoQuality || 'default'}`);
   },
-  AutoDownloadChips: function MockAutoDownloadChips({ availableTabs, autoDownloadTabs }: any) {
+  AutoDownloadChips: function MockAutoDownloadChips({ availableTabs, autoDownloadTabs, tabStats }: any) {
     const React = require('react');
     const attrs: any = { 'data-testid': 'auto-download-chips' };
+    if (tabStats?.videos) {
+      attrs['data-videos-percent'] = tabStats.videos.percent;
+    }
     if (availableTabs !== null && availableTabs !== undefined) {
       attrs['data-available'] = availableTabs;
     }
@@ -91,7 +103,6 @@ describe('ChannelCard Component', () => {
     channel: mockChannel,
     isMobile: false,
     globalPreferredResolution: '1080',
-    onNavigate: jest.fn(),
     onDelete: jest.fn(),
     onRegexClick: jest.fn(),
     isPendingAddition: false,
@@ -179,6 +190,16 @@ describe('ChannelCard Component', () => {
       expect(autoDownloadChips).toHaveAttribute('data-enabled', 'video');
     });
 
+    test('passes the tab download stats to the auto-download chips', () => {
+      const channelWithStats = {
+        ...mockChannel,
+        tab_download_stats: { videos: { total: 449, fetchedAt: null, downloaded: 120, ignored: 0, percent: 26 } },
+      };
+      renderWithProviders(<ChannelCard {...defaultProps} channel={channelWithStats} />);
+
+      expect(screen.getByTestId('auto-download-chips')).toHaveAttribute('data-videos-percent', '26');
+    });
+
     test('renders DurationFilterChip when min/max duration is set', () => {
       const channelWithDuration = {
         ...mockChannel,
@@ -255,6 +276,16 @@ describe('ChannelCard Component', () => {
       expect(screen.getByText('Pending')).toBeInTheDocument();
     });
 
+    test('opens the settings of a pending addition from its edit button', async () => {
+      const user = userEvent.setup();
+      const onEditPending = jest.fn();
+      renderWithProviders(<ChannelCard {...defaultProps} isPendingAddition onEditPending={onEditPending} />);
+
+      await user.click(screen.getByRole('button', { name: 'Edit pending channel settings' }));
+
+      expect(onEditPending).toHaveBeenCalledTimes(1);
+    });
+
     test('does not display "Pending" chip when isPendingAddition is false', () => {
       renderWithProviders(<ChannelCard {...defaultProps} isPendingAddition={false} />);
       expect(screen.queryByText('Pending')).not.toBeInTheDocument();
@@ -271,30 +302,28 @@ describe('ChannelCard Component', () => {
 
     test('allows navigation when isPendingAddition is false', async () => {
       const user = userEvent.setup();
-      const onNavigate = jest.fn();
 
       renderWithProviders(
-        <ChannelCard {...defaultProps} onNavigate={onNavigate} isPendingAddition={false} />
+        <ChannelCard {...defaultProps} isPendingAddition={false} />
       );
 
       const card = screen.getByTestId('channel-card-UC1234567890');
       await user.click(card);
 
-      expect(onNavigate).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId('current-path')).toHaveTextContent('/channel/UC1234567890');
     });
   });
 
   describe('User Interactions', () => {
-    test('calls onNavigate when card is clicked', async () => {
+    test('navigates to the channel when the card is clicked', async () => {
       const user = userEvent.setup();
-      const onNavigate = jest.fn();
 
-      renderWithProviders(<ChannelCard {...defaultProps} onNavigate={onNavigate} />);
+      renderWithProviders(<ChannelCard {...defaultProps} />);
 
       const card = screen.getByTestId('channel-card-UC1234567890');
       await user.click(card);
 
-      expect(onNavigate).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId('current-path')).toHaveTextContent('/channel/UC1234567890');
     });
 
     test('calls onDelete when delete button is clicked', async () => {
@@ -309,20 +338,19 @@ describe('ChannelCard Component', () => {
       expect(onDelete).toHaveBeenCalledTimes(1);
     });
 
-    test('delete button click stops propagation and does not trigger navigation', async () => {
+    test('delete button click does not trigger navigation', async () => {
       const user = userEvent.setup();
       const onDelete = jest.fn();
-      const onNavigate = jest.fn();
 
       renderWithProviders(
-        <ChannelCard {...defaultProps} onDelete={onDelete} onNavigate={onNavigate} />
+        <ChannelCard {...defaultProps} onDelete={onDelete} />
       );
 
       const deleteButton = screen.getByRole('button', { name: /remove channel/i });
       await user.click(deleteButton);
 
       expect(onDelete).toHaveBeenCalledTimes(1);
-      expect(onNavigate).not.toHaveBeenCalled();
+      expect(screen.getByTestId('current-path')).toHaveTextContent(/^\/$/);
     });
 
     test('calls onRegexClick when title filter chip is clicked', async () => {

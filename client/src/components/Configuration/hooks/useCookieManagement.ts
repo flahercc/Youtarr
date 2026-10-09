@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { CONFIG_UPDATED_EVENT } from '../../../hooks/useConfig';
 import { ConfigState, CookieStatus, SnackbarState } from '../types';
 
 interface UseCookieManagementParams {
@@ -15,10 +16,9 @@ export const useCookieManagement = ({
   const [cookieStatus, setCookieStatus] = useState<CookieStatus | null>(null);
   const [uploadingCookie, setUploadingCookie] = useState(false);
 
-  // Fetch cookie status on mount
-  useEffect(() => {
+  const refreshCookieStatus = useCallback(async () => {
     if (token) {
-      fetch('/api/cookies/status', {
+      await fetch('/api/cookies/status', {
         headers: {
           'x-access-token': token,
         },
@@ -30,6 +30,26 @@ export const useCookieManagement = ({
         .catch((error) => console.error('Error fetching cookie status:', error));
     }
   }, [token]);
+
+  // Fetch cookie status on mount; externally managed files can also be refreshed.
+  useEffect(() => {
+    void refreshCookieStatus();
+  }, [refreshCookieStatus]);
+
+  // Saving Enable Cookies changes which file is active, and so its details.
+  useEffect(() => {
+    const refresh = () => { void refreshCookieStatus(); };
+    window.addEventListener(CONFIG_UPDATED_EVENT, refresh);
+    return () => window.removeEventListener(CONFIG_UPDATED_EVENT, refresh);
+  }, [refreshCookieStatus]);
+
+  // Keep external-source warnings and recovery visible while Settings is open.
+  const externalPath = cookieStatus?.external?.path;
+  useEffect(() => {
+    if (!token || !externalPath) return;
+    const interval = setInterval(() => { void refreshCookieStatus(); }, 30000);
+    return () => clearInterval(interval);
+  }, [token, externalPath, refreshCookieStatus]);
 
   const uploadCookieFile = useCallback(async (file: File) => {
     setUploadingCookie(true);
@@ -112,6 +132,7 @@ export const useCookieManagement = ({
 
   return {
     cookieStatus,
+    refreshCookieStatus,
     uploadingCookie,
     uploadCookieFile,
     deleteCookies,

@@ -1,4 +1,5 @@
 import React from 'react';
+import VideoActivityChip from '../../shared/VideoActivityChip';
 import { Card, Typography, Chip, Box, Checkbox, IconButton, Tooltip } from '../../ui';
 import {
   AlertCircle as ErrorOutlineIcon,
@@ -277,6 +278,7 @@ function VideoCard({
           style={{ marginTop: 'auto' }}
         >
           <Box className="flex flex-wrap items-center gap-1" style={{ flex: 1, minWidth: 0 }}>
+            <VideoActivityChip youtubeId={video.youtubeId} />
             {!video.removed && (video.filePath || video.audioFilePath) && (
               <DownloadFormatIndicator
                 filePath={video.filePath}

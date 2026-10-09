@@ -77,7 +77,7 @@ function VideoModal({
   // yt-dlp cannot access them and the error just spams the server logs. For
   // already-downloaded members-only videos, the backend still serves cached
   // .info.json so we let the fetch proceed.
-  const skipMetadataFetch = video.status === 'members_only' && !video.isDownloaded;
+  const skipMetadataFetch = localVideo.status === 'members_only' && !localVideo.isDownloaded;
   const shouldFetchMetadata = open && !skipMetadataFetch;
   const { metadata, loading: metadataLoading } = useVideoMetadata(
     shouldFetchMetadata ? video.youtubeId : '',
@@ -85,7 +85,7 @@ function VideoModal({
   );
 
   const { statuses: watchStatuses } = useWatchStatus(
-    open && video.isDownloaded ? video.youtubeId : '',
+    open && localVideo.isDownloaded ? video.youtubeId : '',
     token
   );
 
@@ -143,6 +143,7 @@ function VideoModal({
   // first open the prop's status is stale (still 'never_downloaded' or similar).
   // Deriving here keeps VideoPlayer/VideoActions in sync without round-tripping.
   const displayVideo = useMemo(() => {
+    if (localVideo.status === 'queued' || localVideo.status === 'downloading') return localVideo;
     if (metadata?.availability === 'subscriber_only' && localVideo.status !== 'members_only') {
       return { ...localVideo, status: 'members_only' as const };
     }
@@ -302,7 +303,7 @@ function VideoModal({
         onClose={() => setDownloadDialogOpen(false)}
         onConfirm={handleDownloadConfirm}
         videoCount={1}
-        missingVideoCount={displayVideo.status === 'missing' ? 1 : 0}
+        missingVideoCount={displayVideo.status === 'missing' || displayVideo.inArchive ? 1 : 0}
         mode="manual"
         token={token}
         defaultResolution={defaultResolution}

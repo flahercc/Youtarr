@@ -81,6 +81,61 @@ describe('usePlaylistDetail.triggerDownload', () => {
   });
 });
 
+describe('usePlaylistDetail.downloadedCount', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  const mockPlaylistResponse = (data: Record<string, unknown>) => {
+    axios.get.mockImplementation((url: string) => {
+      if (url.endsWith('/videos')) {
+        return Promise.resolve({ data: { total: 0, videos: [] } });
+      }
+      return Promise.resolve({ data: { playlist: { playlist_id: 'PL1' }, ...data } });
+    });
+  };
+
+  test('exposes downloadedCount from the playlist response', async () => {
+    mockPlaylistResponse({ downloaded_count: 12 });
+
+    const { result } = renderHook(() =>
+      usePlaylistDetail({ token: 't', playlistId: 'PL1' })
+    );
+
+    await waitFor(() => {
+      expect(result.current.downloadedCount).toBe(12);
+    });
+  });
+
+  test('downloadedCount is null when the field is absent', async () => {
+    mockPlaylistResponse({});
+
+    const { result } = renderHook(() =>
+      usePlaylistDetail({ token: 't', playlistId: 'PL1' })
+    );
+
+    await waitFor(() => {
+      expect(result.current.playlist).not.toBeNull();
+    });
+    expect(result.current.downloadedCount).toBeNull();
+  });
+
+  test('refetchMeta updates downloadedCount', async () => {
+    mockPlaylistResponse({ downloaded_count: 3 });
+    const { result } = renderHook(() =>
+      usePlaylistDetail({ token: 't', playlistId: 'PL1' })
+    );
+    await waitFor(() => expect(result.current.downloadedCount).toBe(3));
+
+    mockPlaylistResponse({ downloaded_count: 2 });
+    await act(async () => {
+      await result.current.refetchMeta();
+    });
+
+    expect(result.current.downloadedCount).toBe(2);
+  });
+});
+
 describe('usePlaylistDetail.notDownloadedCount', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -432,5 +487,49 @@ describe('usePlaylistDetail sorting and pagination', () => {
     expect(result.current.notDownloadedCount).toBe(4);
     const videoCallsAfter = axios.get.mock.calls.filter((c: [string]) => c[0].endsWith('/videos')).length;
     expect(videoCallsAfter).toBe(videoCalls);
+  });
+});
+
+
+describe('usePlaylistDetail.followingExistingCount', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  test('exposes the existing backlog count and clears it when leaving the playlist', async () => {
+    axios.get.mockResolvedValue({ data: { playlist: {}, videos: [], total: 0, following_existing_count: 7 } });
+    const { result, rerender } = renderHook(({ playlistId }: { playlistId: string | null }) =>
+      usePlaylistDetail({ token: 't', playlistId }), { initialProps: { playlistId: 'PL1' as string | null } });
+    await waitFor(() => expect(result.current.followingExistingCount).toBe(7));
+    rerender({ playlistId: null });
+    await waitFor(() => expect(result.current.followingExistingCount).toBeNull());
+  });
+});
+
+
+describe('usePlaylistDetail.followingRequestedCount', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  test('loads and updates the outstanding selection count independently of the page of videos', async () => {
+    axios.get.mockResolvedValue({ data: { playlist: {}, videos: [], total: 0, following_requested_count: 8 } });
+    const { result } = renderHook(() => usePlaylistDetail({ token: 't', playlistId: 'PL1' }));
+    await waitFor(() => expect(result.current.followingRequestedCount).toBe(8));
+    axios.get.mockResolvedValue({ data: { playlist: {}, following_requested_count: 2 } });
+    await act(async () => { await result.current.refetchMeta(); });
+    expect(result.current.followingRequestedCount).toBe(2);
+  });
+
+  test('clears the count when leaving the playlist', async () => {
+    axios.get.mockResolvedValue({ data: { playlist: {}, videos: [], total: 0, following_requested_count: 8 } });
+    const { result, rerender } = renderHook(({ playlistId }: { playlistId: string | null }) =>
+      usePlaylistDetail({ token: 't', playlistId }), { initialProps: { playlistId: 'PL1' as string | null } });
+    await waitFor(() => expect(result.current.followingRequestedCount).toBe(8));
+    rerender({ playlistId: null });
+    await waitFor(() => expect(result.current.followingRequestedCount).toBeNull());
+  });
+
+  test('missing counts remain unknown rather than inventing outstanding requests', async () => {
+    axios.get.mockResolvedValue({ data: { playlist: {}, videos: [], total: 0 } });
+    const { result } = renderHook(() => usePlaylistDetail({ token: 't', playlistId: 'PL1' }));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.followingRequestedCount).toBeNull();
   });
 });

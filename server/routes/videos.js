@@ -1,6 +1,7 @@
 const express = require('express');
 const rateLimit = require('express-rate-limit');
 const { ROOT_SENTINEL, GLOBAL_DEFAULT_SENTINEL } = require('../modules/filesystem/constants');
+const { sendRunBlocked } = require('./runNowResponse');
 
 // Video validation rate limiter
 const videoValidationLimiter = rateLimit({
@@ -51,10 +52,75 @@ const apiKeyDownloadLimiter = rateLimit({
  * @param {Function} deps.verifyToken - Token verification middleware
  * @param {Object} deps.videosModule - Videos module
  * @param {Object} deps.downloadModule - Download module
+ * @param {Object} deps.ratingMapper - Rating validation/normalization module
  * @returns {express.Router}
  */
-module.exports = function createVideoRoutes({ verifyToken, videosModule, downloadModule, videoOembedEnricher }) {
+module.exports = function createVideoRoutes({
+  verifyToken, videosModule, downloadModule, videoOembedEnricher, videoLocalStatus, storageGuard, scheduledTaskManager, ratingMapper,
+}) {
   const router = express.Router();
+  /**
+   * @swagger
+   * /api/videos/local-status:
+   *   post:
+   *     summary: Read local metadata for up to 500 YouTube video IDs
+   *     tags: [Videos]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [youtubeIds]
+   *             properties:
+   *               youtubeIds:
+   *                 type: array
+   *                 maxItems: 500
+   *                 items:
+   *                   type: string
+   *                   pattern: '^[a-zA-Z0-9_-]{11}$'
+   *     responses:
+   *       200:
+   *         description: Deduplicated results with local status and available file metadata; no YouTube requests
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 results:
+   *                   type: array
+   *                   items:
+   *                     type: object
+   *                     properties:
+   *                       youtubeId:
+   *                         type: string
+   *                       status:
+   *                         type: string
+   *                         enum: [never_downloaded, missing, downloaded]
+   *                       inArchive:
+   *                         type: boolean
+   *                         description: Listed in the download archive without a database record (ignored videos excluded); a download skips it unless re-downloading is allowed
+   *       400:
+   *         description: Invalid video IDs or more than 500 IDs
+   *       401:
+   *         description: Authentication required
+   *       500:
+   *         description: Local metadata lookup failed
+   */
+  router.post('/api/videos/local-status', verifyToken, async (req, res) => {
+    const ids = req.body?.youtubeIds;
+    if (!Array.isArray(ids) || ids.length > 500 || !ids.every(id => typeof id === 'string' && /^[a-zA-Z0-9_-]{11}$/.test(id))) {
+      return res.status(400).json({ error: 'youtubeIds must contain at most 500 valid video IDs' });
+    }
+    try {
+      const results = [...new Set(ids)].map(youtubeId => ({ youtubeId, status: 'never_downloaded' }));
+      await videoLocalStatus.applyLocalVideoStatus(results);
+      res.json({ results });
+    } catch (err) {
+      req.log.error({ err }, 'Failed to read local video status');
+      res.status(500).json({ error: 'Failed to read local video status' });
+    }
+  });
 
   /**
    * @swagger
@@ -133,9 +199,17 @@ module.exports = function createVideoRoutes({ verifyToken, videosModule, downloa
    *           enum: [off, only, exclude]
    *           default: off
    *         description: Tri-state filter on watched videos (per the configured watched rule)
+   *       - in: query
+   *         name: maxRating
+   *         schema:
+   *           type: string
+   *           enum: [G, PG, PG-13, R, NC-17, TV-Y, TV-Y7, TV-G, TV-PG, TV-14, TV-MA]
+   *         description: Hide videos rated above this rating. Unrated videos are always included.
    *     responses:
    *       200:
    *         description: Paginated list of videos
+   *       400:
+   *         description: Invalid maxRating
    *       500:
    *         description: Failed to get videos
    */
@@ -144,6 +218,11 @@ module.exports = function createVideoRoutes({ verifyToken, videosModule, downloa
 
     try {
       const { page, limit, search, dateFrom, dateTo, sortBy, sortOrder, channelFilter, protectedFilter, missingFilter, watchedFilter } = req.query;
+
+      const maxRating = ratingMapper.parseMaxRatingParam(req.query.maxRating);
+      if (!maxRating.valid) {
+        return res.status(400).json({ error: 'Invalid maxRating' });
+      }
 
       const parseFilterMode = (value) => (value === 'only' || value === 'exclude' ? value : 'off');
 
@@ -159,6 +238,7 @@ module.exports = function createVideoRoutes({ verifyToken, videosModule, downloa
         protectedFilter: parseFilterMode(protectedFilter),
         missingFilter: parseFilterMode(missingFilter),
         watchedFilter: parseFilterMode(watchedFilter),
+        maxRating: maxRating.value,
       };
 
       const result = await videosModule.getVideosPaginated(options);
@@ -390,6 +470,9 @@ module.exports = function createVideoRoutes({ verifyToken, videosModule, downloa
    *               autoRemovalKeepRecentCount:
    *                 type: integer
    *                 description: Never remove the N most recently downloaded videos
+   *               autoRemovalUsageLimit:
+   *                 type: string
+   *                 description: Remove oldest videos while downloaded videos total more than this (e.g. "500GB", "2TB")
    *     responses:
    *       200:
    *         description: Dry run results
@@ -405,7 +488,8 @@ module.exports = function createVideoRoutes({ verifyToken, videosModule, downloa
         autoRemovalWatchedEnabled,
         autoRemovalWatchedMinDaysSinceWatched,
         autoRemovalWatchedMinVideoAgeDays,
-        autoRemovalKeepRecentCount
+        autoRemovalKeepRecentCount,
+        autoRemovalUsageLimit
       } = req.body || {};
 
       const coerceBoolean = (value) => {
@@ -442,6 +526,10 @@ module.exports = function createVideoRoutes({ verifyToken, videosModule, downloa
 
       if (autoRemovalKeepRecentCount !== undefined) {
         overrides.autoRemovalKeepRecentCount = autoRemovalKeepRecentCount;
+      }
+
+      if (autoRemovalUsageLimit !== undefined) {
+        overrides.autoRemovalUsageLimit = autoRemovalUsageLimit;
       }
 
       const videoDeletionModule = require('../modules/videoDeletionModule');
@@ -646,6 +734,19 @@ module.exports = function createVideoRoutes({ verifyToken, videosModule, downloa
    *         description: Invalid or missing authentication
    *       429:
    *         description: Rate limit exceeded
+   *       409:
+   *         description: Downloads are paused because a storage limit was reached (Settings > Storage Limits); the error message gives the reason
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 success:
+   *                   type: boolean
+   *                   example: false
+   *                 error:
+   *                   type: string
+   *                   example: 'Downloads are paused: downloaded videos use 512.0 GB, over the 500 GB limit'
    */
   router.post('/api/videos/download', verifyToken, apiKeyDownloadLimiter, async (req, res) => {
     // Set CORS headers for bookmarklet/external access
@@ -743,15 +844,13 @@ module.exports = function createVideoRoutes({ verifyToken, videosModule, downloa
         ? { [videoMeta.youtubeId]: videoMeta.channelId }
         : undefined;
 
-      downloadModule.doGroupedManualDownloads({
+      const admission = await downloadModule.doGroupedManualDownloads({
         body: {
           urls: [url],
           overrideSettings: Object.keys(overrideSettings).length > 0 ? overrideSettings : undefined,
           videoChannelMap,
           initiatedBy
         }
-      }).catch((err) => {
-        req.log.error({ err }, 'Failed to start API download');
       });
 
       // Increment usage count for API key statistics
@@ -764,7 +863,8 @@ module.exports = function createVideoRoutes({ verifyToken, videosModule, downloa
 
       res.json({
         success: true,
-        message: 'Video queued for download',
+        message: admission.queued ? 'Video queued for download' : 'Video is already queued or downloading',
+        ...admission,
         video: {
           title: metadata.title,
           thumbnail: metadata.thumbnail,
@@ -772,6 +872,9 @@ module.exports = function createVideoRoutes({ verifyToken, videosModule, downloa
         }
       });
     } catch (error) {
+      if (storageGuard.isPausedError(error)) {
+        return res.status(409).json({ success: false, error: error.message });
+      }
       req.log.error({ err: error }, 'Failed to queue video download');
       res.status(500).json({
         success: false,
@@ -822,8 +925,18 @@ module.exports = function createVideoRoutes({ verifyToken, videosModule, downloa
    *         description: Download job started
    *       400:
    *         description: Invalid resolution
+   *       409:
+   *         description: Downloads are paused because a storage limit was reached (Settings > Storage Limits); the error message gives the reason
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 error:
+   *                   type: string
+   *                   example: 'Downloads are paused: downloaded videos use 512.0 GB, over the 500 GB limit'
    */
-  router.post('/triggerspecificdownloads', verifyToken, (req, res) => {
+  router.post('/triggerspecificdownloads', verifyToken, async (req, res) => {
     const { overrideSettings } = req.body;
     if (overrideSettings) {
       if (overrideSettings.resolution) {
@@ -912,10 +1025,16 @@ module.exports = function createVideoRoutes({ verifyToken, videosModule, downloa
       }
     }
 
-    downloadModule.doGroupedManualDownloads(req).catch((err) => {
+    try {
+      const admission = await downloadModule.doGroupedManualDownloads(req);
+      res.json({ status: 'success', ...admission });
+    } catch (err) {
+      if (storageGuard.isPausedError(err)) {
+        return res.status(409).json({ error: err.message });
+      }
       req.log.error({ err }, 'Failed to start manual downloads');
-    });
-    res.json({ status: 'success' });
+      res.status(500).json({ error: 'Failed to queue downloads' });
+    }
   });
 
   /**
@@ -945,22 +1064,32 @@ module.exports = function createVideoRoutes({ verifyToken, videosModule, downloa
    *                     description: Override number of videos to download per channel
    *     responses:
    *       200:
-   *         description: Channel download job started
+   *         description: Channel and playlist update started
    *       400:
-   *         description: Job already running or invalid settings
+   *         description: Invalid override settings
+   *       409:
+   *         description: A channel and playlist update is already running, or downloads are paused because a storage limit was reached (Settings > Storage Limits); the error message gives the reason
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 error:
+   *                   type: string
+   *                   example: 'Downloads are paused: downloaded videos use 512.0 GB, over the 500 GB limit'
+   *                 reason:
+   *                   type: string
+   *                   enum: [running, downloads-paused]
+   *                 availableAt:
+   *                   type: string
+   *                   format: date-time
+   *                   nullable: true
+   *       500:
+   *         description: The update could not be started
+   *       503:
+   *         description: The server has not finished starting
    */
-  router.post('/triggerchanneldownloads', verifyToken, (req, res) => {
-    const jobModule = require('../modules/jobModule');
-    const runningJobs = jobModule.getRunningJobs();
-    const channelDownloadJob = runningJobs.find(
-      (job) =>
-        job.jobType.includes('Channel Downloads') && job.status === 'In Progress'
-    );
-    if (channelDownloadJob) {
-      res.status(400).json({ error: 'Job Already Running' });
-      return;
-    }
-
+  router.post('/triggerchanneldownloads', verifyToken, async (req, res) => {
     const { overrideSettings } = req.body;
     if (overrideSettings) {
       if (overrideSettings.resolution) {
@@ -981,12 +1110,25 @@ module.exports = function createVideoRoutes({ verifyToken, videosModule, downloa
       }
     }
 
-    downloadModule
-      .doChannelAndPlaylistDownloads(req.body || {})
-      .catch((err) => {
-        req.log.error({ err }, 'Manual channel + playlist downloads failed');
+    try {
+      const outcome = await scheduledTaskManager.runNow('channelDownloadFrequency', {
+        trigger: 'manual',
+        args: { jobData: req.body || {} },
+        // Download New is the manual tool with override settings, so it is
+        // not held by the Run now cooldown. (The task already ignores the
+        // automatic downloads switch for manual runs; enforceEnabled: false
+        // keeps this caller independent of that registration detail.)
+        enforceEnabled: false,
+        enforceCooldown: false,
       });
-    res.json({ status: 'success' });
+      if (!outcome.started) {
+        return sendRunBlocked(res, outcome, { running: 'A channel and playlist update is already running.' });
+      }
+      return res.json({ status: 'success' });
+    } catch (err) {
+      req.log.error({ err }, 'Failed to start channel downloads');
+      return res.status(500).json({ error: 'Failed to start channel downloads' });
+    }
   });
 
   return router;

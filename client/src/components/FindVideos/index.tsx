@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useVideoActivity } from '../../providers/VideoActivityProvider';
+import { useLocalVideoStatus } from '../../hooks/useLocalVideoStatus';
 import { useNavigate } from 'react-router-dom';
 import { Alert, Box, Typography } from '../ui';
 import { Download as DownloadIcon } from '../../lib/icons';
@@ -53,8 +55,11 @@ function toModalData(r: SearchResult): VideoModalData {
     publishedAt: r.publishedAt,
     addedAt: r.addedAt ?? null,
     mediaType: 'video',
-    status: r.status,
-    isDownloaded: r.status === 'downloaded',
+    status: r.status === 'queued' || r.status === 'downloading'
+      ? (r.isDownloaded ? 'downloaded' : r.databaseId ? 'missing' : 'never_downloaded')
+      : r.status,
+    inArchive: r.inArchive,
+    isDownloaded: r.isDownloaded ?? r.status === 'downloaded',
     filePath: r.filePath ?? null,
     fileSize: r.fileSize ?? null,
     audioFilePath: r.audioFilePath ?? null,
@@ -82,7 +87,15 @@ export default function FindVideos({ token }: FindVideosProps) {
   const lastQueryRef = useRef('');
   const lastPageSizeRef = useRef<PageSize>(DEFAULT_PAGE_SIZE);
 
-  const { results, loading, error, search, cancel } = useVideoSearch(token);
+  const { results: searchResults, loading, error, search, cancel } = useVideoSearch(token);
+  const { snapshot } = useVideoActivity();
+  const localStatuses = useLocalVideoStatus(searchResults.map(r => r.youtubeId), token);
+  const results = useMemo(() => searchResults.map(result => ({
+    ...result,
+    ...localStatuses[result.youtubeId],
+    isDownloaded: (localStatuses[result.youtubeId]?.status || result.status) === 'downloaded',
+    status: snapshot.videos[result.youtubeId]?.state || localStatuses[result.youtubeId]?.status || result.status,
+  })), [searchResults, localStatuses, snapshot]);
   const { config } = useConfig(token);
   const { triggerDownloads } = useTriggerDownloads(token);
 
@@ -159,7 +172,7 @@ export default function FindVideos({ token }: FindVideosProps) {
   const handleDownloadConfirm = useCallback(
     async (settings: DownloadSettings | null) => {
       setDownloadDialogOpen(false);
-      const ids = selection.selectedIds;
+      const ids = selection.selectedIds.filter(id => !snapshot.videos[id]?.state);
       if (ids.length === 0) return;
       const urls = ids.map((id) => `https://www.youtube.com/watch?v=${id}`);
       const overrideSettings = settings
@@ -173,6 +186,7 @@ export default function FindVideos({ token }: FindVideosProps) {
           }
         : undefined;
       const success = await triggerDownloads({ urls, overrideSettings });
+      if (success === null) return;
       if (!success) {
         setDownloadError('Failed to queue selected videos. Please try again.');
         return;
@@ -180,11 +194,13 @@ export default function FindVideos({ token }: FindVideosProps) {
       selection.clear();
       navigate('/downloads/activity');
     },
-    [selection, triggerDownloads, navigate]
+    [selection, triggerDownloads, navigate, snapshot]
   );
 
   const missingVideoCount = useMemo(
-    () => results.filter((r) => selection.isSelected(r.youtubeId) && r.status === 'missing').length,
+    () => results.filter(
+      (r) => selection.isSelected(r.youtubeId) && (r.status === 'missing' || r.inArchive)
+    ).length,
     [results, selection.isSelected]
   );
   const defaultResolution = config.preferredResolution || '1080';

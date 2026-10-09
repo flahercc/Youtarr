@@ -80,8 +80,7 @@ Add a single YouTube video to the download queue.
 {
   "url": "https://www.youtube.com/watch?v=VIDEO_ID",
   "resolution": "1080",
-  "subfolder": "Movies",
-  "skipVideoFolder": true
+  "subfolder": "Movies"
 }
 ```
 
@@ -90,20 +89,24 @@ Add a single YouTube video to the download queue.
 | `url` | Yes | string | YouTube video URL |
 | `resolution` | No | string | Override resolution (360, 480, 720, 1080, 1440, 2160) |
 | `subfolder` | No | string | Override download subfolder |
-| `skipVideoFolder` | No | boolean | When `true`, download files directly into the channel folder without creating a video subfolder |
+
+Any other body fields are ignored. Folder layout (flat or one folder per video) is not selectable per request: it follows the channel's setting, or the global default for untracked channels.
 
 **Success Response (200):**
 ```json
 {
   "success": true,
   "message": "Video queued for download",
-  "video": {
-    "title": "Video Title",
-    "thumbnail": "https://i.ytimg.com/vi/VIDEO_ID/maxresdefault.jpg",
-    "duration": 360
-  }
+  "queued": 1,
+  "acceptedIds": ["VIDEO_ID"],
+  "alreadyActiveIds": [],
+  "video": {}
 }
 ```
+
+> **Note**: `video` is currently always an empty object, so clients should not rely on it for the title, thumbnail, or duration. Use the YouTube ID in `acceptedIds` instead.
+
+**Duplicate submissions:** URLs are normalized to YouTube video IDs. A video already queued or downloading is not queued again, even when re-downloads are allowed. A successful response includes `queued`, `acceptedIds`, and `alreadyActiveIds`; an already-active single-video request returns HTTP 200 with `queued: 0` and an explanatory message. Queue acceptance is confirmed before responding; download execution continues in the background.
 
 **Error Responses:**
 
@@ -112,6 +115,7 @@ Add a single YouTube video to the download queue.
 | 400 | `{"success": false, "error": "URL is required"}` | Missing or invalid URL |
 | 401 | `{"error": "Invalid API key"}` | Invalid or missing authentication |
 | 403 | `{"error": "API keys can only access the download endpoint"}` | API key used on wrong endpoint |
+| 409 | `{"success": false, "error": "Downloads are paused: ..."}` | A storage limit (Settings -> Storage Limits) was reached; the message says which. Retry after storage is back within the limits |
 | 429 | `{"success": false, "error": "Rate limit exceeded"}` | Too many requests |
 
 ### API Key Management Endpoints
@@ -332,7 +336,7 @@ action:
 3. **Rotate Keys**: If a key is compromised, delete it immediately and create a new one
 4. **Use Descriptive Names**: Name your keys by purpose (e.g., "iPhone", "Work Laptop") so you can identify and revoke specific keys if needed
 5. **Monitor Usage**: Check the "Last Used" column to identify unused or suspicious keys
-6. **External Auth Proxies**: If using Cloudflare Zero Trust, Authelia, or similar, you'll need to bypass authentication for `/api/videos/download`. This is safe because Youtarr's API key authentication still protects the endpoint. See [Troubleshooting](#cors-error--blocked-by-external-auth-cloudflare-zero-trust-authelia-etc) for setup instructions.
+6. **External Auth Proxies**: If using Cloudflare Zero Trust, Authelia, or similar, you'll need to bypass authentication for `/api/videos/download`. This is safe only while Youtarr's own authentication is on: with `AUTH_ENABLED=false`, Youtarr skips the API key check entirely, and the bypass leaves the endpoint open to anyone who can reach it. See [Troubleshooting](#cors-error--blocked-by-external-auth-cloudflare-zero-trust-authelia-etc) for setup instructions.
 
 ## Troubleshooting
 
@@ -370,9 +374,17 @@ If you're running Youtarr behind an authentication proxy like Cloudflare Zero Tr
    - **Selector**: Everyone
 4. Save the application
 
-The `/api/videos/download` endpoint is still protected by Youtarr's API key authentication, so this bypass is safe.
+The `/api/videos/download` endpoint is still protected by Youtarr's API key authentication, so this bypass is safe **as long as Youtarr's own authentication is enabled**.
+
+> **Warning**: If you run Youtarr with `AUTH_ENABLED=false` and rely on the proxy for all authentication (see [Authentication](AUTHENTICATION.md)), Youtarr accepts every request without checking the API key. Bypassing the proxy for this path then lets anyone who can reach your server queue downloads. Keep Youtarr's authentication on if you add this bypass.
 
 **Solution for other auth proxies (Authelia, Authentik, etc.):**
 
 Configure your proxy to skip authentication for the `/api/videos/download` path. The exact configuration varies by proxy - consult your proxy's documentation for path-based bypass rules.
 
+
+### Live video status
+
+Authenticated web clients can read `GET /api/jobs/video-activity` for `{ instanceId, revision, videos }`. Each `videos` entry is keyed by YouTube ID and contains `{ jobId, state }`, where state is `queued` or `downloading`. The `videoActivityUpdated` WebSocket event signals that clients should refresh this snapshot. Re-fetch on reconnect; a changed `instanceId` indicates a server restart and resets revision ordering.
+
+`POST /api/videos/local-status` accepts `{ "youtubeIds": ["dQw4w9WgXcQ"] }` (up to 500 IDs) and returns `{ results }` containing local download status and file metadata. It does not contact YouTube. Use it to refresh search results after downloads finish.

@@ -1,9 +1,284 @@
 # Changelog
 
+## [v1.87.1](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.87.1) - 2026-10-03
+
+### Bug Fixes
+
+* apply the max rating filter on video lists ([b89a546](https://github.com/DialmasterOrg/Youtarr/commit/b89a5462fa35dbd9c2cfd8ccefd7856f65bbd7c1))
+* correct re-download and skip job counts ([2f4a154](https://github.com/DialmasterOrg/Youtarr/commit/2f4a1540fee5574120cc4e0595e2d87c5a879ae1))
+* fail flat deletes that leave files behind ([e8c70e0](https://github.com/DialmasterOrg/Youtarr/commit/e8c70e0f8163fc92039a074fd2cdbcc566bd44f0))
+* free disk space after a failed download ([87df455](https://github.com/DialmasterOrg/Youtarr/commit/87df455f8fba4e989d5cc3493eef4452b835ef44))
+* match video files by their trailing id ([73fca90](https://github.com/DialmasterOrg/Youtarr/commit/73fca905c5ed936aa43cad609454296b8e254926))
+* stop flat deletes removing the channel folder ([7c17eb1](https://github.com/DialmasterOrg/Youtarr/commit/7c17eb1fbae63e3b361aa690cc75cd1d410e882c))
+* stop silently skipping some downloads ([f08351d](https://github.com/DialmasterOrg/Youtarr/commit/f08351d01678cd7fa17a9962626fda9821a3e6a6)), closes [#909](https://github.com/DialmasterOrg/Youtarr/issues/909)
+* surface manual download start failures ([5622d08](https://github.com/DialmasterOrg/Youtarr/commit/5622d08ca5dfb3c98909654266c5ddff4a72e6e4))
+
+
+### Documentation
+
+* Add contributor Big Flubba for documentation fixes ([771f0bb](https://github.com/DialmasterOrg/Youtarr/commit/771f0bb132610b09248f86c9b6e7f0d07f92f338))
+* add portainer setup guide ([a495cce](https://github.com/DialmasterOrg/Youtarr/commit/a495cce16cd0c210e30fc4d59249e3b076dfd419))
+* clarify portainer guide from review ([6675d60](https://github.com/DialmasterOrg/Youtarr/commit/6675d60bef5ca608b4c85b41022c2817a5a6f345))
+* correct stale setup, backup, and API docs ([89740fd](https://github.com/DialmasterOrg/Youtarr/commit/89740fd0028f01ad8513b51657c40bf3063f890e))
+* document CIFS share override setup ([a8802bb](https://github.com/DialmasterOrg/Youtarr/commit/a8802bb0e11d3d8d29933e4e2282488ad698d155))
+* keep override file when pinning COMPOSE_FILE ([a9f60c8](https://github.com/DialmasterOrg/Youtarr/commit/a9f60c8b9596788f8339f0ce3c92b7e1cd8b5ff7))
+* update CHANGELOG for v1.87.0 [skip ci] ([7ac5eb7](https://github.com/DialmasterOrg/Youtarr/commit/7ac5eb75f9a16740732bbd89c5ac3778edec693c))
+
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.87.0...v1.87.1
+
+## [v1.87.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.87.0) - 2026-09-29
+
+### Features
+
+* add run now for scheduled tasks ([cbccbec](https://github.com/DialmasterOrg/Youtarr/commit/cbccbecfc9f981bebaf08de889732e9f35693aa5)), closes [#892](https://github.com/DialmasterOrg/Youtarr/issues/892)
+* redesign scheduling page and time task runs ([b532bb8](https://github.com/DialmasterOrg/Youtarr/commit/b532bb8250ccd95f414d0240943819e5fbbca44e)), closes [#892](https://github.com/DialmasterOrg/Youtarr/issues/892)
+
+
+### Bug Fixes
+
+* avoid full-library watch status requests ([68ac489](https://github.com/DialmasterOrg/Youtarr/commit/68ac4891d647a78e1ab31c456ee2ecbcbba40a7a))
+* harden rescan, library repair, and cookies ([2719ed6](https://github.com/DialmasterOrg/Youtarr/commit/2719ed62e6e4f652feac9297eb3c9b6ea5465b03))
+* report only real watch status changes ([d5ba1a7](https://github.com/DialmasterOrg/Youtarr/commit/d5ba1a751453757e1cad0fd6eb14595c0b0d958e)), closes [#892](https://github.com/DialmasterOrg/Youtarr/issues/892)
+* tighten rescan, library repair, cookie copies ([571d1f5](https://github.com/DialmasterOrg/Youtarr/commit/571d1f5d8aef1e7551fff6f3722cda9da3635d8e)), closes [#893](https://github.com/DialmasterOrg/Youtarr/issues/893)
+
+
+### Documentation
+
+* clarify scheduled task descriptions ([570e82d](https://github.com/DialmasterOrg/Youtarr/commit/570e82dd93d18d7fe95d9aad090c8c780fa0f385)), closes [#892](https://github.com/DialmasterOrg/Youtarr/issues/892)
+* update CHANGELOG for v1.86.1 [skip ci] ([be1b4c2](https://github.com/DialmasterOrg/Youtarr/commit/be1b4c25e4e45ac0d764f21e8d7e8a10707b067b))
+
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.86.1...v1.87.0
+
+## [v1.86.1](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.86.1) - 2026-09-27
+
+### Bug Fixes
+
+* pace and back off channel tab count lookups ([84f3943](https://github.com/DialmasterOrg/Youtarr/commit/84f3943b9c4f2f7e457aba2a15bb1b0164b7e8b7)), closes [#865](https://github.com/DialmasterOrg/Youtarr/issues/865)
+* refine tab count refresh throttling ([348e3e6](https://github.com/DialmasterOrg/Youtarr/commit/348e3e6bdc6a63e38bd6425bf88dac1ca8b0d198)), closes [#865](https://github.com/DialmasterOrg/Youtarr/issues/865)
+
+
+### Documentation
+
+* update CHANGELOG for v1.86.0 [skip ci] ([c4fc620](https://github.com/DialmasterOrg/Youtarr/commit/c4fc620a31f32e667b17ed21eb23f52eb6e8eaaf))
+
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.86.0...v1.86.1
+
+## [v1.86.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.86.0) - 2026-09-27
+
+### Features
+
+* add rolling log files and live log level ([026f1d9](https://github.com/DialmasterOrg/Youtarr/commit/026f1d92e7811b0ae278b9c6f911209fa4a998d2)), closes [#883](https://github.com/DialmasterOrg/Youtarr/issues/883)
+* pause downloads and prune by storage limits ([4ed6994](https://github.com/DialmasterOrg/Youtarr/commit/4ed699470cc83b191be6507eaa3ada0454cd39be)), closes [#196](https://github.com/DialmasterOrg/Youtarr/issues/196) [#217](https://github.com/DialmasterOrg/Youtarr/issues/217)
+* show cookie details and add cookie test ([ea1da1b](https://github.com/DialmasterOrg/Youtarr/commit/ea1da1bd4bca5c992d6b4d9461aab734ae8cd962))
+* show downloaded counts for playlists ([db53697](https://github.com/DialmasterOrg/Youtarr/commit/db536979059397a750e61b9bdd73543ae2b07ec0))
+* show load more progress on channel tabs ([86648fd](https://github.com/DialmasterOrg/Youtarr/commit/86648fdc425dc72e12bfc3203e7b3caf543be8b3))
+* show per-tab download progress for channels ([2d34ebb](https://github.com/DialmasterOrg/Youtarr/commit/2d34ebb529176d249540522c4d0c50bb17253bd6)), closes [#865](https://github.com/DialmasterOrg/Youtarr/issues/865)
+* toggle channel auto-download tabs in place ([29ce64c](https://github.com/DialmasterOrg/Youtarr/commit/29ce64cb26aa6d666dcfc57f4b28e65f5639b687))
+
+
+### Bug Fixes
+
+* address bugs found in turbo fork comparison ([70b53ce](https://github.com/DialmasterOrg/Youtarr/commit/70b53ce7590ebed49f5803a7dc8b52d93ce1bb64)), closes [#880](https://github.com/DialmasterOrg/Youtarr/issues/880)
+* channelSettingsModule.js validateAdditionalTags doesn't accept whitespace characters except for normal spaces now and channelSettingsModule.test.js tests for this ([be77c33](https://github.com/DialmasterOrg/Youtarr/commit/be77c33fee88dae0e0fcc2a53a7ffeafa547d716))
+* create new additionalTags.js for one source of truth to parse additionalTags in videoDownloadPostProcessFiles.js and channelSettingsModule.js ([091f6e3](https://github.com/DialmasterOrg/Youtarr/commit/091f6e3248ada929ab12647c2ade6a0ff1a7d6ef))
+* dedupes video tags from YouTube if they exist in additionalTags already case-insensitively ([005653e](https://github.com/DialmasterOrg/Youtarr/commit/005653e93ac98e6c46155d5e0af987050bb19a7b))
+* explain tabs with more loaded than listed ([1b7e525](https://github.com/DialmasterOrg/Youtarr/commit/1b7e5250623f82829b2a5cd9ed014e1ecceac194)), closes [#865](https://github.com/DialmasterOrg/Youtarr/issues/865)
+* match free-space preview to real cleanup ([ad9e200](https://github.com/DialmasterOrg/Youtarr/commit/ad9e200313fcfb7b18bc5e9f35392f8f175a0805)), closes [#886](https://github.com/DialmasterOrg/Youtarr/issues/886)
+* read yt-dlp output only after it is written ([df78a74](https://github.com/DialmasterOrg/Youtarr/commit/df78a74b98e86b5055f02cf133f099ca53d9d157))
+* server/modules/channelSettingsModule.js validateAdditionalTags now validates that additionalTags is a string ([37cc57e](https://github.com/DialmasterOrg/Youtarr/commit/37cc57e40dee3c7ad77c4453ef6065e060de0425))
+* updated server/modules/channelSettingsModule.js to trim settings.additional_tags first so that whitespace-only input normalizes to null ([68dffcf](https://github.com/DialmasterOrg/Youtarr/commit/68dffcf9975ba7507c27e3aeb2e1d2f3c2b1417c))
+
+
+### Tests
+
+* add test for case-insensitive deduping tags in channelSettingsModule.validateAdditionalTags ([adc9f37](https://github.com/DialmasterOrg/Youtarr/commit/adc9f37a79a2bbc26af49370a08dbb4dcf13067e))
+* add test for deduping combined additionalTags and tags pulled from YT ([c7575bb](https://github.com/DialmasterOrg/Youtarr/commit/c7575bbeb492e9a2dd6eafc4702412466d543860))
+* added additionalTags.test.js for testing the new parseAdditionalTags helper ([15a8d24](https://github.com/DialmasterOrg/Youtarr/commit/15a8d241eda7a61bc4e796f65f3fd465ac9bae15))
+
+
+### Documentation
+
+* docs/DATABASE.md update for additional_tags ([18d6f24](https://github.com/DialmasterOrg/Youtarr/commit/18d6f24ef8e2d0d4ff7ceb8952396004e81edd48))
+* docs/USAGE_GUIDE.md updates for the Tags tab in the Channel Settings Dialog ([8d3f700](https://github.com/DialmasterOrg/Youtarr/commit/8d3f700783a9c97a78b8d81f74fd20cc85e2d3f0))
+* update CHANGELOG for v1.85.0 [skip ci] ([46c1701](https://github.com/DialmasterOrg/Youtarr/commit/46c17018fb50ce77369d1f023467587a5db81460))
+* updated channels.js swagger schema to include additional_tags ([a84bd31](https://github.com/DialmasterOrg/Youtarr/commit/a84bd3197d1d81da6efbba8f35bb79fcaa684423))
+* updated channelSettingsModules.test.js wording ([2df6c3d](https://github.com/DialmasterOrg/Youtarr/commit/2df6c3d038dc5f2478f49cb8822f297778d3cf34))
+* updated server/modules/videoDownloadPostProcessFiles.js comment to more accurately reflect the custom tags merge ([0d997dc](https://github.com/DialmasterOrg/Youtarr/commit/0d997dc21dbdfa4038fa60e5a668569e2fbc97bc))
+
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.85.0...v1.86.0
+
+## [v1.85.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.85.0) - 2026-09-24
+
+### Features
+
+* add channel prefix toggle for embedded title ([600fd40](https://github.com/DialmasterOrg/Youtarr/commit/600fd405be7e22056dfa40e1903960fe31ac114f)), closes [#829](https://github.com/DialmasterOrg/Youtarr/issues/829)
+* add configurable schedules and run history ([4d98965](https://github.com/DialmasterOrg/Youtarr/commit/4d9896533392f989c78edd02c5e00d517e1739ff)), closes [#837](https://github.com/DialmasterOrg/Youtarr/issues/837)
+* choose settings when adding channels ([c6fea7b](https://github.com/DialmasterOrg/Youtarr/commit/c6fea7becb7772cd51c35b339d9e9b51922ec6db)), closes [#595](https://github.com/DialmasterOrg/Youtarr/issues/595) [#864](https://github.com/DialmasterOrg/Youtarr/issues/864)
+* describe custom cron schedules in plain words ([316b605](https://github.com/DialmasterOrg/Youtarr/commit/316b605836e87e6d019de753c0c54fa312549552)), closes [#837](https://github.com/DialmasterOrg/Youtarr/issues/837)
+* link channels and playlists to youtube ([93da944](https://github.com/DialmasterOrg/Youtarr/commit/93da94439a5c55cedf395d12c4d5b61413152349)), closes [#866](https://github.com/DialmasterOrg/Youtarr/issues/866)
+
+
+### Bug Fixes
+
+* apply the codec sort to every video download ([33b04bf](https://github.com/DialmasterOrg/Youtarr/commit/33b04bff43520350ac4aa9ea72ae0d36b1d9a39a))
+* clarify documentation link errors ([32842e3](https://github.com/DialmasterOrg/Youtarr/commit/32842e358d1b6a25bb5fbb7076d2cf4aeb323338))
+* don't crash when config.json can't be watched ([a2ba093](https://github.com/DialmasterOrg/Youtarr/commit/a2ba093a76639493e2eb79d26f9a79e6f7af51f0)), closes [#870](https://github.com/DialmasterOrg/Youtarr/issues/870)
+* prefer AVC over AV1 at equal resolution for the default codec ([d76834e](https://github.com/DialmasterOrg/Youtarr/commit/d76834eedf0eb727707c0a8000af502913b9091d))
+* use one timestamp for youtube removal checks ([725688c](https://github.com/DialmasterOrg/Youtarr/commit/725688ce470709970c94bb22de7a8f7bc21f5c6c))
+
+
+### Documentation
+
+* update CHANGELOG for v1.84.1 [skip ci] ([495276e](https://github.com/DialmasterOrg/Youtarr/commit/495276ee78a83f55636cc256dd1da1e55e9d9e88))
+
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.84.1...v1.85.0
+
+## [v1.84.1](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.84.1) - 2026-09-20
+
+### Bug Fixes
+
+* request json for plex pin authentication ([1264005](https://github.com/DialmasterOrg/Youtarr/commit/12640050ad2feedd09097243a787338d5df27b8f))
+
+
+### Documentation
+
+* link documentation site in README [skip ci] ([977c594](https://github.com/DialmasterOrg/Youtarr/commit/977c594994edfda148d3a80033c309a059ae8461))
+* update CHANGELOG for v1.84.0 [skip ci] ([a035fb2](https://github.com/DialmasterOrg/Youtarr/commit/a035fb20d432c5bb4f93eb6391b041469d2e5252))
+
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.84.0...v1.84.1
+
+## [v1.84.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.84.0) - 2026-09-19
+
+### Features
+
+* enhance documentation link handling with GitHub slugs and heading extraction ([bbc6852](https://github.com/DialmasterOrg/Youtarr/commit/bbc6852fc3a063421e5f44fa181e6d1619ff5b1d))
+
+
+### Bug Fixes
+
+* align documentation anchors with Docusaurus ([8e6c7e1](https://github.com/DialmasterOrg/Youtarr/commit/8e6c7e1f25ea1c8305d4d99caa2b46b9f9fe8ae4))
+* cookie-specific Video unavailable fallback ([6952170](https://github.com/DialmasterOrg/Youtarr/commit/6952170e1ec326c1a580f21099b4855c424c7156))
+* embed full upload instant in mp4 metadata ([32dc613](https://github.com/DialmasterOrg/Youtarr/commit/32dc613cced2829578cd18baea51a8c6ab941de9)), closes [#832](https://github.com/DialmasterOrg/Youtarr/issues/832)
+* emit one version heading per release entry ([b4ec513](https://github.com/DialmasterOrg/Youtarr/commit/b4ec51373471c670b51827e84d63ec481b9c2f53)), closes [#811](https://github.com/DialmasterOrg/Youtarr/issues/811)
+* preserve generated documentation anchors ([43930a5](https://github.com/DialmasterOrg/Youtarr/commit/43930a5476375ddf6506ac9db27d7cabe724b61a))
+* preserve temp directory root on cleanup ([a094c31](https://github.com/DialmasterOrg/Youtarr/commit/a094c31b9a0d522235cb6b06c7e2dc3b670b0d50)), closes [#835](https://github.com/DialmasterOrg/Youtarr/issues/835)
+* respect TZ env var in console log timestamps ([a7c56ed](https://github.com/DialmasterOrg/Youtarr/commit/a7c56ed77b1485e5d6836b0e3dd4571c6d10e5e7)), closes [#838](https://github.com/DialmasterOrg/Youtarr/issues/838)
+* support ctrl-click on subscription channels ([c8220a8](https://github.com/DialmasterOrg/Youtarr/commit/c8220a83b0889673be11e81f32e89c812d8879aa)), closes [#815](https://github.com/DialmasterOrg/Youtarr/issues/815)
+* **docs:** correct generated compose instructions ([67066cc](https://github.com/DialmasterOrg/Youtarr/commit/67066cc339f2d57302847e90f4bbed4bb2751384))
+
+
+### Styles
+
+* render active filter badges below filter panel in video list ([41ce398](https://github.com/DialmasterOrg/Youtarr/commit/41ce398c837244086690c4f2c704bb294d76f7da))
+
+
+### Code Refactoring
+
+* Replace (majority of) raw query in getVideosPaginated ([a6498f5](https://github.com/DialmasterOrg/Youtarr/commit/a6498f5a5cfc540c559919924e7760f3575eabf0))
+* Replace raw query in _flushBackfillUpdates ([a30c8e9](https://github.com/DialmasterOrg/Youtarr/commit/a30c8e92e8d4a911af2a8b08689b95bcb36c50a1))
+* Replace raw query in applyVideoUpdates ([b135b72](https://github.com/DialmasterOrg/Youtarr/commit/b135b72bd91f50e24139f417ff1ddbdabf92f8b2))
+* Replace raw query in backfillFromDownloadedVideos ([6fb506b](https://github.com/DialmasterOrg/Youtarr/commit/6fb506bd71ede41e6e25a41bc9fb8ab3fc3f3cb9))
+* Replace raw query in getAllUniqueChannels ([e6f61a0](https://github.com/DialmasterOrg/Youtarr/commit/e6f61a03e0df92e30d5e8329d9c7e014f3cde8e9))
+
+
+### Tests
+
+* correct documentation content assertions ([634363a](https://github.com/DialmasterOrg/Youtarr/commit/634363a526c40bc13f583b473af2cbb370d9ab01))
+* cover dynamic documentation sources and anchors ([3c2785b](https://github.com/DialmasterOrg/Youtarr/commit/3c2785bc4eabb6b05f7dd092508e0436480a04ad))
+* derive documentation coverage from eligible sources ([05439bb](https://github.com/DialmasterOrg/Youtarr/commit/05439bb583e0702028f540bf062023e6b40d0e37))
+* include the upstream Asustor documentation ([981bf71](https://github.com/DialmasterOrg/Youtarr/commit/981bf71b5fcc5ed5f6dcbbf0f25369a33a3a9569))
+* match locale sorted documentation sources ([20d175b](https://github.com/DialmasterOrg/Youtarr/commit/20d175b00e87fac53187c373c0398fdb25c8012f))
+
+
+### Documentation
+
+* add automated branded Docusaurus site ([3dc75c0](https://github.com/DialmasterOrg/Youtarr/commit/3dc75c0f15f0a4d30faef55b0a43a3189c255c66))
+* Fix typos in .env.example comments ([cc784a5](https://github.com/DialmasterOrg/Youtarr/commit/cc784a5e5ab06f816af6e41d39903c7ea8f071c4))
+* Fix typos in docker-compose.external-db.yml comments ([5856487](https://github.com/DialmasterOrg/Youtarr/commit/58564870f093657183fa6d4586800816edd61808))
+* Fix typos in docker-compose.yml comments ([26912db](https://github.com/DialmasterOrg/Youtarr/commit/26912db168d734fd78c39b3b526b333645bac02f))
+* preserve upstream package formatting ([012bead](https://github.com/DialmasterOrg/Youtarr/commit/012bead9eabc9314b33fbd8159d779206034e1f5))
+* update CHANGELOG for v1.83.1 [skip ci] ([636a2b0](https://github.com/DialmasterOrg/Youtarr/commit/636a2b0d5aff157621a7c0ecddc6a9e1a8853acb))
+
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.83.1...v1.84.0
+
+## [v1.83.1](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.83.1) - 2026-09-15
+
+### Bug Fixes
+
+* collation migration failing on newer mariadb ([3f92739](https://github.com/DialmasterOrg/Youtarr/commit/3f92739885ab41dda60dfa65110755d2aed37d05))
+
+
+### Documentation
+
+* update CHANGELOG for v1.83.0 [skip ci] ([3616d9e](https://github.com/DialmasterOrg/Youtarr/commit/3616d9e702383bfbaf68b068df0801633a7e21d5))
+
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.83.0...v1.83.1
+
+## [v1.83.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.83.0) - 2026-09-15
+
+### Features
+
+* rework playlist auto-download starting point ([8126a54](https://github.com/DialmasterOrg/Youtarr/commit/8126a54523305a1e17749454b42fd2900bdb10a0)), closes [#804](https://github.com/DialmasterOrg/Youtarr/issues/804)
+
+
+### Bug Fixes
+
+* 360p-only downloads when cookies are enabled ([a29ae65](https://github.com/DialmasterOrg/Youtarr/commit/a29ae657ad032ca9cb959be7e9077a8adb3224c6)), closes [#799](https://github.com/DialmasterOrg/Youtarr/issues/799)
+* bump multer and js-yaml to clear npm audit ([db030ef](https://github.com/DialmasterOrg/Youtarr/commit/db030ef996a85491a6993ed3f1d82f2a7e64538e))
+* normalize legacy table collations on startup ([10cf9a8](https://github.com/DialmasterOrg/Youtarr/commit/10cf9a8b7d4bcc4265ac265317f930b979c1da6d))
+
+
+### Documentation
+
+* update CHANGELOG for v1.82.1 [skip ci] ([7240478](https://github.com/DialmasterOrg/Youtarr/commit/724047873ff61d08b14817e93b659341cfdde178))
+
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.82.1...v1.83.0
+
+## [v1.82.1](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.82.1) - 2026-09-14
+
+### Bug Fixes
+
+* Change sleep subtitles duration from 2 to 5 seconds ([ee0f233](https://github.com/DialmasterOrg/Youtarr/commit/ee0f2334cc47538a05e864cfd84afa1efe5e93d8))
+* Increase subtitle request delay to 5 seconds to prevent 429 errors ([3172d91](https://github.com/DialmasterOrg/Youtarr/commit/3172d918a1bb29b09e1135d8bb0c29d3657f8fa0))
+
+
+### Documentation
+
+* update CHANGELOG for v1.82.0 [skip ci] ([4ff273b](https://github.com/DialmasterOrg/Youtarr/commit/4ff273b50ffc63a8b43be8ddb36bf390f01671a4))
+
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.82.0...v1.82.1
+
+## [v1.82.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.82.0) - 2026-09-08
+
+### Features
+
+* rewrite backup and restore for reliability ([69ddcbe](https://github.com/DialmasterOrg/Youtarr/commit/69ddcbeb2c475a3a6d1e1b63e4ffbf88ade45c72))
+* show queued/downloading status per video ([ed882cc](https://github.com/DialmasterOrg/Youtarr/commit/ed882cce8b24640cba107a7c9f880d60dd758718)), closes [#577](https://github.com/DialmasterOrg/Youtarr/issues/577)
+* support externally managed cookie files ([6fcb8ad](https://github.com/DialmasterOrg/Youtarr/commit/6fcb8ada2df68094a4caba33802cb448a1b463cc)), closes [#772](https://github.com/DialmasterOrg/Youtarr/issues/772)
+
+
+### Bug Fixes
+
+* recover interrupted table renames ([2660bcb](https://github.com/DialmasterOrg/Youtarr/commit/2660bcbd8d08bddaac5c528ce95694290a46da94)), closes [#797](https://github.com/DialmasterOrg/Youtarr/issues/797)
+* sync Jellyfin videos inside collections ([cdaf41d](https://github.com/DialmasterOrg/Youtarr/commit/cdaf41def650bb8af406e6f184d95e12c36d9780)), closes [#794](https://github.com/DialmasterOrg/Youtarr/issues/794)
+* update mysql2 to clear security audit ([047d119](https://github.com/DialmasterOrg/Youtarr/commit/047d119dafc20351b924b818c1b6a525856a9e17))
+* warn downgrades require restoring a backup ([adc5dff](https://github.com/DialmasterOrg/Youtarr/commit/adc5dfffd0a6dcd84d228f54af2dcfb1bf4ba33d)), closes [#797](https://github.com/DialmasterOrg/Youtarr/issues/797)
+
+
+### Documentation
+
+* mark jobs uuid collation helper as legacy ([e186804](https://github.com/DialmasterOrg/Youtarr/commit/e186804541e161f42df93d8efbdf78d50c7e8112)), closes [#797](https://github.com/DialmasterOrg/Youtarr/issues/797)
+* update CHANGELOG for v1.81.1 [skip ci] ([8d4c5f8](https://github.com/DialmasterOrg/Youtarr/commit/8d4c5f8c0b2e6928ae9b758d08841e9a569bd9bf))
+
+
+### Code Refactoring
+
+* Rename tables & columns to snake_case ([1f475ae](https://github.com/DialmasterOrg/Youtarr/commit/1f475ae0023a8fb0b17b6cfb1c093f410a705afe))
+* Rename tables & columns to snake_case ([2abf3d8](https://github.com/DialmasterOrg/Youtarr/commit/2abf3d8b3c898573279ef3776a3948dc2f2d2baa))
+
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.81.1...v1.82.0
+
 ## [v1.81.1](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.81.1) - 2026-09-01
-
-### [1.81.1](https://github.com/DialmasterOrg/Youtarr/compare/vv1.81.0...v1.81.1) (2026-09-01)
-
 
 ### Bug Fixes
 
@@ -16,14 +291,9 @@
 
 * update CHANGELOG for v1.81.0 [skip ci] ([27f9b26](https://github.com/DialmasterOrg/Youtarr/commit/27f9b26e8e8f6fcd0a089a6563f2492629029de6))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.81.0...v1.81.1
 
 ## [v1.81.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.81.0) - 2026-08-28
-
-## [1.81.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.80.0...v1.81.0) (2026-08-28)
-
 
 ### Features
 
@@ -40,14 +310,9 @@
 * update CHANGELOG for v1.80.0 [skip ci] ([587de1f](https://github.com/DialmasterOrg/Youtarr/commit/587de1f5da1a27168f7bf9eaa732dcd0b64b8054))
 * update docs for v1.80.0 [skip ci] ([95b95f3](https://github.com/DialmasterOrg/Youtarr/commit/95b95f3c802f3f46e96cf6c79b03c098ffef45b4))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.80.0...v1.81.0
 
 ## [v1.80.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.80.0) - 2026-08-22
-
-## [1.80.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.79.0...v1.80.0) (2026-08-22)
-
 
 ### Features
 
@@ -67,14 +332,9 @@
 * add Asustor App Central platform guide ([10e96af](https://github.com/DialmasterOrg/Youtarr/commit/10e96afa3c933fe946856df9dcfb79b1cb420884))
 * update CHANGELOG for v1.79.0 [skip ci] ([6debab5](https://github.com/DialmasterOrg/Youtarr/commit/6debab5d24efcc9560c0d998854f9b2169a108fb))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.79.0...v1.80.0
 
 ## [v1.79.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.79.0) - 2026-08-19
-
-## [1.79.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.78.0...v1.79.0) (2026-08-19)
-
 
 ### Features
 
@@ -96,14 +356,9 @@
 
 * update CHANGELOG for v1.78.0 [skip ci] ([3501e4f](https://github.com/DialmasterOrg/Youtarr/commit/3501e4f1f1f485780903a92e7522d26ad4ee481d))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.78.0...v1.79.0
 
 ## [v1.78.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.78.0) - 2026-08-07
-
-## [1.78.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.77.0...v1.78.0) (2026-08-07)
-
 
 ### Features
 
@@ -126,14 +381,9 @@
 * qualify channel .m3u import by library type [skip ci] ([9681a05](https://github.com/DialmasterOrg/Youtarr/commit/9681a05f6f63c7f40f7708bbd124b304e2f8a416))
 * update CHANGELOG for v1.77.0 [skip ci] ([7d3b962](https://github.com/DialmasterOrg/Youtarr/commit/7d3b962145bfbbbd9d404bf06f03ad8075782e28))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.77.0...v1.78.0
 
 ## [v1.77.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.77.0) - 2026-07-25
-
-## [1.77.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.76.1...v1.77.0) (2026-07-25)
-
 
 ### Features
 
@@ -155,14 +405,9 @@
 * update CHANGELOG for v1.76.1 [skip ci] ([8103449](https://github.com/DialmasterOrg/Youtarr/commit/8103449a3475b5cd04bd74380d5f931cf3d60c9a))
 * warn against enabling nfo metadata savers ([75569a9](https://github.com/DialmasterOrg/Youtarr/commit/75569a955f24dd0551eab5308fb83d62f5a53544)), closes [#696](https://github.com/DialmasterOrg/Youtarr/issues/696)
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.76.1...v1.77.0
 
 ## [v1.76.1](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.76.1) - 2026-07-20
-
-### [1.76.1](https://github.com/DialmasterOrg/Youtarr/compare/vv1.76.0...v1.76.1) (2026-07-20)
-
 
 ### Bug Fixes
 
@@ -173,14 +418,9 @@
 
 * update CHANGELOG for v1.76.0 [skip ci] ([ee965d4](https://github.com/DialmasterOrg/Youtarr/commit/ee965d4d644a6eb695a6da17aadea12bb884eb03))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.76.0...v1.76.1
 
 ## [v1.76.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.76.0) - 2026-07-19
-
-## [1.76.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.75.0...v1.76.0) (2026-07-19)
-
 
 ### Features
 
@@ -212,14 +452,9 @@
 * link to youtarr.com homepage in readme ([599fe46](https://github.com/DialmasterOrg/Youtarr/commit/599fe460e84cd37691a069e871920f0c815cc954))
 * update CHANGELOG for v1.75.0 [skip ci] ([fb06f45](https://github.com/DialmasterOrg/Youtarr/commit/fb06f45603235279f1782da1329a1461d7365c09))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.75.0...v1.76.0
 
 ## [v1.75.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.75.0) - 2026-07-14
-
-## [1.75.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.74.0...v1.75.0) (2026-07-14)
-
 
 ### Features
 
@@ -241,14 +476,9 @@
 * Update comparsion doc Github info ([0604943](https://github.com/DialmasterOrg/Youtarr/commit/06049434e5492edf6694179a3948eae5ef904b9a))
 * Update Youtarr comparison document ([cee3c8f](https://github.com/DialmasterOrg/Youtarr/commit/cee3c8fd0fd680e29e520b6bfe938ecbd5718515))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.74.0...v1.75.0
 
 ## [v1.74.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.74.0) - 2026-07-10
-
-## [1.74.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.73.0...v1.74.0) (2026-07-10)
-
 
 ### Features
 
@@ -270,14 +500,9 @@
 
 * update CHANGELOG for v1.73.0 [skip ci] ([7e88b16](https://github.com/DialmasterOrg/Youtarr/commit/7e88b1689cf580f8233f9893733ff38e137ed0d5))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.73.0...v1.74.0
 
 ## [v1.73.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.73.0) - 2026-07-04
-
-## [1.73.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.72.1...v1.73.0) (2026-07-04)
-
 
 ### Features
 
@@ -296,14 +521,9 @@
 
 * update CHANGELOG for v1.72.1 [skip ci] ([789f6a1](https://github.com/DialmasterOrg/Youtarr/commit/789f6a186d3ccaeb66e3a624eaeb479b54859cf6))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.72.1...v1.73.0
 
 ## [v1.72.1](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.72.1) - 2026-06-27
-
-### [1.72.1](https://github.com/DialmasterOrg/Youtarr/compare/vv1.72.0...v1.72.1) (2026-06-27)
-
 
 ### Bug Fixes
 
@@ -314,14 +534,9 @@
 
 * update CHANGELOG for v1.72.0 [skip ci] ([6411280](https://github.com/DialmasterOrg/Youtarr/commit/6411280f776540ebf5499afec4a9dd56723e9299))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.72.0...v1.72.1
 
 ## [v1.72.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.72.0) - 2026-06-21
-
-## [1.72.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.71.0...v1.72.0) (2026-06-21)
-
 
 ### Features
 
@@ -347,14 +562,9 @@
 * The Unraid install guide now points at the actively maintained community template instead of a stale copy ([6ea90ad](https://github.com/DialmasterOrg/Youtarr/commit/6ea90adfd903c16e6257eab1f2718953b4bc67d4))
 * update CHANGELOG for v1.71.0 [skip ci] ([4b89e45](https://github.com/DialmasterOrg/Youtarr/commit/4b89e45d9d00aac92d99b0b2828b5a8ec7052cfd))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.71.0...v1.72.0
 
 ## [v1.71.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.71.0) - 2026-06-14
-
-## [1.71.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.70.0...v1.71.0) (2026-06-14)
-
 
 ### Features
 
@@ -442,14 +652,9 @@
 * Internal cleanup of the download executor, with hardening so a failed download can no longer leave a job stuck "In Progress" and stall the queue ([708bf11](https://github.com/DialmasterOrg/Youtarr/commit/708bf114d73bc9a57ac26aad386ba1a1b5a98313)), closes [#645](https://github.com/DialmasterOrg/Youtarr/issues/645)
 * Internal cleanup: split the 1500-line download executor into focused modules, with no intended behavior changes ([af70884](https://github.com/DialmasterOrg/Youtarr/commit/af708845eefddd58ca9a18f98cb7a725b0f8496c)), closes [#645](https://github.com/DialmasterOrg/Youtarr/issues/645)
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.70.0...v1.71.0
 
 ## [v1.70.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.70.0) - 2026-05-30
-
-## [1.70.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.69.2...v1.70.0) (2026-05-30)
-
 
 ### Features
 
@@ -460,27 +665,17 @@
 
 * update CHANGELOG for v1.69.2 [skip ci] ([6265702](https://github.com/DialmasterOrg/Youtarr/commit/626570272fe212951774423d0fb66bd2e28e20fc))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.69.2...v1.70.0
 
 ## [v1.69.2](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.69.2) - 2026-05-15
-
-### [1.69.2](https://github.com/DialmasterOrg/Youtarr/compare/vv1.69.1...v1.69.2) (2026-05-15)
-
 
 ### Documentation
 
 * update CHANGELOG for v1.69.1 [skip ci] ([4594e27](https://github.com/DialmasterOrg/Youtarr/commit/4594e27a4b073c7c7a4c163ab10aec8c38f2292c))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.69.1...v1.69.2
 
 ## [v1.69.1](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.69.1) - 2026-05-13
-
-### [1.69.1](https://github.com/DialmasterOrg/Youtarr/compare/vv1.69.0...v1.69.1) (2026-05-13)
-
 
 ### Bug Fixes
 
@@ -491,14 +686,9 @@
 
 * update CHANGELOG for v1.69.0 [skip ci] ([244c571](https://github.com/DialmasterOrg/Youtarr/commit/244c5716bc654aa7c2bc7f5679ed51687cae1d91))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.69.0...v1.69.1
 
 ## [v1.69.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.69.0) - 2026-05-11
-
-## [1.69.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.68.0...v1.69.0) (2026-05-11)
-
 
 ### Features
 
@@ -522,14 +712,9 @@
 * update CHANGELOG for v1.68.0 [skip ci] ([99e7f6b](https://github.com/DialmasterOrg/Youtarr/commit/99e7f6b0c2ff37c2f6005167fb572389232e11da))
 * **unraid:** expand mariadb setup guidance ([38a0e1a](https://github.com/DialmasterOrg/Youtarr/commit/38a0e1a297625cc1ccccbf8a726d2564abc30b0c))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.68.0...v1.69.0
 
 ## [v1.68.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.68.0) - 2026-04-29
-
-## [1.68.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.67.0...v1.68.0) (2026-04-29)
-
 
 ### Features
 
@@ -553,14 +738,9 @@
 
 * update CHANGELOG for v1.67.0 [skip ci] ([4a4e4f2](https://github.com/DialmasterOrg/Youtarr/commit/4a4e4f258c6394722106593363a28d106bd1993a))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.67.0...v1.68.0
 
 ## [v1.67.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.67.0) - 2026-04-24
-
-## [1.67.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.66.4...v1.67.0) (2026-04-24)
-
 
 ### Features
 
@@ -606,14 +786,9 @@
 * expand comparison doc to cover Pinchflat and Tube Archivist ([59cf253](https://github.com/DialmasterOrg/Youtarr/commit/59cf25326216db619f7bdea8604af10496969fbc))
 * update CHANGELOG for v1.66.4 [skip ci] ([a4dd486](https://github.com/DialmasterOrg/Youtarr/commit/a4dd486894f993434b8c733fa82fda292518475b))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.66.4...v1.67.0
 
 ## [v1.66.4](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.66.4) - 2026-04-20
-
-### [1.66.4](https://github.com/DialmasterOrg/Youtarr/compare/vv1.66.3...v1.66.4) (2026-04-20)
-
 
 ### Bug Fixes
 
@@ -624,14 +799,9 @@
 
 * update CHANGELOG for v1.66.3 [skip ci] ([68e6029](https://github.com/DialmasterOrg/Youtarr/commit/68e602923d0c250f16bea6f241b635b183c2217f))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.66.3...v1.66.4
 
 ## [v1.66.3](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.66.3) - 2026-04-20
-
-### [1.66.3](https://github.com/DialmasterOrg/Youtarr/compare/vv1.66.2...v1.66.3) (2026-04-20)
-
 
 ### Bug Fixes
 
@@ -643,14 +813,9 @@
 
 * update CHANGELOG for v1.66.2 [skip ci] ([0cffcbf](https://github.com/DialmasterOrg/Youtarr/commit/0cffcbf54bf65c32376b850532bf331dbdda7ffa))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.66.2...v1.66.3
 
 ## [v1.66.2](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.66.2) - 2026-04-19
-
-### [1.66.2](https://github.com/DialmasterOrg/Youtarr/compare/vv1.66.1...v1.66.2) (2026-04-19)
-
 
 ### Bug Fixes
 
@@ -662,14 +827,9 @@
 * backfill v1.66.0 payload into v1.66.1 CHANGELOG [skip ci] ([118f5ec](https://github.com/DialmasterOrg/Youtarr/commit/118f5ec9de449dfb1a8e0ef56f049ea16e6911e5))
 * update CHANGELOG for v1.66.1 [skip ci] ([1281f17](https://github.com/DialmasterOrg/Youtarr/commit/1281f17184c77d546c99a3cb2e8e8d72eae4f16c))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.66.1...v1.66.2
 
 ## [v1.66.1](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.66.1) - 2026-04-19
-
-### [1.66.1](https://github.com/DialmasterOrg/Youtarr/compare/v1.65.0...v1.66.1) (2026-04-19)
-
 
 ### Features
 
@@ -776,12 +936,9 @@
 * **video-search:** export error classes directly on module.exports ([b2473a5](https://github.com/DialmasterOrg/Youtarr/commit/b2473a5b4332f066627e25cc7e30e700dfdb725b))
 * **videos:** address PR review nits on Find on YouTube ([e09393d](https://github.com/DialmasterOrg/Youtarr/commit/e09393d7c9f37aeef056ac37e9b31be75d85e388))
 
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.65.0...v1.66.1
 
 ## [v1.65.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.65.0) - 2026-04-13
-
-## [1.65.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.64.0...v1.65.0) (2026-04-13)
-
 
 ### Features
 
@@ -843,14 +1000,9 @@
 * refine project guidelines and dev workflow documentation ([1d51772](https://github.com/DialmasterOrg/Youtarr/commit/1d5177273b3d6f789d6e9777d15b846df0b44778))
 * update CHANGELOG for v1.64.0 [skip ci] ([9f3cb9e](https://github.com/DialmasterOrg/Youtarr/commit/9f3cb9e394160775b30494710a70f5c7fe3067c7))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.64.0...v1.65.0
 
 ## [v1.64.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.64.0) - 2026-04-08
-
-## [1.64.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.63.0...v1.64.0) (2026-04-08)
-
 
 ### Features
 
@@ -903,14 +1055,9 @@
 * add subscription import documentation to usage guide, troubleshooting, and CLAUDE.md ([06c3354](https://github.com/DialmasterOrg/Youtarr/commit/06c33546a1884597e938d598abba627b715a13c1))
 * update CHANGELOG for v1.63.0 [skip ci] ([b087e43](https://github.com/DialmasterOrg/Youtarr/commit/b087e43eb667cd673345fa1e6cab181008c52cac))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.63.0...v1.64.0
 
 ## [v1.63.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.63.0) - 2026-04-04
-
-## [1.63.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.62.0...v1.63.0) (2026-04-04)
-
 
 ### Features
 
@@ -927,14 +1074,9 @@
 
 * update CHANGELOG for v1.62.0 [skip ci] ([d763ba5](https://github.com/DialmasterOrg/Youtarr/commit/d763ba51e25f356fc7f4ca4d4a25f6d038c632ae))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.62.0...v1.63.0
 
 ## [v1.62.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.62.0) - 2026-04-03
-
-## [1.62.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.61.1...v1.62.0) (2026-04-03)
-
 
 ### Features
 
@@ -950,14 +1092,9 @@
 
 * update CHANGELOG for v1.61.1 [skip ci] ([994cc95](https://github.com/DialmasterOrg/Youtarr/commit/994cc95785acbb5ae0edf9b663607dc5fcbe6c5d))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.61.1...v1.62.0
 
 ## [v1.61.1](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.61.1) - 2026-04-03
-
-### [1.61.1](https://github.com/DialmasterOrg/Youtarr/compare/vv1.61.0...v1.61.1) (2026-04-03)
-
 
 ### Bug Fixes
 
@@ -968,14 +1105,9 @@
 
 * update CHANGELOG for v1.61.0 [skip ci] ([f96fcae](https://github.com/DialmasterOrg/Youtarr/commit/f96fcaeb7342fb80271a66d97af9772836f306db))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.61.0...v1.61.1
 
 ## [v1.61.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.61.0) - 2026-03-21
-
-## [1.61.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.60.1...v1.61.0) (2026-03-21)
-
 
 ### Features
 
@@ -991,20 +1123,18 @@
 ### Documentation
 
 * update CHANGELOG for v1.60.1 [skip ci] ([1c57705](https://github.com/DialmasterOrg/Youtarr/commit/1c577053d91f64e2e5e535a74c5638e0e5fb7ae4))
+
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.60.1...v1.61.0
+
 ## [v1.60.1](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.60.1) - 2026-03-05
-
-### [1.60.1](https://github.com/DialmasterOrg/Youtarr/compare/vv1.60.0...v1.60.1) (2026-03-05)
-
 
 ### Documentation
 
 * update CHANGELOG for v1.60.0 [skip ci] ([a43e9a1](https://github.com/DialmasterOrg/Youtarr/commit/a43e9a1356e9723647cc0dd0a1c07661d4aa8985))
 
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.60.0...v1.60.1
 
 ## [v1.60.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.60.0) - 2026-03-02
-
-## [1.60.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.59.0...v1.60.0) (2026-03-02)
-
 
 ### Features
 
@@ -1033,14 +1163,9 @@
 
 * update CHANGELOG for v1.59.0 [skip ci] ([4752a38](https://github.com/DialmasterOrg/Youtarr/commit/4752a3888fd3f7d70c9e64042a57bef0d46390e4))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.59.0...v1.60.0
 
 ## [v1.59.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.59.0) - 2026-02-16
-
-## [1.59.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.58.0...v1.59.0) (2026-02-16)
-
 
 ### Features
 
@@ -1100,14 +1225,9 @@
 * PR guidelines / expectations CONTRIBUTING.md [skip ci] ([cce2e81](https://github.com/DialmasterOrg/Youtarr/commit/cce2e8179793091eff7049dba00a2512cf196adf))
 * update CHANGELOG for v1.58.0 [skip ci] ([bc52fad](https://github.com/DialmasterOrg/Youtarr/commit/bc52fad6e4ceed59486ab63b21d89cfdbb6ccc65))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.58.0...v1.59.0
 
 ## [v1.58.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.58.0) - 2026-01-31
-
-## [1.58.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.57.1...v1.58.0) (2026-01-31)
-
 
 ### Features
 
@@ -1131,14 +1251,9 @@
 
 * update CHANGELOG for v1.57.1 [skip ci] ([247f063](https://github.com/DialmasterOrg/Youtarr/commit/247f063682f36f0ba8d8793580a2d33444feeb52))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.57.1...v1.58.0
 
 ## [v1.57.1](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.57.1) - 2026-01-30
-
-### [1.57.1](https://github.com/DialmasterOrg/Youtarr/compare/vv1.57.0...v1.57.1) (2026-01-30)
-
 
 ### Bug Fixes
 
@@ -1150,14 +1265,9 @@
 
 * update CHANGELOG for v1.57.0 [skip ci] ([2898ad5](https://github.com/DialmasterOrg/Youtarr/commit/2898ad509546479deb72a7695d5de6e6db366fec))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.57.0...v1.57.1
 
 ## [v1.57.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.57.0) - 2026-01-19
-
-## [1.57.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.56.0...v1.57.0) (2026-01-19)
-
 
 ### Features
 
@@ -1175,14 +1285,9 @@
 
 * update CHANGELOG for v1.56.0 [skip ci] ([cee0c56](https://github.com/DialmasterOrg/Youtarr/commit/cee0c56e4b42aa58bdea7bd370747af69d16346e))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.56.0...v1.57.0
 
 ## [v1.56.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.56.0) - 2026-01-04
-
-## [1.56.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.55.0...v1.56.0) (2026-01-04)
-
 
 ### Features
 
@@ -1257,14 +1362,9 @@
 * clarify API keys support single videos only ([7ae79b4](https://github.com/DialmasterOrg/Youtarr/commit/7ae79b447645fedfa4c2e0db936a69d54279c075))
 * update CONTRIBUTING.md and DEVELOPMENT.md for dev branch workflow ([4ff0f47](https://github.com/DialmasterOrg/Youtarr/commit/4ff0f47268bd8e1644826b8de08a8080333b29f7))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.55.0...v1.56.0
 
 ## [v1.55.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.55.0) - 2025-12-10
-
-## [1.55.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.54.1...v1.55.0) (2025-12-10)
-
 
 ### Features
 
@@ -1297,14 +1397,9 @@
 * Add link to Patreon ([07ca0ed](https://github.com/DialmasterOrg/Youtarr/commit/07ca0ed937284f8430e2be1800015c306f27ce79))
 * update CHANGELOG for v1.54.1 [skip ci] ([be3f89e](https://github.com/DialmasterOrg/Youtarr/commit/be3f89e1b3d2ebc97307fd27a9abe286942b8387))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.54.1...v1.55.0
 
 ## [v1.54.1](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.54.1) - 2025-11-24
-
-### [1.54.1](https://github.com/DialmasterOrg/Youtarr/compare/vv1.54.0...v1.54.1) (2025-11-24)
-
 
 ### Bug Fixes
 
@@ -1315,14 +1410,9 @@
 
 * update CHANGELOG for v1.54.0 [skip ci] ([ca3beb7](https://github.com/DialmasterOrg/Youtarr/commit/ca3beb778815fa6fd7e83ac3ae87ac87c324eddf))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.54.0...v1.54.1
 
 ## [v1.54.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.54.0) - 2025-11-24
-
-## [1.54.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.53.2...v1.54.0) (2025-11-24)
-
 
 ### Features
 
@@ -1333,14 +1423,9 @@
 
 * update CHANGELOG for v1.53.2 [skip ci] ([1a30714](https://github.com/DialmasterOrg/Youtarr/commit/1a30714cd6b3a0003e846cf2e9e2a5d2af490198))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.53.2...v1.54.0
 
 ## [v1.53.2](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.53.2) - 2025-11-22
-
-### [1.53.2](https://github.com/DialmasterOrg/Youtarr/compare/vv1.53.1...v1.53.2) (2025-11-22)
-
 
 ### Bug Fixes
 
@@ -1353,14 +1438,9 @@
 * major documentation restructure ([0bc28b6](https://github.com/DialmasterOrg/Youtarr/commit/0bc28b67cc071c154d56b51f04f2c93b1bab926a))
 * update CHANGELOG for v1.53.1 [skip ci] ([aa3c2a6](https://github.com/DialmasterOrg/Youtarr/commit/aa3c2a6d5037e677d651d3ab06d5df1eb45e9897))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.53.1...v1.53.2
 
 ## [v1.53.1](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.53.1) - 2025-11-19
-
-### [1.53.1](https://github.com/DialmasterOrg/Youtarr/compare/vv1.53.0...v1.53.1) (2025-11-19)
-
 
 ### Bug Fixes
 
@@ -1371,14 +1451,9 @@
 
 * update CHANGELOG for v1.53.0 [skip ci] ([66395f6](https://github.com/DialmasterOrg/Youtarr/commit/66395f6dde6019e74a1d60b0c53caeb53534e1da))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.53.0...v1.53.1
 
 ## [v1.53.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.53.0) - 2025-11-19
-
-## [1.53.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.52.0...v1.53.0) (2025-11-19)
-
 
 ### Features
 
@@ -1396,14 +1471,9 @@
 * add Apple Silicon troubleshooting for MariaDB virtiofs corruption ([b566139](https://github.com/DialmasterOrg/Youtarr/commit/b566139fe364fc654ebbe57ab0f6e2c52b9fe4de))
 * update CHANGELOG for v1.52.0 [skip ci] ([9cfffb7](https://github.com/DialmasterOrg/Youtarr/commit/9cfffb70d7797a20387b8d94b1a292f7482e05ac))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.52.0...v1.53.0
 
 ## [v1.52.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.52.0) - 2025-11-15
-
-## [1.52.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.51.1...v1.52.0) (2025-11-15)
-
 
 ### Features
 
@@ -1414,14 +1484,9 @@
 
 * update CHANGELOG for v1.51.1 [skip ci] ([c3efa2d](https://github.com/DialmasterOrg/Youtarr/commit/c3efa2d02c16e905ca393ef72cf176dfa8f5764a))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.51.1...v1.52.0
 
 ## [v1.51.1](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.51.1) - 2025-11-15
-
-### [1.51.1](https://github.com/DialmasterOrg/Youtarr/compare/vv1.51.0...v1.51.1) (2025-11-15)
-
 
 ### Bug Fixes
 
@@ -1432,14 +1497,9 @@
 
 * update CHANGELOG for v1.51.0 [skip ci] ([0182737](https://github.com/DialmasterOrg/Youtarr/commit/01827370268c5ccc64ba81d412a92b242874f219))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.51.0...v1.51.1
 
 ## [v1.51.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.51.0) - 2025-11-15
-
-## [1.51.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.50.1...v1.51.0) (2025-11-15)
-
 
 ### Features
 
@@ -1456,14 +1516,9 @@
 
 * update CHANGELOG for v1.50.1 [skip ci] ([dd19493](https://github.com/DialmasterOrg/Youtarr/commit/dd194936cee8340b8142cd4aff926ed90ca4fd01))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.50.1...v1.51.0
 
 ## [v1.50.1](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.50.1) - 2025-11-13
-
-### [1.50.1](https://github.com/DialmasterOrg/Youtarr/compare/vv1.50.0...v1.50.1) (2025-11-13)
-
 
 ### Bug Fixes
 
@@ -1475,14 +1530,9 @@
 * improve AUTH_PRESET credential documentation and validation feedback ([b372829](https://github.com/DialmasterOrg/Youtarr/commit/b3728297fe1755c29fb6d1cbbb1e1be0540ad91e))
 * update CHANGELOG for v1.50.0 [skip ci] ([e823431](https://github.com/DialmasterOrg/Youtarr/commit/e823431a25bc6a8e5ce6dbb00f16b8c6c6568bfa))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.50.0...v1.50.1
 
 ## [v1.50.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.50.0) - 2025-11-11
-
-## [1.50.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.49.1...v1.50.0) (2025-11-11)
-
 
 ### Features
 
@@ -1494,14 +1544,9 @@
 
 * update CHANGELOG for v1.49.1 [skip ci] ([b2d8db0](https://github.com/DialmasterOrg/Youtarr/commit/b2d8db08cc802128515b704b0adedcd9ec4fcb87))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.49.1...v1.50.0
 
 ## [v1.49.1](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.49.1) - 2025-11-10
-
-### [1.49.1](https://github.com/DialmasterOrg/Youtarr/compare/vv1.49.0...v1.49.1) (2025-11-10)
-
 
 ### Bug Fixes
 
@@ -1513,14 +1558,9 @@
 
 * update CHANGELOG for v1.49.0 [skip ci] ([8e18cda](https://github.com/DialmasterOrg/Youtarr/commit/8e18cda81ef38131187b0b10140b64264436a0b2))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.49.0...v1.49.1
 
 ## [v1.49.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.49.0) - 2025-11-10
-
-## [1.49.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.48.0...v1.49.0) (2025-11-10)
-
 
 ### Features
 
@@ -1545,14 +1585,9 @@
 * streamline development documentation and remove deprecated scripts ([cf2418a](https://github.com/DialmasterOrg/Youtarr/commit/cf2418ad13093f07d1f1ce259cbaadbee7329522))
 * update CHANGELOG for v1.48.0 [skip ci] ([e9ca9dc](https://github.com/DialmasterOrg/Youtarr/commit/e9ca9dc0c3bd19c9d0d65845dc4e413fdb45f54f))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.48.0...v1.49.0
 
 ## [v1.48.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.48.0) - 2025-11-05
-
-## [1.48.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.47.1...v1.48.0) (2025-11-05)
-
 
 ### Features
 
@@ -1568,14 +1603,9 @@
 
 * update CHANGELOG for v1.47.1 [skip ci] ([9fc9197](https://github.com/DialmasterOrg/Youtarr/commit/9fc9197b361c549f2e1c6fba3197d247dc41dd08))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.47.1...v1.48.0
 
 ## [v1.47.1](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.47.1) - 2025-11-04
-
-### [1.47.1](https://github.com/DialmasterOrg/Youtarr/compare/vv1.47.0...v1.47.1) (2025-11-04)
-
 
 ### Bug Fixes
 
@@ -1588,14 +1618,9 @@
 * Remove time references ([cdb560f](https://github.com/DialmasterOrg/Youtarr/commit/cdb560f8f7279ab2031c853f2de1589eacd91f52))
 * update CHANGELOG for v1.47.0 [skip ci] ([c347b73](https://github.com/DialmasterOrg/Youtarr/commit/c347b739d35592e85006cdd0cb0a0c9aed0c03fc))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.47.0...v1.47.1
 
 ## [v1.47.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.47.0) - 2025-11-03
-
-## [1.47.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.46.2...v1.47.0) (2025-11-03)
-
 
 ### Features
 
@@ -1613,14 +1638,9 @@
 * remove migrations volume mount references and improve Docker setup docs ([f94c8d0](https://github.com/DialmasterOrg/Youtarr/commit/f94c8d04439e580f9b822217b267a3e5ebbd6e2d))
 * update CHANGELOG for v1.46.2 [skip ci] ([8084df4](https://github.com/DialmasterOrg/Youtarr/commit/8084df489f72104af834c649703aedfb7401ece4))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.46.2...v1.47.0
 
 ## [v1.46.2](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.46.2) - 2025-11-02
-
-### [1.46.2](https://github.com/DialmasterOrg/Youtarr/compare/vv1.46.1...v1.46.2) (2025-11-02)
-
 
 ### Bug Fixes
 
@@ -1639,22 +1659,15 @@
 * update CHANGELOG for v1.46.1 [skip ci] ([5111eee](https://github.com/DialmasterOrg/Youtarr/commit/5111eeee29ad66ee0d00607e9893692e5308b3c8))
 * **docker:** remove migrations volume and add critical warning ([f34a3fd](https://github.com/DialmasterOrg/Youtarr/commit/f34a3fdc602634fbf8791bae7e7fe4cdf663c197))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.46.1...v1.46.2
 
 ## [v1.46.1](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.46.1) - 2025-11-01
 
-### [1.46.1](https://github.com/DialmasterOrg/Youtarr/compare/vv1.46.0...v1.46.1) (2025-11-01)
 
 
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.46.0...v1.46.1
 
 ## [v1.46.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.46.0) - 2025-10-30
-
-## [1.46.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.45.1...v1.46.0) (2025-10-30)
-
 
 ### Features
 
@@ -1670,14 +1683,9 @@
 
 * update CHANGELOG for v1.45.1 [skip ci] ([20c3b4a](https://github.com/DialmasterOrg/Youtarr/commit/20c3b4aa65fd086a881c09238622dbb5ebb7dc3e))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.45.1...v1.46.0
 
 ## [v1.45.1](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.45.1) - 2025-10-26
-
-### [1.45.1](https://github.com/DialmasterOrg/Youtarr/compare/vv1.45.0...v1.45.1) (2025-10-26)
-
 
 ### Bug Fixes
 
@@ -1688,14 +1696,9 @@
 
 * update CHANGELOG for v1.45.0 [skip ci] ([be51d54](https://github.com/DialmasterOrg/Youtarr/commit/be51d548a5d4471f7179c5537814cc9d3adb25f2))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.45.0...v1.45.1
 
 ## [v1.45.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.45.0) - 2025-10-26
-
-## [1.45.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.44.0...v1.45.0) (2025-10-26)
-
 
 ### Features
 
@@ -1708,14 +1711,9 @@
 * update CHANGELOG for v1.44.0 [skip ci] ([0c7b34b](https://github.com/DialmasterOrg/Youtarr/commit/0c7b34bd9e1e8ceb1e52d426872d107086569530))
 * **#120:** document channel-level configuration overrides ([2878a2d](https://github.com/DialmasterOrg/Youtarr/commit/2878a2d2d7615fc156ea06ad7614c9d0864f228b)), closes [#120](https://github.com/DialmasterOrg/Youtarr/issues/120)
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.44.0...v1.45.0
 
 ## [v1.44.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.44.0) - 2025-10-22
-
-## [1.44.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.43.0...v1.44.0) (2025-10-22)
-
 
 ### Features
 
@@ -1731,14 +1729,9 @@
 
 * update CHANGELOG for v1.43.0 [skip ci] ([cd23bb9](https://github.com/DialmasterOrg/Youtarr/commit/cd23bb92f478f7ec37b07469960e2f265ac73548))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.43.0...v1.44.0
 
 ## [v1.43.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.43.0) - 2025-10-18
-
-## [1.43.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.42.2...v1.43.0) (2025-10-18)
-
 
 ### Features
 
@@ -1755,14 +1748,9 @@
 
 * update CHANGELOG for v1.42.2 [skip ci] ([b265452](https://github.com/DialmasterOrg/Youtarr/commit/b26545278f931d7c21e7788ff591b9a7a3d73adb))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.42.2...v1.43.0
 
 ## [v1.42.2](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.42.2) - 2025-10-12
-
-### [1.42.2](https://github.com/DialmasterOrg/Youtarr/compare/vv1.42.1...v1.42.2) (2025-10-12)
-
 
 ### Bug Fixes
 
@@ -1775,14 +1763,9 @@
 * clarify docker compose environment variable requirements ([c42512d](https://github.com/DialmasterOrg/Youtarr/commit/c42512d9b482e8b7f9cd9d249cfc081501178199))
 * update CHANGELOG for v1.42.1 [skip ci] ([f5f75d4](https://github.com/DialmasterOrg/Youtarr/commit/f5f75d47527f5e7de8cb7949c17b3e9b67380f33))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.42.1...v1.42.2
 
 ## [v1.42.1](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.42.1) - 2025-10-12
-
-### [1.42.1](https://github.com/DialmasterOrg/Youtarr/compare/vv1.42.0...v1.42.1) (2025-10-12)
-
 
 ### Bug Fixes
 
@@ -1794,14 +1777,9 @@
 
 * update CHANGELOG for v1.42.0 [skip ci] ([dfbfbbd](https://github.com/DialmasterOrg/Youtarr/commit/dfbfbbdde6db7c4a2bb691b6a2346a1fdd7270cb))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.42.0...v1.42.1
 
 ## [v1.42.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.42.0) - 2025-10-11
-
-## [1.42.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.41.0...v1.42.0) (2025-10-11)
-
 
 ### Features
 
@@ -1817,14 +1795,9 @@
 
 * update CHANGELOG for v1.41.0 [skip ci] ([a21d892](https://github.com/DialmasterOrg/Youtarr/commit/a21d892c335fbdc53bb5eba47c1c8f2cfa0bac0c))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.41.0...v1.42.0
 
 ## [v1.41.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.41.0) - 2025-10-11
-
-## [1.41.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.40.0...v1.41.0) (2025-10-11)
-
 
 ### Features
 
@@ -1845,14 +1818,9 @@
 
 * update CHANGELOG for v1.40.0 [skip ci] ([f8ff819](https://github.com/DialmasterOrg/Youtarr/commit/f8ff8198d5433000de782e6d7d7b78cd035cfe3b))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.40.0...v1.41.0
 
 ## [v1.40.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.40.0) - 2025-10-09
-
-## [1.40.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.39.1...v1.40.0) (2025-10-09)
-
 
 ### Features
 
@@ -1870,14 +1838,9 @@
 
 * update CHANGELOG for v1.39.1 [skip ci] ([69259de](https://github.com/DialmasterOrg/Youtarr/commit/69259debae98736f38ee84a69ffb7b9a9d71ddba))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.39.1...v1.40.0
 
 ## [v1.39.1](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.39.1) - 2025-10-09
-
-### [1.39.1](https://github.com/DialmasterOrg/Youtarr/compare/vv1.39.0...v1.39.1) (2025-10-09)
-
 
 ### Bug Fixes
 
@@ -1888,14 +1851,9 @@
 
 * update CHANGELOG for v1.39.0 [skip ci] ([05605fd](https://github.com/DialmasterOrg/Youtarr/commit/05605fdbd54633bfa5fb87cb591e99fe8e45a48e))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.39.0...v1.39.1
 
 ## [v1.39.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.39.0) - 2025-10-08
-
-## [1.39.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.38.0...v1.39.0) (2025-10-08)
-
 
 ### Features
 
@@ -1913,14 +1871,9 @@
 * update CHANGELOG for v1.38.0 [skip ci] ([695dc98](https://github.com/DialmasterOrg/Youtarr/commit/695dc98e97c26e394981e511bbbea6d3b3ad341b))
 * Update Readme for live/shorts support ([9a409f5](https://github.com/DialmasterOrg/Youtarr/commit/9a409f51d9a6b1cd4d9fc05440153c4630bca560))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.38.0...v1.39.0
 
 ## [v1.38.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.38.0) - 2025-10-06
-
-## [1.38.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.37.0...v1.38.0) (2025-10-06)
-
 
 ### Features
 
@@ -1946,14 +1899,9 @@
 * Update documentation for Unraid ([e0eeb67](https://github.com/DialmasterOrg/Youtarr/commit/e0eeb67dac121f68170c8987d6dce914bd48edb4))
 * Update documentation for video removal ([d540ac2](https://github.com/DialmasterOrg/Youtarr/commit/d540ac2a4dd50336b13dd8730bc3489aabfc6aa9))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.37.0...v1.38.0
 
 ## [v1.37.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.37.0) - 2025-10-04
-
-## [1.37.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.36.0...v1.37.0) (2025-10-04)
-
 
 ### Features
 
@@ -1964,14 +1912,9 @@
 
 * update CHANGELOG for v1.36.0 [skip ci] ([37581eb](https://github.com/DialmasterOrg/Youtarr/commit/37581eb26abac8ae2eb198d3cf3c3414f0472d4d))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.36.0...v1.37.0
 
 ## [v1.36.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.36.0) - 2025-10-04
-
-## [1.36.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.35.0...v1.36.0) (2025-10-04)
-
 
 ### Features
 
@@ -1983,14 +1926,9 @@
 
 * update CHANGELOG for v1.35.0 [skip ci] ([6643127](https://github.com/DialmasterOrg/Youtarr/commit/6643127f00a1b7e95fc9b40bda10593369fd7d35))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.35.0...v1.36.0
 
 ## [v1.35.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.35.0) - 2025-10-04
-
-## [1.35.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.34.0...v1.35.0) (2025-10-04)
-
 
 ### Features
 
@@ -2004,14 +1942,9 @@
 
 * update CHANGELOG for v1.34.0 [skip ci] ([45b3507](https://github.com/DialmasterOrg/Youtarr/commit/45b35079bc543fd397b81a90598435af8865a716))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.34.0...v1.35.0
 
 ## [v1.34.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.34.0) - 2025-10-03
-
-## [1.34.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.33.0...v1.34.0) (2025-10-03)
-
 
 ### Features
 
@@ -2038,14 +1971,9 @@
 
 * update CHANGELOG for v1.33.0 [skip ci] ([dc6884b](https://github.com/DialmasterOrg/Youtarr/commit/dc6884bf3192ad6dd1a588dff0f9e215fcfb8d68))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.33.0...v1.34.0
 
 ## [v1.33.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.33.0) - 2025-10-01
-
-## [1.33.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.32.0...v1.33.0) (2025-10-01)
-
 
 ### Features
 
@@ -2068,14 +1996,9 @@
 * update CHANGELOG for v1.32.0 [skip ci] ([3732f89](https://github.com/DialmasterOrg/Youtarr/commit/3732f89463baaa57b2393238ca7150193c68ecc1))
 * Update README [skip ci] ([40fe088](https://github.com/DialmasterOrg/Youtarr/commit/40fe088e1c82b55424efd8272119359fa15e7566))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.32.0...v1.33.0
 
 ## [v1.32.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.32.0) - 2025-09-28
-
-## [1.32.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.31.0...v1.32.0) (2025-09-28)
-
 
 ### Features
 
@@ -2104,14 +2027,9 @@
 * update CHANGELOG for v1.31.0 [skip ci] ([89f5708](https://github.com/DialmasterOrg/Youtarr/commit/89f5708b66af3a6e628b984733272282251ac700))
 * Update README.md [skip ci] ([7915689](https://github.com/DialmasterOrg/Youtarr/commit/791568965ac6e2ff563c10441d3d37e320568c5b))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.31.0...v1.32.0
 
 ## [v1.31.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.31.0) - 2025-09-27
-
-## [1.31.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.30.0...v1.31.0) (2025-09-27)
-
 
 ### Features
 
@@ -2138,14 +2056,9 @@
 
 * update CHANGELOG for v1.30.0 ([e468186](https://github.com/DialmasterOrg/Youtarr/commit/e4681867d183a1388ee06b0c1abf08081cd7bc3d))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.30.0...v1.31.0
 
 ## [v1.30.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.30.0) - 2025-09-27
-
-## [1.30.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.29.3...v1.30.0) (2025-09-27)
-
 
 ### Features
 
@@ -2166,14 +2079,9 @@
 
 * update CHANGELOG for v1.29.3 ([26d4b13](https://github.com/DialmasterOrg/Youtarr/commit/26d4b13562520e2a9cf7b339f21664a3ea099aa0))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.29.3...v1.30.0
 
 ## [v1.29.3](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.29.3) - 2025-09-26
-
-### [1.29.3](https://github.com/DialmasterOrg/Youtarr/compare/vv1.29.2...v1.29.3) (2025-09-26)
-
 
 ### Bug Fixes
 
@@ -2185,14 +2093,9 @@
 
 * update CHANGELOG for v1.29.2 ([9cda97a](https://github.com/DialmasterOrg/Youtarr/commit/9cda97aaf4d5934e9955ee787e674f28392fcad1))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.29.2...v1.29.3
 
 ## [v1.29.2](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.29.2) - 2025-09-26
-
-### [1.29.2](https://github.com/DialmasterOrg/Youtarr/compare/vv1.29.1...v1.29.2) (2025-09-26)
-
 
 ### Bug Fixes
 
@@ -2209,14 +2112,9 @@
 * update CHANGELOG for v1.29.1 ([449b27e](https://github.com/DialmasterOrg/Youtarr/commit/449b27e92f995e6ebc37a4ce44817c9e6ac8efa6))
 * Update README. Remove screenshots ([74ac5e4](https://github.com/DialmasterOrg/Youtarr/commit/74ac5e44615bba55d39e216406bf5d41b4708372))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.29.1...v1.29.2
 
 ## [v1.29.1](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.29.1) - 2025-09-24
-
-### [1.29.1](https://github.com/DialmasterOrg/Youtarr/compare/vv1.29.0...v1.29.1) (2025-09-24)
-
 
 ### Bug Fixes
 
@@ -2227,14 +2125,9 @@
 
 * update CHANGELOG for v1.29.0 ([2c2080b](https://github.com/DialmasterOrg/Youtarr/commit/2c2080b5382c0ed7e0d1fdc3419fc6b3da67d6e2))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.29.0...v1.29.1
 
 ## [v1.29.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.29.0) - 2025-09-24
-
-## [1.29.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.28.0...v1.29.0) (2025-09-24)
-
 
 ### Features
 
@@ -2251,14 +2144,9 @@
 
 * update CHANGELOG for v1.28.0 ([281180d](https://github.com/DialmasterOrg/Youtarr/commit/281180dd35ad063016164a16ea5ec84aa8dd85ef))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.28.0...v1.29.0
 
 ## [v1.28.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.28.0) - 2025-09-24
-
-## [1.28.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.27.0...v1.28.0) (2025-09-24)
-
 
 ### Features
 
@@ -2275,14 +2163,9 @@
 
 * update CHANGELOG for v1.27.0 ([c2633d7](https://github.com/DialmasterOrg/Youtarr/commit/c2633d78d56b05db6d18968aef0d002e5bb9f8ea))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.27.0...v1.28.0
 
 ## [v1.27.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.27.0) - 2025-09-23
-
-## [1.27.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.26.1...v1.27.0) (2025-09-23)
-
 
 ### Features
 
@@ -2300,14 +2183,9 @@
 
 * update CHANGELOG for v1.26.1 ([ddc4b33](https://github.com/DialmasterOrg/Youtarr/commit/ddc4b33c1d1f9d92fcf8d7c94e9399b19e275c31))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.26.1...v1.27.0
 
 ## [v1.26.1](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.26.1) - 2025-09-23
-
-### [1.26.1](https://github.com/DialmasterOrg/Youtarr/compare/vv1.26.0...v1.26.1) (2025-09-23)
-
 
 ### Bug Fixes
 
@@ -2318,14 +2196,9 @@
 
 * update CHANGELOG for v1.26.0 ([2f1bde0](https://github.com/DialmasterOrg/Youtarr/commit/2f1bde0eb53eee653cfad62df967af531d2dc2a9))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.26.0...v1.26.1
 
 ## [v1.26.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.26.0) - 2025-09-23
-
-## [1.26.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.25.0...v1.26.0) (2025-09-23)
-
 
 ### Features
 
@@ -2341,14 +2214,9 @@
 
 * update CHANGELOG for v1.25.0 ([4793e9a](https://github.com/DialmasterOrg/Youtarr/commit/4793e9ac8e9a22c20359f14d079ca2cdc111ecdd))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.25.0...v1.26.0
 
 ## [v1.25.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.25.0) - 2025-09-22
-
-## [1.25.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.24.0...v1.25.0) (2025-09-22)
-
 
 ### Features
 
@@ -2365,14 +2233,9 @@
 
 * update CHANGELOG for v1.24.0 ([0f8470f](https://github.com/DialmasterOrg/Youtarr/commit/0f8470fe92becbf579c6b3f10415c2f155e4b8c3))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.24.0...v1.25.0
 
 ## [v1.24.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.24.0) - 2025-09-22
-
-## [1.24.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.23.0...v1.24.0) (2025-09-22)
-
 
 ### Features
 
@@ -2394,14 +2257,9 @@
 
 * update CHANGELOG for v1.23.0 ([63966ab](https://github.com/DialmasterOrg/Youtarr/commit/63966ab22f6e8773430a69fd87e63b836e3269fd))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.23.0...v1.24.0
 
 ## [v1.23.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.23.0) - 2025-09-20
-
-## [1.23.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.22.0...v1.23.0) (2025-09-20)
-
 
 ### Features
 
@@ -2412,14 +2270,9 @@
 
 * update CHANGELOG for v1.22.0 ([96652ce](https://github.com/DialmasterOrg/Youtarr/commit/96652ce73f58283430c7232f8ffbc0e973007107))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.22.0...v1.23.0
 
 ## [v1.22.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.22.0) - 2025-09-18
-
-## [1.22.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.21.0...v1.22.0) (2025-09-18)
-
 
 ### Features
 
@@ -2430,14 +2283,9 @@
 
 * update CHANGELOG for v1.21.0 ([d2b2970](https://github.com/DialmasterOrg/Youtarr/commit/d2b2970b212ab1c4df367e9e4492ad8b6ec3982c))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.21.0...v1.22.0
 
 ## [v1.21.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.21.0) - 2025-09-18
-
-## [1.21.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.20.0...v1.21.0) (2025-09-18)
-
 
 ### Features
 
@@ -2449,14 +2297,9 @@
 
 * update CHANGELOG for v1.20.0 ([bc86963](https://github.com/DialmasterOrg/Youtarr/commit/bc869638948c7ecdf5c3754badf96eb9a1961076))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.20.0...v1.21.0
 
 ## [v1.20.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.20.0) - 2025-09-18
-
-## [1.20.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.19.0...v1.20.0) (2025-09-18)
-
 
 ### Features
 
@@ -2474,14 +2317,9 @@
 * add SSH tunneling instructions for headless server setup ([00946df](https://github.com/DialmasterOrg/Youtarr/commit/00946dfa5c0607adf050293fb78dcda9055b2925))
 * update CHANGELOG for v1.19.0 ([cc7cc40](https://github.com/DialmasterOrg/Youtarr/commit/cc7cc405993e1c4c6830893a125b18764b72b2a1))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.19.0...v1.20.0
 
 ## [v1.19.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.19.0) - 2025-09-16
-
-## [1.19.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.18.1...v1.19.0) (2025-09-16)
-
 
 ### Features
 
@@ -2501,14 +2339,9 @@
 * update documentation for accuracy and clarity ([24aac9d](https://github.com/DialmasterOrg/Youtarr/commit/24aac9d7b076ffdbab39dd9370dea93488304712))
 * Update README with new download UI changes ([b4d958f](https://github.com/DialmasterOrg/Youtarr/commit/b4d958f114329b57f2e0b4dc00497703f489b79d))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.18.1...v1.19.0
 
 ## [v1.18.1](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.18.1) - 2025-09-14
-
-### [1.18.1](https://github.com/DialmasterOrg/Youtarr/compare/vv1.18.0...v1.18.1) (2025-09-14)
-
 
 ### Bug Fixes
 
@@ -2519,21 +2352,12 @@
 
 * update CHANGELOG for v1.18.0 ([f526a80](https://github.com/DialmasterOrg/Youtarr/commit/f526a80e07675506d29e69b14cea6e7810337517))
 
-
-
-
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.18.0...v1.18.1
 
 ## [v1.18.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.18.0) - 2025-09-14
-
-## [1.18.0](https://github.com/DialmasterOrg/Youtarr/compare/v1.17.31...v1.18.0) (2025-09-14)
-
 
 ### Features
 
 * Create Release workflow enhancement ([2bfbbf0](https://github.com/DialmasterOrg/Youtarr/commit/2bfbbf07df623abc4b3c8783161b4511ebea7a2a))
 
-
-
-
- 
-           
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.17.31...v1.18.0

@@ -1,4 +1,5 @@
 import React from 'react';
+import VideoActivityChip from '../../shared/VideoActivityChip';
 import { Box, Typography, Chip, Checkbox, Stack } from '../../ui';
 import { AlertCircle as ErrorOutlineIcon } from 'lucide-react';
 import { formatDuration, formatYTDate } from '../../../utils';
@@ -270,6 +271,7 @@ function VideosListMobile({
                 onAddChannel={onAddChannel}
               />
               <Stack direction="row" spacing={0.5} className="flex-wrap gap-1">
+                <VideoActivityChip youtubeId={video.youtubeId} />
                 {!video.removed && (video.filePath || video.audioFilePath) && (
                   <DownloadFormatIndicator
                     filePath={video.filePath}

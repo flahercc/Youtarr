@@ -38,3 +38,11 @@ export const NotDownloaded: Story = {
     await expect(canvas.getByText('Not Downloaded')).toBeInTheDocument();
   },
 };
+
+export const Queued: Story = {
+  args: { video: { ...meta.args!.video!, activity: 'queued' } },
+};
+
+export const Downloading: Story = {
+  args: { video: { ...meta.args!.video!, activity: 'downloading' } },
+};

@@ -1,4 +1,4 @@
-const { spawn } = require('child_process');
+const { spawnYtDlp } = require('../ytdlpProcess');
 const path = require('path');
 const configModule = require('../configModule');
 const jobModule = require('../jobModule');
@@ -16,10 +16,24 @@ const logger = require('../../logger');
 const { buildYtdlpEnv } = require('./ytdlpEnvBuilder');
 const DownloadTimeoutController = require('./DownloadTimeoutController');
 const { YtdlpErrorTracker } = require('./YtdlpErrorTracker');
+const downloadRunTracker = require('./downloadRunTracker');
+
+// Tells the job's download run about a job that failed before yt-dlp ran, so
+// the run counts it instead of treating the job as quietly finished.
+// Intermediate groups report through their grouped job instead.
+function reportJobFailureToRun(runId, jobId, jobType, reason, skipJobTransition) {
+  if (skipJobTransition || !downloadRunTracker.isActive(runId)) return;
+  downloadRunTracker.recordJobResult(runId, jobId, { jobType, jobIssue: { status: 'Error', reason, byUser: false } });
+}
+
+// Node fires 'exit' before stdout/stderr have necessarily drained; 'close'
+// fires once they have. We finalize on 'close', bounded by this timeout in
+// case an orphaned ffmpeg or post-process child keeps the pipes open.
+const STDIO_DRAIN_TIMEOUT_MS = 5 * 1000;
 
 class DownloadExecutor {
   // enqueueAutoRetry is injected by downloadModule so the finalizer can queue
-  // transient-403 retry jobs without a require cycle back into downloadModule.
+  // auto-retry jobs without a require cycle back into downloadModule.
   constructor({ enqueueAutoRetry = null } = {}) {
     this.enqueueAutoRetry = enqueueAutoRetry;
     this.tempChannelsFile = null;
@@ -28,6 +42,7 @@ class DownloadExecutor {
     this.postProcessingTimeoutMs = 60 * 60 * 1000; // 60 minutes for post-processing operations
     this.maxAbsoluteTimeoutMs = 6 * 60 * 60 * 1000; // 6 hours maximum runtime
     this.progressHeartbeatMs = 25 * 1000; // snapshot rebroadcast cadence while yt-dlp is quiet
+    this.stdioDrainTimeoutMs = STDIO_DRAIN_TIMEOUT_MS;
     // Current process tracking for manual termination
     this.currentProcess = null;
     this.currentJobId = null;
@@ -189,6 +204,7 @@ class DownloadExecutor {
         output: errorMsg,
         notes: 'The output directory could not be written to. If using NFS, check that the mount is healthy (not stale). See Youtarr docs for NFS mount recommendations.',
       });
+      reportJobFailureToRun(runId, jobId, jobType, errorMsg, skipJobTransition);
 
       MessageEmitter.emitMessage(
         'broadcast',
@@ -219,7 +235,7 @@ class DownloadExecutor {
         postProcessDirectives,
       });
 
-      const proc = spawn('yt-dlp', args, { env: procEnv });
+      const proc = spawnYtDlp(args, { env: procEnv });
 
       // Store process reference for manual termination
       this.currentProcess = proc;
@@ -232,8 +248,8 @@ class DownloadExecutor {
       });
       timeoutController.start(proc);
 
-      // Node may emit both 'error' and 'exit' for the same process (e.g. a
-      // failed kill() emits 'error' while the process runs on and exits
+      // Node may emit both 'error' and 'close' for the same process (e.g. a
+      // failed kill() emits 'error' while the process runs on and closes
       // later). Whichever handler runs first owns finalization; the other
       // must not run, or the job gets finalized twice and startNextJob can
       // launch a second concurrent download.
@@ -251,13 +267,19 @@ class DownloadExecutor {
         },
       });
 
+      const cookiesEnabled =
+        postProcessDirectives.cookiesEnabled ??
+        Boolean(configModule.getCookiesPath());
+      const anonymousRetry = postProcessDirectives.anonymousRetry === true;
+
       const router = new YtdlpOutputRouter({
         jobId,
         config,
         monitor,
         errorTracker,
         timeoutController,
-        cookiesEnabled: Boolean(configModule.getCookiesPath()),
+        cookiesEnabled,
+        anonymousRetry,
         heartbeatIntervalMs: this.progressHeartbeatMs,
       });
 
@@ -280,17 +302,33 @@ class DownloadExecutor {
       proc.stdout.on('data', (chunk) => router.handleStdoutChunk(chunk));
       proc.stderr.on('data', (data) => router.handleStderrChunk(data));
 
-      proc.on('exit', async (code, signal) => {
+      // Armed on 'exit'; fires finalizeRun if 'close' never arrives.
+      let drainTimer = null;
+      const clearDrainTimer = () => {
+        if (drainTimer) {
+          clearTimeout(drainTimer);
+          drainTimer = null;
+        }
+      };
+
+      const stopRunTimers = () => {
+        timeoutController.stop();
+        if (this.forceKillTimeout) {
+          clearTimeout(this.forceKillTimeout);
+          this.forceKillTimeout = null;
+        }
+      };
+
+      // Runs once, from 'close' or the drain timeout. finalized is set before
+      // any await so a late 'close', 'exit', or 'error' can't finalize again.
+      const finalizeRun = async (code, signal, stdioClosed) => {
         if (finalized) return;
         finalized = true;
+        clearDrainTimer();
         try {
-          timeoutController.stop();
+          stopRunTimers();
 
-          if (this.forceKillTimeout) {
-            clearTimeout(this.forceKillTimeout);
-            this.forceKillTimeout = null;
-          }
-
+          // Flushes the stderr remainder, then ignores later output.
           router.dispose();
 
           // Check for manual termination before clearing references
@@ -320,6 +358,9 @@ class DownloadExecutor {
             tempChannelsFile: this.tempChannelsFile,
             onTempChannelsFileCleaned: () => { this.tempChannelsFile = null; },
             enqueueAutoRetry: this.enqueueAutoRetry,
+            cookiesEnabled,
+            anonymousRetry,
+            stdioClosed,
           });
           resolve();
         } catch (err) {
@@ -340,17 +381,30 @@ class DownloadExecutor {
           // Resolve, not reject: the outer .catch would double-update the job.
           resolve();
         }
+      };
+
+      proc.on('exit', (code, signal) => {
+        if (finalized) return;
+        stopRunTimers();
+        clearDrainTimer();
+        drainTimer = setTimeout(() => {
+          logger.warn(
+            { jobId, code, signal },
+            'yt-dlp stdio did not close after exit; finalizing without waiting for remaining output'
+          );
+          finalizeRun(code, signal, false);
+        }, this.stdioDrainTimeoutMs);
+      });
+
+      proc.on('close', (code, signal) => {
+        finalizeRun(code, signal, true);
       });
 
       proc.on('error', async (err) => {
         if (finalized) return;
         finalized = true;
-        timeoutController.stop();
-
-        if (this.forceKillTimeout) {
-          clearTimeout(this.forceKillTimeout);
-          this.forceKillTimeout = null;
-        }
+        clearDrainTimer();
+        stopRunTimers();
 
         router.dispose();
 
@@ -382,6 +436,7 @@ class DownloadExecutor {
       }).catch((err) => {
         logger.error({ err, jobId }, 'Failed to mark job as errored after process error');
       });
+      reportJobFailureToRun(runId, jobId, jobType, 'Download process error: ' + error.message, skipJobTransition);
 
       if (!skipJobTransition) {
         jobModule.startNextJob().catch(err => {

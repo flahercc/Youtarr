@@ -2,9 +2,10 @@ import React from 'react';
 import { CheckCircle as CheckCircleIcon, CloudOff as CloudOffIcon, Lock as LockIcon, NewReleases as NewReleasesIcon, Schedule as ScheduleIcon, VideoLibrary as VideoLibraryIcon, Block as BlockIcon } from '../lib/icons';
 import { ChannelVideo } from '../types/ChannelVideo';
 
-export type VideoStatus = 'never_downloaded' | 'downloaded' | 'missing' | 'members_only' | 'ignored';
+export type VideoStatus = 'never_downloaded' | 'downloaded' | 'missing' | 'members_only' | 'ignored' | 'queued' | 'downloading';
 
 export const getVideoStatus = (video: ChannelVideo): VideoStatus => {
+  if (video.activity) return video.activity;
   if (video.ignored) {
     return 'ignored';
   }
@@ -22,6 +23,9 @@ export const getVideoStatus = (video: ChannelVideo): VideoStatus => {
 
 export const getStatusColor = (status: VideoStatus) => {
   switch (status) {
+    case 'queued':
+    case 'downloading':
+      return 'info';
     case 'downloaded':
       return 'success';
     case 'missing':
@@ -39,6 +43,10 @@ export const getStatusColor = (status: VideoStatus) => {
 
 export const getStatusIcon = (status: VideoStatus) => {
   switch (status) {
+    case 'queued':
+      return <ScheduleIcon size={16} />;
+    case 'downloading':
+      return <ScheduleIcon size={16} className="animate-pulse motion-reduce:animate-none" />;
     case 'downloaded':
       return <CheckCircleIcon size={16} data-testid="CheckCircleIcon" />;
     case 'missing':
@@ -54,6 +62,10 @@ export const getStatusIcon = (status: VideoStatus) => {
 
 export const getStatusLabel = (status: VideoStatus) => {
   switch (status) {
+    case 'queued':
+      return 'Queued…';
+    case 'downloading':
+      return 'Downloading…';
     case 'downloaded':
       return 'Downloaded';
     case 'missing':
@@ -79,6 +91,9 @@ export const getStatusChipVariant = (status: VideoStatus): 'filled' | 'outlined'
 
 export const getStatusChipStyle = (status: VideoStatus): React.CSSProperties => {
   switch (status) {
+    case 'queued':
+    case 'downloading':
+      return { backgroundColor: 'transparent', color: 'var(--info)' };
     case 'downloaded':
       return {
         backgroundColor: 'var(--success)',

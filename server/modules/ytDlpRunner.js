@@ -1,4 +1,4 @@
-const { spawn } = require('child_process');
+const { spawnYtDlp } = require('./ytdlpProcess');
 const path = require('path');
 const fs = require('fs');
 const tempPathManager = require('./download/tempPathManager');
@@ -56,7 +56,7 @@ class YtDlpRunner {
         return;
       }
 
-      const ytDlpProcess = spawn('yt-dlp', args, {
+      const ytDlpProcess = spawnYtDlp(args, {
         shell: false,
         timeout: timeoutMs,
         env: {

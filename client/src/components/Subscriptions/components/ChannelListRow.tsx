@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import {
   Avatar,
   Chip,
@@ -7,7 +8,7 @@ import {
   Typography,
   Divider,
 } from '../../ui';
-import { Delete as DeleteIcon } from '../../../lib/icons';
+import { Delete as DeleteIcon, Edit as EditIcon } from '../../../lib/icons';
 import { Channel } from '../../../types/Channel';
 import { SubFolderChip, QualityChip, AutoDownloadChips, DurationFilterChip, TitleFilterChip, DownloadFormatConfigIndicator, TerminatedChip, ProtectedChip } from './chips';
 import RatingBadge from '../../shared/RatingBadge';
@@ -16,10 +17,11 @@ interface ChannelListRowProps {
   channel: Channel;
   isMobile: boolean;
   globalPreferredResolution: string;
-  onNavigate: () => void;
   onDelete: () => void;
   onRegexClick: (event: React.MouseEvent<HTMLElement>, regex: string) => void;
   isPendingAddition?: boolean;
+  /** Opens the Add Channel dialog for a pending addition. */
+  onEditPending?: () => void;
   rowIndex?: number;
 }
 
@@ -29,10 +31,10 @@ const ChannelListRow: React.FC<ChannelListRowProps> = ({
   channel,
   isMobile,
   globalPreferredResolution,
-  onNavigate,
   onDelete,
   onRegexClick,
   isPendingAddition,
+  onEditPending,
   rowIndex,
 }) => {
   const [thumbnailVisible, setThumbnailVisible] = useState(true);
@@ -42,51 +44,76 @@ const ChannelListRow: React.FC<ChannelListRowProps> = ({
     ? `/images/channelthumb-${channel.channel_id}.jpg`
     : '/images/channelthumb-default.jpg';
 
-  const renderChannelHeader = () => (
-    <div
-      style={{
+  const canNavigate = Boolean(channel.channel_id) && !isPendingAddition;
+
+  const renderChannelHeader = () => {
+    const headerProps = {
+      className: 'rounded-[var(--radius-ui)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+      style: {
         display: 'flex',
         alignItems: 'center',
         gap: 16,
-        cursor: isPendingAddition ? 'not-allowed' : 'pointer',
+        cursor: isPendingAddition ? 'not-allowed' : canNavigate ? 'pointer' : 'default',
+        color: 'inherit',
+        textDecoration: 'none',
         minWidth: 0,
         flex: 1,
-      }}
-      onClick={isPendingAddition ? undefined : onNavigate}
-      data-testid={`channel-list-row-${channel.channel_id || channel.url}`}
-    >
-      {thumbnailVisible && (
-        <Avatar
-          src={thumbnailSrc}
-          alt={`${channel.uploader} thumbnail`}
-          style={{ width: 56, height: 56, flexShrink: 0 }}
-          imgProps={{ onError: () => setThumbnailVisible(false) }}
-        />
-      )}
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, gap: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexWrap: 'wrap' }}>
-            <Typography variant={isMobile ? 'h6' : 'h5'} noWrap style={{ minWidth: 0 }}>
-              {channel.uploader || 'Unknown Channel'}
-            </Typography>
-            <TerminatedChip terminatedAt={channel.terminated_at} />
+      },
+      'data-testid': `channel-list-row-${channel.channel_id || channel.url}`,
+    };
+    const content = (
+      <>
+        {thumbnailVisible && (
+          <Avatar
+            src={thumbnailSrc}
+            alt={`${channel.uploader} thumbnail`}
+            style={{ width: 56, height: 56, flexShrink: 0 }}
+            imgProps={{ onError: () => setThumbnailVisible(false) }}
+          />
+        )}
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, gap: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexWrap: 'wrap' }}>
+              <Typography variant={isMobile ? 'h6' : 'h5'} noWrap style={{ minWidth: 0 }}>
+                {channel.uploader || 'Unknown Channel'}
+              </Typography>
+              <TerminatedChip terminatedAt={channel.terminated_at} />
+            </div>
+            {/* On mobile we show folder and quality chips right under the channel name */}
+            {isMobile && (
+              <div style={{ marginTop: 2, display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+                <QualityChip videoQuality={channel.video_quality} globalPreferredResolution={globalPreferredResolution} />
+                <SubFolderChip subFolder={channel.sub_folder} />
+                <RatingBadge rating={channel.default_rating} />
+                <ProtectedChip
+                  autoRemovalProtected={channel.auto_removal_protected}
+                  keepRecentCount={channel.auto_removal_keep_recent_count}
+                />
+              </div>)}
           </div>
-          {/* On mobile we show folder and quality chips right under the channel name */}
-          {isMobile && (
-            <div style={{ marginTop: 2, display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-              <QualityChip videoQuality={channel.video_quality} globalPreferredResolution={globalPreferredResolution} />
-              <SubFolderChip subFolder={channel.sub_folder} />
-              <RatingBadge rating={channel.default_rating} />
-              <ProtectedChip
-                autoRemovalProtected={channel.auto_removal_protected}
-                keepRecentCount={channel.auto_removal_keep_recent_count}
-              />
-            </div>)}
+          {isPendingAddition && <Chip label="Pending addition" size="small" color="warning" style={{ marginTop: 4 }} />}
         </div>
-        {isPendingAddition && <Chip label="Pending addition" size="small" color="warning" style={{ marginTop: 4 }} />}
-      </div>
-    </div>
-  );
+      </>
+    );
+
+    return canNavigate ? (
+      <RouterLink to={`/channel/${channel.channel_id}`} {...headerProps}>{content}</RouterLink>
+    ) : (
+      <div {...headerProps} aria-disabled={isPendingAddition || undefined}>{content}</div>
+    );
+  };
+
+  const renderEditPendingButton = () => (isPendingAddition && onEditPending ? (
+    <Tooltip title="Edit settings">
+      <button
+        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', display: 'inline-flex', alignItems: 'center', padding: 4, flexShrink: 0 }}
+        onClick={onEditPending}
+        aria-label="Edit pending channel settings"
+      >
+        <EditIcon size={20} />
+      </button>
+    </Tooltip>
+  ) : null);
 
   const zebraBackground = typeof rowIndex === 'number' && rowIndex % 2 === 1 ? 'var(--muted)' : undefined;
 
@@ -106,6 +133,7 @@ const ChannelListRow: React.FC<ChannelListRowProps> = ({
       >
         <div style={{ display: 'flex', width: '100%', gap: 8, alignItems: 'flex-start', minWidth: 0 }}>
           {renderChannelHeader()}
+          {renderEditPendingButton()}
           <Tooltip title="Remove channel">
             <button
               style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--destructive)', display: 'inline-flex', alignItems: 'center', padding: 4, flexShrink: 0 }}
@@ -122,6 +150,7 @@ const ChannelListRow: React.FC<ChannelListRowProps> = ({
             availableTabs={channel.available_tabs}
             autoDownloadTabs={channel.auto_download_enabled_tabs}
             isMobile={isMobile}
+            tabStats={channel.tab_download_stats}
           />
           {hasFilters && (
             <Divider
@@ -207,6 +236,7 @@ const ChannelListRow: React.FC<ChannelListRowProps> = ({
             availableTabs={channel.available_tabs}
             autoDownloadTabs={channel.auto_download_enabled_tabs}
             isMobile={isMobile}
+            tabStats={channel.tab_download_stats}
           />
         </div>
 
@@ -225,6 +255,7 @@ const ChannelListRow: React.FC<ChannelListRowProps> = ({
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          {renderEditPendingButton()}
           <Tooltip title="Remove channel">
             <button
               style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--destructive)', display: 'inline-flex', alignItems: 'center', padding: 4 }}

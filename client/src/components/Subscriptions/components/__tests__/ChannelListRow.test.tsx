@@ -1,3 +1,4 @@
+import { useLocation } from 'react-router-dom';
 import React from 'react';
 import { act } from 'react-dom/test-utils';
 import { screen } from '@testing-library/react';
@@ -5,7 +6,15 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import ChannelListRow from '../ChannelListRow';
 import { Channel } from '../../../../types/Channel';
-import { renderWithProviders } from '../../../../test-utils';
+import { renderWithProviders as renderWithBaseProviders } from '../../../../test-utils';
+
+function CurrentPath() {
+  return <output data-testid="current-path">{useLocation().pathname}</output>;
+}
+
+function renderWithProviders(ui: React.ReactElement) {
+  return renderWithBaseProviders(<>{ui}<CurrentPath /></>);
+}
 
 jest.mock('../chips', () => ({
   QualityChip: function MockQualityChip({ videoQuality, globalPreferredResolution }: any) {
@@ -30,7 +39,7 @@ jest.mock('../chips', () => ({
       subFolder || 'Default Folder'
     );
   },
-  AutoDownloadChips: function MockAutoDownloadChips({ availableTabs, autoDownloadTabs }: any) {
+  AutoDownloadChips: function MockAutoDownloadChips({ availableTabs, autoDownloadTabs, tabStats }: any) {
     const React = require('react');
     return React.createElement(
       'div',
@@ -38,6 +47,7 @@ jest.mock('../chips', () => ({
         'data-testid': 'auto-download-chips',
         'data-available': availableTabs,
         'data-enabled': autoDownloadTabs,
+        'data-videos-percent': tabStats?.videos?.percent,
       },
       'Auto'
     );
@@ -123,7 +133,6 @@ describe('ChannelListRow', () => {
     channel: mockChannel,
     isMobile: false,
     globalPreferredResolution: '1080',
-    onNavigate: jest.fn(),
     onDelete: jest.fn(),
     onRegexClick: jest.fn(),
     isPendingAddition: false,
@@ -142,6 +151,16 @@ describe('ChannelListRow', () => {
       expect(screen.getByTestId('quality-chip')).toHaveAttribute('data-quality', '1080');
       expect(screen.getByTestId('auto-download-chips')).toHaveAttribute('data-enabled', 'video');
       expect(screen.getByTestId('sub-folder-chip')).toHaveTextContent('Default Folder');
+    });
+
+    test('passes the tab download stats to the auto-download chips', () => {
+      const channelWithStats = {
+        ...mockChannel,
+        tab_download_stats: { videos: { total: 449, fetchedAt: null, downloaded: 120, ignored: 0, percent: 26 } },
+      };
+      renderWithProviders(<ChannelListRow {...defaultProps} channel={channelWithStats} />);
+
+      expect(screen.getByTestId('auto-download-chips')).toHaveAttribute('data-videos-percent', '26');
     });
 
     test('uses channel url in test id and default thumbnail when channel_id is missing', () => {
@@ -188,33 +207,47 @@ describe('ChannelListRow', () => {
   });
 
   describe('Interactions', () => {
-    test('calls onNavigate when header is clicked on desktop', async () => {
+    test('navigates to the channel when the header is clicked on desktop', async () => {
       const user = userEvent.setup();
-      const onNavigate = jest.fn();
 
-      renderWithProviders(<ChannelListRow {...defaultProps} onNavigate={onNavigate} />);
+      renderWithProviders(<ChannelListRow {...defaultProps} />);
 
       await user.click(screen.getByTestId('channel-list-row-UC1234567890'));
 
-      expect(onNavigate).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId('current-path')).toHaveTextContent('/channel/UC1234567890');
     });
 
     test('does not navigate and shows pending chip when addition is pending', async () => {
       const user = userEvent.setup();
-      const onNavigate = jest.fn();
 
       renderWithProviders(
         <ChannelListRow
           {...defaultProps}
-          onNavigate={onNavigate}
           isPendingAddition={true}
         />
       );
 
       await user.click(screen.getByTestId('channel-list-row-UC1234567890'));
 
-      expect(onNavigate).not.toHaveBeenCalled();
+      expect(screen.getByTestId('current-path')).toHaveTextContent(/^\/$/);
       expect(screen.getByText('Pending addition')).toBeInTheDocument();
+    });
+
+    test('opens the settings of a pending addition from its edit button', async () => {
+      const user = userEvent.setup();
+      const onEditPending = jest.fn();
+
+      renderWithProviders(<ChannelListRow {...defaultProps} isPendingAddition onEditPending={onEditPending} />);
+
+      await user.click(screen.getByRole('button', { name: 'Edit pending channel settings' }));
+
+      expect(onEditPending).toHaveBeenCalledTimes(1);
+    });
+
+    test('shows no edit button for a saved channel', () => {
+      renderWithProviders(<ChannelListRow {...defaultProps} onEditPending={jest.fn()} />);
+
+      expect(screen.queryByRole('button', { name: 'Edit pending channel settings' })).not.toBeInTheDocument();
     });
 
     test('calls onDelete when delete button is clicked', async () => {

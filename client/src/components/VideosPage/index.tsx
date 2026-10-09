@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useVideoActivity } from '../../providers/VideoActivityProvider';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { useSwipeable } from 'react-swipeable';
@@ -111,6 +112,7 @@ function VideosPage({ token }: VideosPageProps) {
   const navigate = useNavigate();
   const [downloadDialogOpen, setDownloadDialogOpen] = useState(false);
   const { triggerDownloads } = useTriggerDownloads(token);
+  const { snapshot } = useVideoActivity();
 
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
@@ -277,7 +279,7 @@ function VideosPage({ token }: VideosPageProps) {
         disabled: (ids) =>
           !ids.some((id) => {
             const meta = videoMetaRef.current.get(id);
-            return Boolean(meta && !meta.youtubeRemoved);
+            return Boolean(meta && !meta.youtubeRemoved && !snapshot.videos[meta.youtubeId]?.state);
           }),
         onClick: () => setDownloadDialogOpen(true),
       },
@@ -302,7 +304,7 @@ function VideosPage({ token }: VideosPageProps) {
         onClick: () => setDeleteDialogOpen(true),
       },
     ],
-    [deleteLoading]
+    [deleteLoading, snapshot]
   );
 
   const selection = useVideoSelection<number>({ actions: selectionActions });
@@ -342,7 +344,7 @@ function VideosPage({ token }: VideosPageProps) {
     let unavailable = 0;
     for (const id of selection.selectedIds) {
       const meta = videoMetaRef.current.get(id);
-      if (!meta) continue;
+      if (!meta || snapshot.videos[meta.youtubeId]?.state) continue;
       if (meta.youtubeRemoved) {
         unavailable += 1;
       } else if (meta.removed) {
@@ -377,7 +379,7 @@ function VideosPage({ token }: VideosPageProps) {
     setDownloadDialogOpen(false);
     const eligible = selection.selectedIds
       .map((id) => videoMetaRef.current.get(id))
-      .filter((meta): meta is VideoSelectionMeta => Boolean(meta && !meta.youtubeRemoved));
+      .filter((meta): meta is VideoSelectionMeta => Boolean(meta && !meta.youtubeRemoved && !snapshot.videos[meta.youtubeId]?.state));
     if (eligible.length === 0) return;
 
     const urls = eligible.map((meta) => `https://www.youtube.com/watch?v=${meta.youtubeId}`);
@@ -399,6 +401,7 @@ function VideosPage({ token }: VideosPageProps) {
       : undefined;
 
     const success = await triggerDownloads({ urls, overrideSettings, videoChannelMap });
+    if (success === null) return;
     if (!success) {
       setErrorMessage('Failed to queue selected videos for download. Please try again.');
       return;

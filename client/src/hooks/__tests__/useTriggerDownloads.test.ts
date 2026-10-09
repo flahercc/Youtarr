@@ -19,10 +19,24 @@ describe('useTriggerDownloads', () => {
     consoleErrorSpy.mockRestore();
   });
 
+  test('ignores an overlapping submission without reporting failure', async () => {
+    let resolve!: (value: { ok: boolean }) => void;
+    mockFetch.mockImplementationOnce(() => new Promise(done => { resolve = done; }));
+    const { result } = renderHook(() => useTriggerDownloads(token));
+    let first!: Promise<boolean | null>;
+    act(() => { first = result.current.triggerDownloads({ urls: ['https://youtu.be/x'] }); });
+    await act(async () => {
+      expect(await result.current.triggerDownloads({ urls: ['https://youtu.be/y'] })).toBeNull();
+    });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(result.current.error).toBeNull();
+    await act(async () => { resolve({ ok: true }); await first; });
+  });
+
   test('returns false and sets error when token is null', async () => {
     const { result } = renderHook(() => useTriggerDownloads(null));
 
-    let returned: boolean | undefined;
+    let returned: boolean | null | undefined;
     await act(async () => {
       returned = await result.current.triggerDownloads({ urls: ['https://youtu.be/x'] });
     });
@@ -36,7 +50,7 @@ describe('useTriggerDownloads', () => {
     mockFetch.mockResolvedValueOnce({ ok: true });
     const { result } = renderHook(() => useTriggerDownloads(token));
 
-    let returned: boolean | undefined;
+    let returned: boolean | null | undefined;
     await act(async () => {
       returned = await result.current.triggerDownloads({ urls: ['https://youtu.be/x'] });
     });
@@ -131,7 +145,7 @@ describe('useTriggerDownloads', () => {
     mockFetch.mockResolvedValueOnce({ ok: false, statusText: 'Bad Request' });
     const { result } = renderHook(() => useTriggerDownloads(token));
 
-    let returned: boolean | undefined;
+    let returned: boolean | null | undefined;
     await act(async () => {
       returned = await result.current.triggerDownloads({ urls: ['https://youtu.be/x'] });
     });
@@ -145,7 +159,7 @@ describe('useTriggerDownloads', () => {
     mockFetch.mockRejectedValueOnce(networkErr);
     const { result } = renderHook(() => useTriggerDownloads(token));
 
-    let returned: boolean | undefined;
+    let returned: boolean | null | undefined;
     await act(async () => {
       returned = await result.current.triggerDownloads({ urls: ['https://youtu.be/x'] });
     });
@@ -176,7 +190,7 @@ describe('useTriggerDownloads', () => {
 
     const { result } = renderHook(() => useTriggerDownloads(token));
 
-    let promise!: Promise<boolean>;
+    let promise!: Promise<boolean | null>;
     act(() => {
       promise = result.current.triggerDownloads({ urls: ['https://youtu.be/x'] });
     });

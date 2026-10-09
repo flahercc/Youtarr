@@ -13,6 +13,7 @@ describe('VideosModule', () => {
   let mockNfoGenerator;
   let mockMessageEmitter;
   let mockM3uGenerator;
+  let mockScheduledTaskRuns;
   let mockExecFile;
 
   beforeEach(() => {
@@ -22,6 +23,7 @@ describe('VideosModule', () => {
     mockVideo = {
       count: jest.fn(),
       findAll: jest.fn(),
+      aggregate: jest.fn(),
       update: jest.fn().mockResolvedValue([0]),
       findByPk: jest.fn().mockResolvedValue(null)
     };
@@ -34,14 +36,18 @@ describe('VideosModule', () => {
     mockWatchStatusQueries = {
       getWatchedByMap: jest.fn().mockResolvedValue(new Map()),
       buildWatchedExistsSql: jest.fn().mockReturnValue({
-        sql: 'EXISTS (SELECT 1 FROM video_watch_status vws WHERE vws.video_id = Videos.id AND vws.played = 1)',
+        sql: 'EXISTS (SELECT 1 FROM video_watch_status vws WHERE vws.video_id = videos.id AND vws.played = 1)',
         replacements: {}
       })
     };
 
     // Mock the sequelize instance
     mockSequelize = {
-      query: jest.fn()
+      query: jest.fn(),
+      dialect: {},
+      col: jest.fn((name) => name),
+      fn: jest.fn((...args) => ['fn', args]),
+      literal: jest.fn((sql) => sql),
     };
 
     // Mock fs promises
@@ -95,7 +101,9 @@ describe('VideosModule', () => {
 
     // Mock the models
     jest.doMock('../../models', () => ({
-      Video: mockVideo
+      Video: mockVideo,
+      Job: { _name: 'Job' },
+      JobVideo: { _name: 'JobVideo' },
     }));
 
     // Mock the watch status query module (owns the watchedBy aggregation)
@@ -126,6 +134,9 @@ describe('VideosModule', () => {
     jest.doMock('../messageEmitter', () => mockMessageEmitter);
 
     jest.doMock('../m3uGenerator', () => mockM3uGenerator);
+
+    mockScheduledTaskRuns = { record: jest.fn().mockResolvedValue(undefined) };
+    jest.doMock('../scheduledTaskRuns', () => mockScheduledTaskRuns);
 
     // Mock logger
     jest.doMock('../../logger', () => mockLogger);
@@ -188,11 +199,9 @@ describe('VideosModule', () => {
       ];
 
       // Mock count query
-      mockSequelize.query.mockResolvedValueOnce([{ total: 2 }]);
-      // Mock videos query
-      mockSequelize.query.mockResolvedValueOnce(mockVideos);
-      // Mock getAllUniqueChannels query
-      mockSequelize.query.mockResolvedValueOnce([]);
+      mockVideo.count.mockResolvedValue(2);
+      mockVideo.findAll.mockResolvedValue(mockVideos);
+      mockVideo.aggregate.mockResolvedValue([]);
 
       // Mock file stat checks for both videos
       mockFs.stat.mockResolvedValueOnce({ size: 1000 });
@@ -209,11 +218,12 @@ describe('VideosModule', () => {
         totalPages: 1
       });
       // Count query + videos query + getAllUniqueChannels query + no update queries needed
-      expect(mockSequelize.query).toHaveBeenCalledTimes(3);
-      // First call should be count query
-      expect(mockSequelize.query.mock.calls[0][0]).toContain('COUNT');
-      // Second call should be videos query
-      expect(mockSequelize.query.mock.calls[1][0]).toContain('SELECT');
+      expect(mockVideo.count).toHaveBeenCalledTimes(1);
+      expect(mockVideo.count).toHaveBeenCalledWith(expect.objectContaining({
+        distinct: true,
+      }));
+      expect(mockVideo.findAll).toHaveBeenCalledTimes(1);
+      expect(mockVideo.aggregate).toHaveBeenCalledTimes(1);
       expect(mockVideoValidationModule.checkVideoExistsOnYoutube).toHaveBeenCalledTimes(2);
       expect(mockVideo.update).toHaveBeenCalledTimes(1);
       expect(mockVideo.update).toHaveBeenCalledWith(
@@ -223,91 +233,92 @@ describe('VideosModule', () => {
     });
 
     test('should execute the correct SQL query', async () => {
-      mockSequelize.query.mockResolvedValueOnce([{ total: 0 }]);
-      mockSequelize.query.mockResolvedValueOnce([]);
-      mockSequelize.query.mockResolvedValueOnce([]); // getAllUniqueChannels
+      const { JobVideo, Job } = require('../../models');
+
+      mockVideo.count.mockResolvedValue(0);
+      mockVideo.findAll.mockResolvedValue([]);
+      mockVideo.aggregate.mockResolvedValue([]);
+      mockSequelize.fn.mockImplementation((...args) => ['fn', ...args]);
 
       await VideosModule.getVideosPaginated();
 
-      const sqlQuery = mockSequelize.query.mock.calls[1][0];
-
-      // Verify the query contains all expected columns
-      expect(sqlQuery).toContain('Videos.id');
-      expect(sqlQuery).toContain('Videos.youtubeId');
-      expect(sqlQuery).toContain('Videos.youTubeChannelName');
-      expect(sqlQuery).toContain('Videos.youTubeVideoName');
-      expect(sqlQuery).toContain('Videos.duration');
-      expect(sqlQuery).toContain('Videos.originalDate');
-      expect(sqlQuery).toContain('Videos.description');
-      expect(sqlQuery).toContain('Videos.channel_id');
-      expect(sqlQuery).toContain('Videos.filePath');
-      expect(sqlQuery).toContain('Videos.fileSize');
-      expect(sqlQuery).toContain('Videos.removed');
-      expect(sqlQuery).toContain('Videos.youtube_removed');
-      // Feeds the 24h existence-check throttle; without it every page load
-      // fires a YouTube oembed check per video.
-      expect(sqlQuery).toContain('Videos.youtube_removed_checked_at');
-      expect(sqlQuery).toContain('Videos.media_type');
-      expect(sqlQuery).toContain('Videos.video_resolution');
-      expect(sqlQuery).toContain('COALESCE(Videos.last_downloaded_at, Jobs.timeCreated, STR_TO_DATE(Videos.originalDate, \'%Y%m%d\')) AS timeCreated');
-
-      // Verify the JOINs
-      expect(sqlQuery).toContain('LEFT JOIN');
-      expect(sqlQuery).toContain('JobVideos ON Videos.id = JobVideos.video_id');
-      expect(sqlQuery).toContain('Jobs ON Jobs.id = JobVideos.job_id');
-
-      // Verify the ORDER BY clause
-      expect(sqlQuery).toContain('ORDER BY');
-      expect(sqlQuery).toContain('COALESCE(Videos.last_downloaded_at, Jobs.timeCreated, STR_TO_DATE(Videos.originalDate, \'%Y%m%d\')) DESC');
-
-      // Verify the LIMIT and OFFSET
-      expect(sqlQuery).toContain('LIMIT :limit OFFSET :offset');
+      expect(mockVideo.findAll).toHaveBeenCalledWith({
+        attributes: {
+          include: [
+            [
+              mockSequelize.fn(
+                'COALESCE',
+                mockSequelize.col('Video.last_downloaded_at'),
+                mockSequelize.col('jobVideos->job.time_created'),
+                mockSequelize.fn('STR_TO_DATE', mockSequelize.col('Video.original_date'), '%Y%m%d'),
+              ),
+              'timeCreated',
+            ],
+          ],
+        },
+        include: [{
+          model: JobVideo,
+          as: 'jobVideos',
+          attributes: [],
+          include: [{
+            model: Job,
+            as: 'job',
+            attributes: [],
+          }],
+        }],
+        where: {},
+        order: [['timeCreated', 'DESC']],
+        limit: 12,
+        offset: 0,
+        subQuery: false,
+        raw: true,
+      });
     });
 
-    test('should pass correct query options to sequelize', async () => {
-      mockSequelize.query.mockResolvedValueOnce([{ total: 0 }]);
-      mockSequelize.query.mockResolvedValueOnce([]);
-      mockSequelize.query.mockResolvedValueOnce([]); // getAllUniqueChannels
+    test('should execute the correct SQL query for channel names', async () => {
+      mockVideo.count.mockResolvedValue(0);
+      mockVideo.findAll.mockResolvedValue([]);
+      mockVideo.aggregate.mockResolvedValue([]);
 
       await VideosModule.getVideosPaginated();
 
-      const queryOptions = mockSequelize.query.mock.calls[1][1];
-
-      expect(queryOptions.type).toBe(Sequelize.QueryTypes.SELECT);
-      expect(queryOptions.model).toBe(mockVideo);
-      expect(queryOptions.mapToModel).toBe(true);
-      expect(queryOptions.raw).toBe(true);
-      expect(queryOptions.replacements).toBeDefined();
-      expect(queryOptions.replacements.limit).toBe(12); // default limit
-      expect(queryOptions.replacements.offset).toBe(0); // default offset
+      expect(mockVideo.aggregate).toHaveBeenCalledWith('youTubeChannelName', 'distinct', expect.objectContaining({
+        where: {
+          youTubeChannelName: {
+            [Sequelize.Op.not]: null,
+          },
+        },
+      }));
     });
 
     test('should return empty array when no videos found', async () => {
-      mockSequelize.query.mockResolvedValueOnce([{ total: 0 }]);
-      mockSequelize.query.mockResolvedValueOnce([]);
-      mockSequelize.query.mockResolvedValueOnce([]); // getAllUniqueChannels
+      mockVideo.count.mockResolvedValue(0);
+      mockVideo.findAll.mockResolvedValue([]);
+      mockVideo.aggregate.mockResolvedValue([]);
 
       const result = await VideosModule.getVideosPaginated();
 
       expect(result.videos).toEqual([]);
       expect(result.total).toBe(0);
       expect(result.totalPages).toBe(0);
-      expect(mockSequelize.query).toHaveBeenCalledTimes(3);
+      expect(mockVideo.count).toHaveBeenCalledTimes(1);
+      expect(mockVideo.findAll).toHaveBeenCalledTimes(1);
+      expect(mockVideo.aggregate).toHaveBeenCalledTimes(1);
     });
 
     test('should handle database query errors', async () => {
       const mockError = new Error('Database connection failed');
-      mockSequelize.query.mockRejectedValue(mockError);
+      mockVideo.count.mockRejectedValue(mockError);
 
       await expect(VideosModule.getVideosPaginated()).rejects.toThrow('Database connection failed');
 
       expect(mockLogger.error).toHaveBeenCalledWith({ err: mockError }, 'Error in getVideosPaginated');
-      expect(mockSequelize.query).toHaveBeenCalledTimes(1);
+      expect(mockVideo.count).toHaveBeenCalledTimes(1);
     });
 
     test('should handle sequelize-specific errors', async () => {
-      const sequelizeError = new Error('SequelizeDatabaseError: Table Videos does not exist');
-      mockSequelize.query.mockRejectedValue(sequelizeError);
+      const sequelizeError = new Error('SequelizeDatabaseError: Table videos does not exist');
+      mockVideo.count.mockRejectedValue(sequelizeError);
 
       await expect(VideosModule.getVideosPaginated()).rejects.toThrow('SequelizeDatabaseError');
 
@@ -315,197 +326,267 @@ describe('VideosModule', () => {
     });
 
     test('should handle search filter correctly', async () => {
-      mockSequelize.query.mockResolvedValueOnce([{ total: 1 }]);
-      mockSequelize.query.mockResolvedValueOnce([]);
-      mockSequelize.query.mockResolvedValueOnce([]); // getAllUniqueChannels
+      mockVideo.count.mockResolvedValue(1);
+      mockVideo.findAll.mockResolvedValue([]);
+      mockVideo.aggregate.mockResolvedValue([]);
 
       await VideosModule.getVideosPaginated({ search: 'test video' });
 
-      const countQuery = mockSequelize.query.mock.calls[0][0];
-      const videosQuery = mockSequelize.query.mock.calls[1][0];
-      const replacements = mockSequelize.query.mock.calls[1][1].replacements;
-
-      expect(countQuery).toContain('WHERE');
-      expect(countQuery).toContain('(Videos.youTubeVideoName LIKE :search OR Videos.youTubeChannelName LIKE :search)');
-      expect(videosQuery).toContain('(Videos.youTubeVideoName LIKE :search OR Videos.youTubeChannelName LIKE :search)');
-      expect(replacements.search).toBe('%test video%');
+      expect(mockVideo.findAll).toHaveBeenCalledWith(expect.objectContaining({
+        where: {
+          [Sequelize.Op.and]: [{
+            [Sequelize.Op.or]: [
+              { youTubeVideoName: { [Sequelize.Op.like]: '%test video%' } },
+              { youTubeChannelName: { [Sequelize.Op.like]: '%test video%' } },
+            ],
+          }],
+        },
+      }));
     });
 
     test('should handle pagination parameters correctly', async () => {
-      mockSequelize.query.mockResolvedValueOnce([{ total: 100 }]);
-      mockSequelize.query.mockResolvedValueOnce([]);
-      mockSequelize.query.mockResolvedValueOnce([]); // getAllUniqueChannels
+      mockVideo.count.mockResolvedValue(100);
+      mockVideo.findAll.mockResolvedValue([]);
+      mockVideo.aggregate.mockResolvedValue([]);
 
       await VideosModule.getVideosPaginated({ page: 3, limit: 20 });
 
-      const replacements = mockSequelize.query.mock.calls[1][1].replacements;
-
-      expect(replacements.limit).toBe(20);
-      expect(replacements.offset).toBe(40); // (page 3 - 1) * limit 20 = 40
+      expect(mockVideo.findAll).toHaveBeenCalledWith(expect.objectContaining({
+        limit: 20,
+        offset: 40, // (page 3 - 1) * limit 20 = 40
+      }));
     });
 
     test('should handle sort options correctly', async () => {
       // Test sort by published date ascending
-      mockSequelize.query.mockResolvedValueOnce([{ total: 0 }]);
-      mockSequelize.query.mockResolvedValueOnce([]);
-      mockSequelize.query.mockResolvedValueOnce([]); // getAllUniqueChannels
+      mockVideo.count.mockResolvedValue(0);
+      mockVideo.findAll.mockResolvedValue([]);
+      mockVideo.aggregate.mockResolvedValue([]);
 
       await VideosModule.getVideosPaginated({ sortBy: 'published', sortOrder: 'asc' });
 
-      const query1 = mockSequelize.query.mock.calls[1][0];
-      expect(query1).toContain('ORDER BY Videos.originalDate ASC');
+      expect(mockVideo.findAll).toHaveBeenCalledWith(expect.objectContaining({
+        order: [['originalDate', 'ASC']],
+      }));
 
       jest.clearAllMocks();
 
       // Test default sort (added date descending)
-      mockSequelize.query.mockResolvedValueOnce([{ total: 0 }]);
-      mockSequelize.query.mockResolvedValueOnce([]);
-      mockSequelize.query.mockResolvedValueOnce([]); // getAllUniqueChannels
+      mockVideo.count.mockResolvedValue(0);
+      mockVideo.findAll.mockResolvedValue([]);
+      mockVideo.aggregate.mockResolvedValue([]);
 
       await VideosModule.getVideosPaginated();
 
-      const query2 = mockSequelize.query.mock.calls[1][0];
-      expect(query2).toContain('ORDER BY COALESCE(Videos.last_downloaded_at, Jobs.timeCreated, STR_TO_DATE(Videos.originalDate, \'%Y%m%d\')) DESC');
+      expect(mockVideo.findAll).toHaveBeenCalledWith(expect.objectContaining({
+        order: [['timeCreated', 'DESC']],
+      }));
     });
 
     test('should handle date filters correctly', async () => {
-      mockSequelize.query.mockResolvedValueOnce([{ total: 0 }]);
-      mockSequelize.query.mockResolvedValueOnce([]);
-      mockSequelize.query.mockResolvedValueOnce([]); // getAllUniqueChannels
+      mockVideo.count.mockResolvedValue(0);
+      mockVideo.findAll.mockResolvedValue([]);
+      mockVideo.aggregate.mockResolvedValue([]);
 
       await VideosModule.getVideosPaginated({
         dateFrom: '2024-01-01',
         dateTo: '2024-12-31'
       });
 
-      const query = mockSequelize.query.mock.calls[0][0];
-      const replacements = mockSequelize.query.mock.calls[0][1].replacements;
-
-      expect(query).toContain('Videos.originalDate >= :dateFrom');
-      expect(query).toContain('Videos.originalDate <= :dateTo');
-      expect(replacements.dateFrom).toBe('20240101'); // Dates formatted without dashes
-      expect(replacements.dateTo).toBe('20241231');
+      expect(mockVideo.count).toHaveBeenCalledWith(expect.objectContaining({
+        where: {
+          originalDate: {
+            // Dates formatted without dashes
+            [Sequelize.Op.gte]: '20240101',
+            [Sequelize.Op.lte]: '20241231'
+          },
+        },
+      }));
     });
 
     test('should handle channel filter correctly', async () => {
-      mockSequelize.query.mockResolvedValueOnce([{ total: 5 }]);
-      mockSequelize.query.mockResolvedValueOnce([]);
-      mockSequelize.query.mockResolvedValueOnce([]); // getAllUniqueChannels
+      mockVideo.count.mockResolvedValue(5);
+      mockVideo.findAll.mockResolvedValue([]);
+      mockVideo.aggregate.mockResolvedValue([]);
 
       await VideosModule.getVideosPaginated({ channelFilter: 'Test Channel' });
 
-      const query = mockSequelize.query.mock.calls[0][0];
-      const replacements = mockSequelize.query.mock.calls[0][1].replacements;
-
-      expect(query).toContain('Videos.youTubeChannelName = :channelFilter');
-      expect(replacements.channelFilter).toBe('Test Channel');
+      expect(mockVideo.count).toHaveBeenCalledWith(expect.objectContaining({
+        where: {
+          youTubeChannelName: 'Test Channel',
+        },
+      }));
     });
 
     test('should apply protectedFilter=only to the WHERE clause', async () => {
-      mockSequelize.query.mockResolvedValueOnce([{ total: 0 }]);
-      mockSequelize.query.mockResolvedValueOnce([]);
+      mockVideo.count.mockResolvedValue(0);
+      mockVideo.findAll.mockResolvedValue([]);
       mockSequelize.query.mockResolvedValueOnce([]);
 
       await VideosModule.getVideosPaginated({ protectedFilter: 'only' });
 
-      const query = mockSequelize.query.mock.calls[0][0];
-      expect(query).toContain('Videos.protected = 1');
+      expect(mockVideo.count).toHaveBeenCalledWith(expect.objectContaining({
+        where: {
+          protected: true,
+        },
+      }));
     });
 
     test('should apply protectedFilter=exclude to the WHERE clause', async () => {
-      mockSequelize.query.mockResolvedValueOnce([{ total: 0 }]);
-      mockSequelize.query.mockResolvedValueOnce([]);
+      mockVideo.count.mockResolvedValue(0);
+      mockVideo.findAll.mockResolvedValue([]);
       mockSequelize.query.mockResolvedValueOnce([]);
 
       await VideosModule.getVideosPaginated({ protectedFilter: 'exclude' });
 
-      const query = mockSequelize.query.mock.calls[0][0];
-      expect(query).toContain('Videos.protected = 0');
+      expect(mockVideo.count).toHaveBeenCalledWith(expect.objectContaining({
+        where: {
+          protected: false,
+        },
+      }));
     });
 
     test('should apply missingFilter=only to the WHERE clause', async () => {
-      mockSequelize.query.mockResolvedValueOnce([{ total: 0 }]);
-      mockSequelize.query.mockResolvedValueOnce([]);
+      mockVideo.count.mockResolvedValue(0);
+      mockVideo.findAll.mockResolvedValue([]);
       mockSequelize.query.mockResolvedValueOnce([]);
 
       await VideosModule.getVideosPaginated({ missingFilter: 'only' });
 
-      const query = mockSequelize.query.mock.calls[0][0];
-      expect(query).toContain('Videos.removed = 1');
+      expect(mockVideo.count).toHaveBeenCalledWith(expect.objectContaining({
+        where: {
+          removed: true,
+        },
+      }));
     });
 
     test('should apply missingFilter=exclude to the WHERE clause', async () => {
-      mockSequelize.query.mockResolvedValueOnce([{ total: 0 }]);
-      mockSequelize.query.mockResolvedValueOnce([]);
+      mockVideo.count.mockResolvedValue(0);
+      mockVideo.findAll.mockResolvedValue([]);
       mockSequelize.query.mockResolvedValueOnce([]);
 
       await VideosModule.getVideosPaginated({ missingFilter: 'exclude' });
 
-      const query = mockSequelize.query.mock.calls[0][0];
-      expect(query).toContain('Videos.removed = 0');
+      expect(mockVideo.count).toHaveBeenCalledWith(expect.objectContaining({
+        where: {
+          removed: false,
+        },
+      }));
     });
 
     test('should omit missingFilter from the WHERE clause by default', async () => {
-      mockSequelize.query.mockResolvedValueOnce([{ total: 0 }]);
-      mockSequelize.query.mockResolvedValueOnce([]);
+      mockVideo.count.mockResolvedValue(0);
+      mockVideo.findAll.mockResolvedValue([]);
       mockSequelize.query.mockResolvedValueOnce([]);
 
       await VideosModule.getVideosPaginated();
 
-      const query = mockSequelize.query.mock.calls[0][0];
-      expect(query).not.toContain('Videos.removed');
+      expect(mockVideo.count).toHaveBeenCalledWith(expect.objectContaining({
+        where: {
+          removed: undefined,
+        },
+      }));
     });
 
     test('should apply watchedFilter=only as an EXISTS clause in count and page queries', async () => {
-      mockSequelize.query.mockResolvedValueOnce([{ total: 0 }]);
-      mockSequelize.query.mockResolvedValueOnce([]);
+      mockVideo.count.mockResolvedValue(0);
+      mockVideo.findAll.mockResolvedValue([]);
       mockSequelize.query.mockResolvedValueOnce([]);
 
       await VideosModule.getVideosPaginated({ watchedFilter: 'only' });
 
-      const countQuery = mockSequelize.query.mock.calls[0][0];
-      const pageQuery = mockSequelize.query.mock.calls[1][0];
-      expect(countQuery).toContain('EXISTS (SELECT 1 FROM video_watch_status');
-      expect(countQuery).not.toContain('NOT EXISTS');
-      expect(pageQuery).toContain('EXISTS (SELECT 1 FROM video_watch_status');
-      expect(pageQuery).not.toContain('NOT EXISTS');
+      const countOptions = mockVideo.count.mock.calls[0][0];
+      const pageOptions = mockVideo.findAll.mock.calls[0][0];
+      expect(countOptions.where[Sequelize.Op.and][0]).toContain('EXISTS (SELECT 1 FROM video_watch_status');
+      expect(countOptions.where[Sequelize.Op.and][0]).not.toContain('NOT EXISTS');
+      expect(pageOptions.where[Sequelize.Op.and][0]).toContain('EXISTS (SELECT 1 FROM video_watch_status');
+      expect(pageOptions.where[Sequelize.Op.and][0]).not.toContain('NOT EXISTS');
     });
 
     test('should apply watchedFilter=exclude as a NOT EXISTS clause', async () => {
-      mockSequelize.query.mockResolvedValueOnce([{ total: 0 }]);
-      mockSequelize.query.mockResolvedValueOnce([]);
+      mockVideo.count.mockResolvedValue(0);
+      mockVideo.findAll.mockResolvedValue([]);
       mockSequelize.query.mockResolvedValueOnce([]);
 
       await VideosModule.getVideosPaginated({ watchedFilter: 'exclude' });
 
-      const countQuery = mockSequelize.query.mock.calls[0][0];
-      expect(countQuery).toContain('NOT EXISTS (SELECT 1 FROM video_watch_status');
+      const countOptions = mockVideo.count.mock.calls[0][0];
+      expect(countOptions.where[Sequelize.Op.and][0]).toContain('NOT EXISTS (SELECT 1 FROM video_watch_status');
     });
 
     test('should merge watched-rule replacements into the query replacements', async () => {
       mockWatchStatusQueries.buildWatchedExistsSql.mockReturnValue({
-        sql: 'EXISTS (SELECT 1 FROM video_watch_status vws WHERE vws.video_id = Videos.id AND vws.played = 1 AND vws.server_user_id = :watchedPlexOwnerId)',
-        replacements: { watchedPlexOwnerId: '1' }
+        sql: 'EXISTS (SELECT 1 FROM video_watch_status vws WHERE vws.video_id = videos.id AND vws.played = 1 AND vws.server_user_id = :watchedPlexOwnerId)',
+        replacements: { watchedPlexOwnerId: 42 }
       });
-      mockSequelize.query.mockResolvedValueOnce([{ total: 0 }]);
-      mockSequelize.query.mockResolvedValueOnce([]);
+      mockVideo.count.mockResolvedValue(0);
+      mockVideo.findAll.mockResolvedValue([]);
       mockSequelize.query.mockResolvedValueOnce([]);
 
       await VideosModule.getVideosPaginated({ watchedFilter: 'only' });
 
-      const replacements = mockSequelize.query.mock.calls[0][1].replacements;
-      expect(replacements.watchedPlexOwnerId).toBe('1');
+      expect(mockVideo.count).toHaveBeenCalledWith(expect.objectContaining({
+        where: {
+          [Sequelize.Op.and]: [
+            'EXISTS (SELECT 1 FROM video_watch_status vws WHERE vws.video_id = videos.id AND vws.played = 1 AND vws.server_user_id = 42)',
+          ],
+        },
+      }));
     });
 
-    test('should omit the watched clause by default', async () => {
-      mockSequelize.query.mockResolvedValueOnce([{ total: 0 }]);
+    test('should keep unrated videos and ratings at or below maxRating', async () => {
+      mockVideo.count.mockResolvedValue(0);
+      mockVideo.findAll.mockResolvedValue([]);
       mockSequelize.query.mockResolvedValueOnce([]);
+
+      await VideosModule.getVideosPaginated({ maxRating: 'PG' });
+
+      const ratingClause = mockVideo.count.mock.calls[0][0].where[Sequelize.Op.and][0];
+      const [unrated, rated] = ratingClause[Sequelize.Op.or];
+      expect(unrated).toEqual({ normalized_rating: null });
+      expect([...rated.normalized_rating[Sequelize.Op.in]].sort()).toEqual(['G', 'PG', 'TV-G', 'TV-PG', 'TV-Y', 'TV-Y7']);
+    });
+
+    test('should apply maxRating to the page query as well as the count', async () => {
+      mockVideo.count.mockResolvedValue(0);
+      mockVideo.findAll.mockResolvedValue([]);
+      mockSequelize.query.mockResolvedValueOnce([]);
+
+      await VideosModule.getVideosPaginated({ maxRating: 'R' });
+
+      const pageClause = mockVideo.findAll.mock.calls[0][0].where[Sequelize.Op.and][0];
+      expect(pageClause[Sequelize.Op.or][1].normalized_rating[Sequelize.Op.in]).not.toContain('NC-17');
+    });
+
+    test('should combine maxRating with search', async () => {
+      mockVideo.count.mockResolvedValue(0);
+      mockVideo.findAll.mockResolvedValue([]);
+      mockSequelize.query.mockResolvedValueOnce([]);
+
+      await VideosModule.getVideosPaginated({ search: 'cats', maxRating: 'PG' });
+
+      expect(mockVideo.count.mock.calls[0][0].where[Sequelize.Op.and]).toHaveLength(2);
+    });
+
+    test('should not filter on rating when maxRating is not set', async () => {
+      mockVideo.count.mockResolvedValue(0);
+      mockVideo.findAll.mockResolvedValue([]);
       mockSequelize.query.mockResolvedValueOnce([]);
 
       await VideosModule.getVideosPaginated();
 
-      const countQuery = mockSequelize.query.mock.calls[0][0];
-      expect(countQuery).not.toContain('video_watch_status');
+      expect(mockVideo.count.mock.calls[0][0].where[Sequelize.Op.and]).toBeUndefined();
+    });
+
+    test('should omit the watched clause by default', async () => {
+      mockVideo.count.mockResolvedValue(0);
+      mockVideo.findAll.mockResolvedValue([]);
+      mockSequelize.query.mockResolvedValueOnce([]);
+
+      await VideosModule.getVideosPaginated();
+
+      const countOptions = mockVideo.count.mock.calls[0][0];
+      expect(JSON.stringify(countOptions.where)).not.toContain('video_watch_status');
       expect(mockWatchStatusQueries.buildWatchedExistsSql).not.toHaveBeenCalled();
     });
 
@@ -524,10 +605,10 @@ describe('VideosModule', () => {
         }
       ];
 
-      mockSequelize.query.mockResolvedValueOnce([{ total: 1 }]);
-      mockSequelize.query.mockResolvedValueOnce(mockVideos);
+      mockVideo.count.mockResolvedValue(1);
+      mockVideo.findAll.mockResolvedValue(mockVideos);
       mockSequelize.query.mockResolvedValueOnce(); // Update query
-      mockSequelize.query.mockResolvedValueOnce([]); // getAllUniqueChannels query
+      mockVideo.aggregate.mockResolvedValue([]);
 
       // Mock file exists with different size
       mockFs.stat.mockResolvedValueOnce({ size: 2000 });
@@ -538,10 +619,18 @@ describe('VideosModule', () => {
       expect(result.videos[0].fileSize).toBe('2000');
       expect(result.videos[0].removed).toBe(false);
 
-      // Check update query was called
-      expect(mockSequelize.query).toHaveBeenCalledTimes(4);
-      const updateQuery = mockSequelize.query.mock.calls[2][0];
-      expect(updateQuery).toContain('UPDATE Videos SET');
+      // Check update was called
+      expect(mockVideo.update).toHaveBeenCalledTimes(2);
+      expect(mockVideo.update).toHaveBeenNthCalledWith(
+        1,
+        { fileSize: 2000 },
+        { where: { id: 1 } },
+      );
+      expect(mockVideo.update).toHaveBeenNthCalledWith(
+        2,
+        { youtube_removed_checked_at: result.videos[0].youtube_removed_checked_at },
+        { where: { id: [1] } },
+      );
     });
 
     test('should mark video as removed when file does not exist', async () => {
@@ -559,10 +648,10 @@ describe('VideosModule', () => {
         }
       ];
 
-      mockSequelize.query.mockResolvedValueOnce([{ total: 1 }]);
-      mockSequelize.query.mockResolvedValueOnce(mockVideos);
+      mockVideo.count.mockResolvedValue(1);
+      mockVideo.findAll.mockResolvedValue(mockVideos);
       mockSequelize.query.mockResolvedValueOnce(); // Update query
-      mockSequelize.query.mockResolvedValueOnce([]); // getAllUniqueChannels query
+      mockVideo.aggregate.mockResolvedValue([]);
 
       // Mock file does not exist; fileCheckModule's same-dir fallback will
       // also try .webm/.mkv/.m4v/.avi variants, all of which must ENOENT.
@@ -572,11 +661,18 @@ describe('VideosModule', () => {
 
       expect(result.videos[0].removed).toBe(true);
 
-      // Check update query was called
-      expect(mockSequelize.query).toHaveBeenCalledTimes(4);
-      const updateQuery = mockSequelize.query.mock.calls[2][0];
-      expect(updateQuery).toContain('UPDATE Videos SET');
-      expect(updateQuery).toContain('removed = ?');
+      // Check update was called
+      expect(mockVideo.update).toHaveBeenCalledTimes(2);
+      expect(mockVideo.update).toHaveBeenNthCalledWith(
+        1,
+        { removed: true },
+        { where: { id: 1 } },
+      );
+      expect(mockVideo.update).toHaveBeenNthCalledWith(
+        2,
+        { youtube_removed_checked_at: result.videos[0].youtube_removed_checked_at },
+        { where: { id: [1] } },
+      );
     });
 
     test('should mark video as YouTube removed when validation fails', async () => {
@@ -594,9 +690,9 @@ describe('VideosModule', () => {
         }
       ];
 
-      mockSequelize.query.mockResolvedValueOnce([{ total: 1 }]);
-      mockSequelize.query.mockResolvedValueOnce(mockVideos);
-      mockSequelize.query.mockResolvedValueOnce([]); // getAllUniqueChannels
+      mockVideo.count.mockResolvedValue(1);
+      mockVideo.findAll.mockResolvedValue(mockVideos);
+      mockVideo.aggregate.mockResolvedValue([]);
 
       mockFs.stat.mockResolvedValueOnce({ size: 1000 });
       mockVideoValidationModule.checkVideoExistsOnYoutube.mockResolvedValueOnce(false);
@@ -611,6 +707,52 @@ describe('VideosModule', () => {
       expect(updateOptions).toEqual({ where: { id: [1] } });
       expect(result.videos[0].youtube_removed).toBe(true);
       expect(result.videos[0].youtube_removed_checked_at).toBeInstanceOf(Date);
+    });
+
+    test('should write the same checked-at timestamp it returns', async () => {
+      const RealDate = Date;
+      const base = RealDate.now();
+      let ticks = 0;
+      // Every no-argument construction lands a millisecond later, so two
+      // separate new Date() calls can't agree by luck.
+      global.Date = class TickingDate extends RealDate {
+        constructor(...args) {
+          if (args.length === 0) {
+            super(base + ticks++);
+          } else {
+            super(...args);
+          }
+        }
+      };
+
+      try {
+        mockVideo.count.mockResolvedValue(1);
+        mockVideo.findAll.mockResolvedValue([
+          {
+            id: 1,
+            youtubeId: 'abc123',
+            youTubeChannelName: 'Test Channel',
+            youTubeVideoName: 'Test Video',
+            filePath: '/test/output/dir/Test Channel/video [abc123].mp4',
+            fileSize: '1000',
+            removed: false,
+            youtube_removed: false,
+            youtube_removed_checked_at: null
+          }
+        ]);
+        mockVideo.aggregate.mockResolvedValue([]);
+        mockFs.stat.mockResolvedValueOnce({ size: 1000 });
+        mockVideoValidationModule.checkVideoExistsOnYoutube.mockResolvedValueOnce(true);
+
+        const result = await VideosModule.getVideosPaginated();
+
+        expect(mockVideo.update).toHaveBeenCalledWith(
+          { youtube_removed_checked_at: result.videos[0].youtube_removed_checked_at },
+          { where: { id: [1] } },
+        );
+      } finally {
+        global.Date = RealDate;
+      }
     });
 
     test('should skip YouTube validation when recently checked', async () => {
@@ -631,9 +773,9 @@ describe('VideosModule', () => {
         }
       ];
 
-      mockSequelize.query.mockResolvedValueOnce([{ total: 1 }]);
-      mockSequelize.query.mockResolvedValueOnce(mockVideos);
-      mockSequelize.query.mockResolvedValueOnce([]); // getAllUniqueChannels
+      mockVideo.count.mockResolvedValue(1);
+      mockVideo.findAll.mockResolvedValue(mockVideos);
+      mockVideo.aggregate.mockResolvedValue([]);
 
       mockFs.stat.mockResolvedValueOnce({ size: 1000 });
 
@@ -662,9 +804,9 @@ describe('VideosModule', () => {
         }
       ];
 
-      mockSequelize.query.mockResolvedValueOnce([{ total: 1 }]);
-      mockSequelize.query.mockResolvedValueOnce(mockVideos);
-      mockSequelize.query.mockResolvedValueOnce([]); // getAllUniqueChannels
+      mockVideo.count.mockResolvedValue(1);
+      mockVideo.findAll.mockResolvedValue(mockVideos);
+      mockVideo.aggregate.mockResolvedValue([]);
 
       const result = await VideosModule.getVideosPaginated();
 
@@ -679,9 +821,9 @@ describe('VideosModule', () => {
     });
 
     test('should handle multiple WHERE conditions', async () => {
-      mockSequelize.query.mockResolvedValueOnce([{ total: 0 }]);
-      mockSequelize.query.mockResolvedValueOnce([]);
-      mockSequelize.query.mockResolvedValueOnce([]); // getAllUniqueChannels
+      mockVideo.count.mockResolvedValue(0);
+      mockVideo.findAll.mockResolvedValue([]);
+      mockVideo.aggregate.mockResolvedValue([]);
 
       await VideosModule.getVideosPaginated({
         search: 'test',
@@ -690,10 +832,23 @@ describe('VideosModule', () => {
         dateTo: '2024-12-31'
       });
 
-      const query = mockSequelize.query.mock.calls[0][0];
-      expect(query).toContain('WHERE');
-      expect(query).toContain('AND');
-      expect(query.match(/AND/g)).toHaveLength(3); // 3 AND operators for 4 conditions
+      const expectedOptions = expect.objectContaining({
+        where: {
+          [Sequelize.Op.and]: [{
+            [Sequelize.Op.or]: [
+              { youTubeVideoName: { [Sequelize.Op.like]: '%test%' } },
+              { youTubeChannelName: { [Sequelize.Op.like]: '%test%' } },
+            ],
+          }],
+          youTubeChannelName: 'Channel',
+          originalDate: {
+            [Sequelize.Op.gte]: '20240101',
+            [Sequelize.Op.lte]: '20241231'
+          },
+        },
+      });
+      expect(mockVideo.count).toHaveBeenCalledWith(expectedOptions);
+      expect(mockVideo.findAll).toHaveBeenCalledWith(expectedOptions);
     });
 
     test('attaches watchedBy server list from video_watch_status rows', async () => {
@@ -722,9 +877,9 @@ describe('VideosModule', () => {
         }
       ];
 
-      mockSequelize.query.mockResolvedValueOnce([{ total: 2 }]);
-      mockSequelize.query.mockResolvedValueOnce(mockVideos);
-      mockSequelize.query.mockResolvedValueOnce([]); // getAllUniqueChannels
+      mockVideo.count.mockResolvedValue(2);
+      mockVideo.findAll.mockResolvedValue(mockVideos);
+      mockVideo.aggregate.mockResolvedValue([]);
 
       mockWatchStatusQueries.getWatchedByMap.mockResolvedValueOnce(
         new Map([[1, ['plex', 'jellyfin']]])
@@ -738,9 +893,9 @@ describe('VideosModule', () => {
     });
 
     test('passes an empty id list when the page has no videos', async () => {
-      mockSequelize.query.mockResolvedValueOnce([{ total: 0 }]);
-      mockSequelize.query.mockResolvedValueOnce([]);
-      mockSequelize.query.mockResolvedValueOnce([]); // getAllUniqueChannels
+      mockVideo.count.mockResolvedValue(0);
+      mockVideo.findAll.mockResolvedValue([]);
+      mockVideo.aggregate.mockResolvedValue([]);
 
       await VideosModule.getVideosPaginated();
 
@@ -831,6 +986,63 @@ describe('VideosModule', () => {
       );
     });
 
+    test('counts a folder it cannot read as unreadable', async () => {
+      mockFs.readdir.mockRejectedValueOnce(Object.assign(new Error('EACCES'), { code: 'EACCES' }));
+
+      const { unreadable } = await VideosModule.scanForVideoFiles('/restricted');
+
+      expect(unreadable).toBe(1);
+    });
+
+    test('keeps walking the folder past a file deleted mid-walk, without counting it unreadable', async () => {
+      mockFs.readdir.mockResolvedValueOnce([
+        { name: 'Gone [aaaaaaaaaaa].mp4', isDirectory: () => false, isFile: () => true },
+        { name: 'Kept [bbbbbbbbbbb].mp4', isDirectory: () => false, isFile: () => true }
+      ]);
+      mockFs.stat
+        .mockRejectedValueOnce(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }))
+        .mockResolvedValueOnce({ size: 200 });
+
+      const { fileMap, unreadable } = await VideosModule.scanForVideoFiles('/videos');
+
+      expect([...fileMap.keys()]).toEqual(['bbbbbbbbbbb']);
+      expect(unreadable).toBe(0);
+    });
+
+    test('keeps walking the folder past a file it cannot check, counting it unreadable', async () => {
+      mockFs.readdir.mockResolvedValueOnce([
+        { name: 'Locked [aaaaaaaaaaa].mp4', isDirectory: () => false, isFile: () => true },
+        { name: 'Kept [bbbbbbbbbbb].mp4', isDirectory: () => false, isFile: () => true }
+      ]);
+      mockFs.stat
+        .mockRejectedValueOnce(Object.assign(new Error('EIO'), { code: 'EIO' }))
+        .mockResolvedValueOnce({ size: 200 });
+
+      const { fileMap, unreadable } = await VideosModule.scanForVideoFiles('/videos');
+
+      expect([...fileMap.keys()]).toEqual(['bbbbbbbbbbb']);
+      expect(unreadable).toBe(1);
+    });
+
+    test('logs files it cannot check once per folder, with a count', async () => {
+      const denied = Object.assign(new Error('EACCES'), { code: 'EACCES' });
+      mockFs.readdir.mockResolvedValueOnce([
+        { name: 'A [aaaaaaaaaaa].mp4', isDirectory: () => false, isFile: () => true },
+        { name: 'B [bbbbbbbbbbb].mp4', isDirectory: () => false, isFile: () => true },
+        { name: 'C [ccccccccccc].mp4', isDirectory: () => false, isFile: () => true }
+      ]);
+      mockFs.stat.mockRejectedValue(denied);
+
+      const { unreadable } = await VideosModule.scanForVideoFiles('/videos');
+
+      expect(unreadable).toBe(3);
+      expect(mockLogger.warn).toHaveBeenCalledTimes(1);
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        { err: denied, dir: '/videos', uncheckedFiles: 3 },
+        'Could not check files while scanning'
+      );
+    });
+
     test('should detect .mkv files', async () => {
       mockFs.readdir.mockResolvedValueOnce([
         { name: 'Channel - Title [vid12345abc].mkv', isDirectory: () => false, isFile: () => true }
@@ -878,26 +1090,38 @@ describe('VideosModule', () => {
   });
 
   describe('backfillVideoMetadata', () => {
+    // A raw row as the rescan reads it: every guarded column present.
+    const dbRow = (overrides = {}) => ({
+      id: 1,
+      youtubeId: 'abc12345678',
+      removed: 0,
+      filePath: null,
+      fileSize: null,
+      audioFilePath: null,
+      audioFileSize: null,
+      video_resolution: null,
+      last_downloaded_at: null,
+      ...overrides,
+    });
+    const fsError = (code) => Object.assign(new Error(code), { code });
+    const fileStat = (size) => ({ size, isFile: () => true });
+
+    beforeEach(() => {
+      mockVideo.update.mockResolvedValue([1]);
+    });
+
     test('should backfill video metadata successfully', async () => {
       // Mock file system scan
       mockFs.readdir.mockResolvedValueOnce([
         { name: 'video [abc123].mp4', isDirectory: () => false, isFile: () => true }
       ]);
-      mockFs.stat.mockResolvedValueOnce({ size: 5000 });
+      mockFs.stat.mockResolvedValue(fileStat(5000));
 
       // Mock video count
       mockVideo.count.mockResolvedValueOnce(1);
 
       // Mock video fetch
-      mockVideo.findAll.mockResolvedValueOnce([
-        {
-          id: 1,
-          youtubeId: 'abc123',
-          filePath: null,
-          fileSize: null,
-          removed: false
-        }
-      ]);
+      mockVideo.findAll.mockResolvedValueOnce([dbRow({ youtubeId: 'abc123' })]);
 
       // Mock update query
       mockSequelize.query.mockResolvedValueOnce();
@@ -915,21 +1139,12 @@ describe('VideosModule', () => {
       mockFs.readdir.mockResolvedValueOnce([
         { name: 'Video [abc12345678].mp4', isDirectory: () => false, isFile: () => true }
       ]);
-      mockFs.stat.mockResolvedValueOnce({ size: 1000 });
+      mockFs.stat.mockResolvedValue(fileStat(1000));
       mockExecFile.mockImplementation((file, args, opts, cb) => cb(null, '1280,720\n'));
 
       mockVideo.count.mockResolvedValueOnce(1);
       mockVideo.findAll.mockResolvedValueOnce([
-        {
-          id: 1,
-          youtubeId: 'abc12345678',
-          filePath: '/test/output/dir/Video [abc12345678].mp4',
-          fileSize: '1000',
-          audioFilePath: null,
-          audioFileSize: null,
-          removed: false,
-          video_resolution: null
-        }
+        dbRow({ filePath: '/test/output/dir/Video [abc12345678].mp4', fileSize: '1000' })
       ]);
       mockSequelize.query.mockResolvedValue([]);
 
@@ -941,12 +1156,11 @@ describe('VideosModule', () => {
         expect.objectContaining({ timeout: expect.any(Number) }),
         expect.any(Function)
       );
-      const updateCalls = mockSequelize.query.mock.calls.filter(
-        ([sql]) => typeof sql === 'string' && sql.startsWith('UPDATE Videos SET')
+      expect(mockVideo.update).toHaveBeenCalledTimes(1);
+      expect(mockVideo.update).toHaveBeenCalledWith(
+        { removed: false, video_resolution: '1280x720' },
+        { where: expect.objectContaining({ id: 1, video_resolution: null }) },
       );
-      expect(updateCalls.length).toBe(1);
-      const [, options] = updateCalls[0];
-      expect(options.replacements).toEqual(['/test/output/dir/Video [abc12345678].mp4', 1000, '1280x720', 0, 1]);
     });
 
     test('preserves already-flushed probe results when the time limit trips mid-chunk', async () => {
@@ -967,7 +1181,7 @@ describe('VideosModule', () => {
           isFile: () => true
         }))
       );
-      mockFs.stat.mockResolvedValue({ size: 1000 });
+      mockFs.stat.mockResolvedValue(fileStat(1000));
 
       mockVideo.count.mockResolvedValueOnce(VIDEO_COUNT);
       mockVideo.findAll.mockResolvedValueOnce(
@@ -979,7 +1193,8 @@ describe('VideosModule', () => {
           audioFilePath: null,
           audioFileSize: null,
           removed: false,
-          video_resolution: null
+          video_resolution: null,
+          last_downloaded_at: null
         }))
       );
       mockSequelize.query.mockResolvedValue([]);
@@ -988,11 +1203,7 @@ describe('VideosModule', () => {
       nowSpy.mockRestore();
 
       expect(result.timedOut).toBe(true);
-      const updateCalls = mockSequelize.query.mock.calls.filter(
-        ([sql]) => typeof sql === 'string' && sql.startsWith('UPDATE Videos SET')
-      );
-      // The first flush of 100 completed probes was persisted before the abort.
-      expect(updateCalls.length).toBe(100);
+      expect(mockVideo.update).toHaveBeenCalledTimes(100);
     });
 
     test('runs ffprobes concurrently but never more than 4 at once', async () => {
@@ -1004,7 +1215,7 @@ describe('VideosModule', () => {
           isFile: () => true
         }))
       );
-      mockFs.stat.mockResolvedValue({ size: 1000 });
+      mockFs.stat.mockResolvedValue(fileStat(1000));
 
       let inFlight = 0;
       let maxInFlight = 0;
@@ -1027,7 +1238,8 @@ describe('VideosModule', () => {
           audioFilePath: null,
           audioFileSize: null,
           removed: false,
-          video_resolution: null
+          video_resolution: null,
+          last_downloaded_at: null
         }))
       );
       mockSequelize.query.mockResolvedValue([]);
@@ -1037,93 +1249,64 @@ describe('VideosModule', () => {
       expect(mockExecFile).toHaveBeenCalledTimes(VIDEO_COUNT);
       expect(maxInFlight).toBeGreaterThan(1);
       expect(maxInFlight).toBeLessThanOrEqual(4);
-      const updateCalls = mockSequelize.query.mock.calls.filter(
-        ([sql]) => typeof sql === 'string' && sql.startsWith('UPDATE Videos SET')
-      );
-      expect(updateCalls.length).toBe(VIDEO_COUNT);
+      expect(mockVideo.update).toHaveBeenCalledTimes(VIDEO_COUNT);
     });
 
     test('stamps the 0 sentinel when ffprobe fails', async () => {
       mockFs.readdir.mockResolvedValueOnce([
         { name: 'Video [abc12345678].mp4', isDirectory: () => false, isFile: () => true }
       ]);
-      mockFs.stat.mockResolvedValueOnce({ size: 1000 });
+      mockFs.stat.mockResolvedValue(fileStat(1000));
 
       mockVideo.count.mockResolvedValueOnce(1);
       mockVideo.findAll.mockResolvedValueOnce([
-        {
-          id: 1,
-          youtubeId: 'abc12345678',
-          filePath: '/test/output/dir/Video [abc12345678].mp4',
-          fileSize: '1000',
-          audioFilePath: null,
-          audioFileSize: null,
-          removed: false,
-          video_resolution: null
-        }
+        dbRow({ filePath: '/test/output/dir/Video [abc12345678].mp4', fileSize: '1000' })
       ]);
-      mockSequelize.query.mockResolvedValue([]);
 
       await VideosModule.backfillVideoMetadata();
 
-      const updateCalls = mockSequelize.query.mock.calls.filter(
-        ([sql]) => typeof sql === 'string' && sql.startsWith('UPDATE Videos SET')
+      expect(mockVideo.update).toHaveBeenCalledTimes(1);
+      expect(mockVideo.update).toHaveBeenCalledWith(
+        { removed: false, video_resolution: '0x0' },
+        { where: expect.objectContaining({ id: 1 }) },
       );
-      expect(updateCalls.length).toBe(1);
-      const [sql, options] = updateCalls[0];
-      expect(sql).toContain('video_resolution = ?');
-      // filePath, fileSize, video_resolution = '0x0' (sentinel), removed = 0, id = 1
-      expect(options.replacements).toEqual(['/test/output/dir/Video [abc12345678].mp4', 1000, '0x0', 0, 1]);
     });
 
     test('clears video_resolution when the video file is gone but audio remains', async () => {
       mockFs.readdir.mockResolvedValueOnce([
         { name: 'Video [abc12345678].mp3', isDirectory: () => false, isFile: () => true }
       ]);
-      mockFs.stat.mockResolvedValueOnce({ size: 500 });
+      mockFs.stat.mockImplementation(async (filePath) => {
+        if (filePath.endsWith('.mp4')) throw fsError('ENOENT');
+        return fileStat(500);
+      });
 
       mockVideo.count.mockResolvedValueOnce(1);
       mockVideo.findAll.mockResolvedValueOnce([
-        {
-          id: 1,
-          youtubeId: 'abc12345678',
+        dbRow({
           filePath: '/test/output/dir/Video [abc12345678].mp4',
           fileSize: '1000',
           audioFilePath: '/test/output/dir/Video [abc12345678].mp3',
           audioFileSize: '500',
-          removed: false,
           video_resolution: '1920x1080'
-        }
+        })
       ]);
-      mockSequelize.query.mockResolvedValue([]);
 
       await VideosModule.backfillVideoMetadata();
 
       expect(mockExecFile).not.toHaveBeenCalled();
-      const updateCalls = mockSequelize.query.mock.calls.filter(
-        ([sql]) => typeof sql === 'string' && sql.startsWith('UPDATE Videos SET')
+      expect(mockVideo.update).toHaveBeenCalledTimes(1);
+      expect(mockVideo.update).toHaveBeenCalledWith(
+        { filePath: null, fileSize: null, video_resolution: null, removed: false },
+        { where: expect.objectContaining({ id: 1 }) },
       );
-      expect(updateCalls.length).toBe(1);
-      const [sql, options] = updateCalls[0];
-      expect(sql).toContain('video_resolution = ?');
-      // filePath = null, fileSize = null, audioFilePath, audioFileSize,
-      // video_resolution = null (stale dims cleared), removed = 0, id = 1
-      expect(options.replacements).toEqual([
-        null,
-        null,
-        '/test/output/dir/Video [abc12345678].mp3',
-        500,
-        null,
-        0,
-        1
-      ]);
     });
 
     test('does not probe when video_resolution is already set', async () => {
       mockFs.readdir.mockResolvedValueOnce([
         { name: 'Video [abc12345678].mp4', isDirectory: () => false, isFile: () => true }
       ]);
-      mockFs.stat.mockResolvedValueOnce({ size: 1000 });
+      mockFs.stat.mockResolvedValueOnce(fileStat(1000));
 
       mockVideo.count.mockResolvedValueOnce(1);
       mockVideo.findAll.mockResolvedValueOnce([
@@ -1188,22 +1371,19 @@ describe('VideosModule', () => {
 
       // Mock video with file path that doesn't exist
       mockVideo.findAll.mockResolvedValueOnce([
-        {
-          id: 1,
-          youtubeId: 'missing123',
-          filePath: '/test/missing.mp4',
-          fileSize: '1000',
-          removed: false
-        }
+        dbRow({ youtubeId: 'missing123', filePath: '/test/missing.mp4', fileSize: '1000' })
       ]);
-
-      // Mock update query
-      mockSequelize.query.mockResolvedValueOnce();
+      mockFs.stat.mockRejectedValue(fsError('ENOENT'));
 
       const result = await VideosModule.backfillVideoMetadata();
 
       expect(result.removed).toBe(1);
       expect(result.updated).toBe(0);
+      // Stored paths are kept so a file returning to its location is found again.
+      expect(mockVideo.update).toHaveBeenCalledWith(
+        { removed: true },
+        { where: expect.objectContaining({ id: 1, filePath: '/test/missing.mp4' }) },
+      );
     });
 
     test('should clear removed flag when a previously-missing file reappears (raw row removed=1)', async () => {
@@ -1212,18 +1392,17 @@ describe('VideosModule', () => {
       mockFs.readdir.mockResolvedValueOnce([
         { name: 'video [restored1].mp4', isDirectory: () => false, isFile: () => true }
       ]);
-      mockFs.stat.mockResolvedValueOnce({ size: 1000 });
+      mockFs.stat.mockResolvedValue(fileStat(1000));
 
       mockVideo.count.mockResolvedValueOnce(1);
 
       mockVideo.findAll.mockResolvedValueOnce([
-        {
-          id: 1,
+        dbRow({
           youtubeId: 'restored1',
           filePath: '/test/output/dir/video [restored1].mp4',
           fileSize: '1000',
           removed: 1
-        }
+        })
       ]);
 
       mockSequelize.query.mockResolvedValueOnce();
@@ -1232,6 +1411,186 @@ describe('VideosModule', () => {
 
       expect(result.updated).toBe(1);
       expect(result.removed).toBe(0);
+    });
+
+    describe('changes that land after the walk', () => {
+      const mp4 = '/test/output/dir/Video [abc12345678].mp4';
+      const mp3 = '/test/output/dir/Video [abc12345678].mp3';
+      const walkFinds = (...names) => mockFs.readdir.mockResolvedValueOnce(
+        names.map((name) => ({ name, isDirectory: () => false, isFile: () => true }))
+      );
+      const readRow = (row) => {
+        mockVideo.count.mockResolvedValueOnce(1);
+        mockVideo.findAll.mockResolvedValueOnce([row]);
+      };
+
+      test('does not mark a download that finished after the walk as missing', async () => {
+        walkFinds();
+        readRow(dbRow({ filePath: mp4, fileSize: '1000', video_resolution: '1920x1080' }));
+        mockFs.stat.mockResolvedValue(fileStat(1000));
+
+        const result = await VideosModule.backfillVideoMetadata();
+
+        expect(mockVideo.update).not.toHaveBeenCalled();
+        expect(result.removed).toBe(0);
+      });
+
+      test('does not restore a video deleted after the walk', async () => {
+        walkFinds('Video [abc12345678].mp4');
+        readRow(dbRow({ removed: 1, filePath: mp4, fileSize: '1000', video_resolution: '1920x1080' }));
+        mockFs.stat
+          .mockResolvedValueOnce(fileStat(1000)) // the walk
+          .mockRejectedValue(fsError('ENOENT')); // the fresh check
+
+        const result = await VideosModule.backfillVideoMetadata();
+
+        expect(mockVideo.update).not.toHaveBeenCalled();
+        expect(result.updated).toBe(0);
+      });
+
+      test('keeps an audio file added after the walk', async () => {
+        walkFinds('Video [abc12345678].mp4');
+        readRow(dbRow({
+          filePath: mp4, fileSize: '1000', video_resolution: '1920x1080',
+          audioFilePath: mp3, audioFileSize: '500'
+        }));
+        mockFs.stat.mockImplementation(async (filePath) => (fileStat(filePath.endsWith('.mp3') ? 500 : 1000)));
+
+        await VideosModule.backfillVideoMetadata();
+
+        expect(mockVideo.update).not.toHaveBeenCalled();
+      });
+
+      test('keeps a video file added after the walk, with its resolution', async () => {
+        walkFinds('Video [abc12345678].mp3');
+        readRow(dbRow({
+          filePath: mp4, fileSize: '1000', video_resolution: '1920x1080',
+          audioFilePath: mp3, audioFileSize: '500'
+        }));
+        mockFs.stat.mockImplementation(async (filePath) => (fileStat(filePath.endsWith('.mp3') ? 500 : 1000)));
+
+        await VideosModule.backfillVideoMetadata();
+
+        expect(mockVideo.update).not.toHaveBeenCalled();
+      });
+
+      test('does not write back the size of a file replaced after the walk', async () => {
+        walkFinds('Video [abc12345678].mp4');
+        readRow(dbRow({ filePath: mp4, fileSize: '2000', video_resolution: '1920x1080' }));
+        mockFs.stat
+          .mockResolvedValueOnce(fileStat(1000)) // the walk saw the old file
+          .mockResolvedValue(fileStat(2000)); // the replacement is on disk now
+
+        await VideosModule.backfillVideoMetadata();
+
+        expect(mockVideo.update).not.toHaveBeenCalled();
+      });
+
+      test('leaves the row alone when a file check fails for a reason other than a missing file', async () => {
+        walkFinds();
+        readRow(dbRow({ filePath: mp4, fileSize: '1000' }));
+        mockFs.stat.mockRejectedValue(fsError('EACCES'));
+
+        const result = await VideosModule.backfillVideoMetadata();
+
+        expect(mockVideo.update).not.toHaveBeenCalled();
+        expect(result.removed).toBe(0);
+      });
+
+      test('does not clear a missing format while the other format cannot be checked', async () => {
+        walkFinds();
+        readRow(dbRow({ filePath: mp4, fileSize: '1000', audioFilePath: mp3, audioFileSize: '500' }));
+        mockFs.stat.mockImplementation(async (filePath) => {
+          throw fsError(filePath.endsWith('.mp4') ? 'ENOENT' : 'EIO');
+        });
+
+        await VideosModule.backfillVideoMetadata();
+
+        expect(mockVideo.update).not.toHaveBeenCalled();
+      });
+
+      test('writes only if the row is unchanged since it was read', async () => {
+        const downloadedAt = new Date('2026-09-27T03:31:07Z');
+        walkFinds('Video [abc12345678].mp4');
+        readRow(dbRow({ removed: 1, filePath: mp4, fileSize: '1000', video_resolution: '1920x1080', last_downloaded_at: downloadedAt }));
+        mockFs.stat.mockResolvedValue(fileStat(1000));
+
+        await VideosModule.backfillVideoMetadata();
+
+        expect(mockVideo.update).toHaveBeenCalledWith({ removed: false }, {
+          where: {
+            id: 1,
+            removed: true,
+            filePath: mp4,
+            fileSize: '1000',
+            audioFilePath: null,
+            audioFileSize: null,
+            video_resolution: '1920x1080',
+            last_downloaded_at: downloadedAt,
+          },
+        });
+      });
+
+      test('counts a row changed by another writer before the write as skipped', async () => {
+        walkFinds();
+        readRow(dbRow({ filePath: mp4, fileSize: '1000' }));
+        mockFs.stat.mockRejectedValue(fsError('ENOENT'));
+        mockVideo.update.mockResolvedValue([0]);
+
+        const result = await VideosModule.backfillVideoMetadata();
+
+        expect(result).toEqual(expect.objectContaining({ removed: 0, updated: 0, skippedChanged: 1, failed: 0 }));
+      });
+
+      test('counts a write that throws as failed, not updated', async () => {
+        walkFinds('Video [abc12345678].mp4');
+        readRow(dbRow({ removed: 1, filePath: mp4, fileSize: '1000', video_resolution: '1920x1080' }));
+        mockFs.stat.mockResolvedValue(fileStat(1000));
+        mockVideo.update.mockRejectedValue(new Error('lock wait timeout'));
+
+        const result = await VideosModule.backfillVideoMetadata();
+
+        expect(result).toEqual(expect.objectContaining({ updated: 0, failed: 1 }));
+      });
+
+      test('broadcasts a scan with failed writes as an error, matching the run history', async () => {
+        walkFinds('Video [abc12345678].mp4');
+        readRow(dbRow({ removed: 1, filePath: mp4, fileSize: '1000', video_resolution: '1920x1080' }));
+        mockFs.stat.mockResolvedValue(fileStat(1000));
+        mockVideo.update.mockRejectedValue(new Error('lock wait timeout'));
+
+        await VideosModule.backfillVideoMetadata({ trigger: 'manual' });
+
+        expect(mockMessageEmitter.emitMessage).toHaveBeenCalledWith(
+          'broadcast', null, 'server', 'rescanStatus',
+          expect.objectContaining({
+            running: false,
+            lastRun: expect.objectContaining({
+              status: 'error',
+              errorMessage: 'Scanned 1 videos: 0 updated, 0 marked missing, 1 failed.',
+            }),
+          })
+        );
+      });
+
+      test('reports how much of the downloads folder could not be read', async () => {
+        mockFs.readdir.mockRejectedValueOnce(Object.assign(new Error('EACCES'), { code: 'EACCES' }));
+        mockVideo.count.mockResolvedValueOnce(0);
+
+        const result = await VideosModule.backfillVideoMetadata();
+
+        expect(result.unreadableOnDisk).toBe(1);
+      });
+
+      test('counts a nominated row whose files are already as recorded as kept', async () => {
+        walkFinds();
+        readRow(dbRow({ filePath: mp4, fileSize: '1000' }));
+        mockFs.stat.mockResolvedValue(fileStat(1000));
+
+        const result = await VideosModule.backfillVideoMetadata();
+
+        expect(result).toEqual(expect.objectContaining({ kept: 1, updated: 0, removed: 0 }));
+      });
     });
 
     test('should process videos in chunks', async () => {
@@ -1268,12 +1627,18 @@ describe('VideosModule', () => {
       expect(result.processed).toBe(2500);
     });
 
-    test('should handle database errors during backfill', async () => {
+    test('resolves with the failure and its partial counters instead of throwing', async () => {
       mockFs.readdir.mockResolvedValueOnce([]);
       const mockError = new Error('Database error');
       mockVideo.count.mockRejectedValueOnce(mockError);
 
-      await expect(VideosModule.backfillVideoMetadata()).rejects.toThrow('Database error');
+      await expect(VideosModule.backfillVideoMetadata()).resolves.toEqual(expect.objectContaining({
+        status: 'error',
+        errorMessage: 'Database error',
+        processed: 0,
+        updated: 0,
+        removed: 0
+      }));
       expect(mockLogger.error).toHaveBeenCalledWith(
         { err: mockError },
         'Error during video metadata backfill'
@@ -1333,21 +1698,25 @@ describe('VideosModule', () => {
       mockFs.readdir.mockResolvedValueOnce([]);
       mockVideo.count.mockRejectedValueOnce(error);
 
-      await expect(VideosModule.backfillVideoMetadata({ trigger: 'manual' })).rejects.toThrow('boom');
+      await expect(VideosModule.backfillVideoMetadata({ trigger: 'manual' })).resolves.toMatchObject({ status: 'error' });
       expect(VideosModule._backfillRunning).toBe(false);
     });
 
-    test('should write rescanLastRun to config on completion', async () => {
+    test('records a startup run in the task history instead of config', async () => {
       mockFs.readdir.mockResolvedValueOnce([]);
       mockVideo.count.mockResolvedValueOnce(0);
 
-      await VideosModule.backfillVideoMetadata({ trigger: 'manual' });
+      await VideosModule.backfillVideoMetadata({ trigger: 'startup' });
 
-      expect(mockConfigModule.updateConfig).toHaveBeenCalledWith(
+      expect(mockScheduledTaskRuns.record).toHaveBeenCalledWith(
         expect.objectContaining({
-          rescanLastRun: expect.objectContaining({
-            trigger: 'manual',
-            status: 'completed',
+          taskKey: 'videoRescanFrequency',
+          trigger: 'startup',
+          status: 'success',
+          outcome: 'completed',
+          startedAt: expect.any(Date),
+          finishedAt: expect.any(Date),
+          details: expect.objectContaining({
             videosScanned: 0,
             filesFoundOnDisk: 0,
             videosUpdated: 0,
@@ -1355,17 +1724,36 @@ describe('VideosModule', () => {
           })
         })
       );
+      expect(mockConfigModule.updateConfig).not.toHaveBeenCalled();
     });
 
-    test('should still emit completion when rescanLastRun persistence fails', async () => {
+    test('leaves scheduled runs for the scheduler to record', async () => {
       mockFs.readdir.mockResolvedValueOnce([]);
       mockVideo.count.mockResolvedValueOnce(0);
-      mockConfigModule.updateConfig.mockImplementation(() => {
-        throw new Error('config write failed');
-      });
+
+      await VideosModule.backfillVideoMetadata({ trigger: 'scheduled' });
+
+      expect(mockScheduledTaskRuns.record).not.toHaveBeenCalled();
+    });
+
+    test('leaves manual runs for the scheduler to record', async () => {
+      mockFs.readdir.mockResolvedValueOnce([]);
+      mockVideo.count.mockResolvedValueOnce(0);
 
       await VideosModule.backfillVideoMetadata({ trigger: 'manual' });
 
+      expect(mockScheduledTaskRuns.record).not.toHaveBeenCalled();
+    });
+
+    test('should still emit completion when run recording fails', async () => {
+      mockFs.readdir.mockResolvedValueOnce([]);
+      mockVideo.count.mockResolvedValueOnce(0);
+      const persistErr = new Error('history write failed');
+      mockScheduledTaskRuns.record.mockRejectedValue(persistErr);
+
+      await VideosModule.backfillVideoMetadata({ trigger: 'startup' });
+
+      expect(mockLogger.error).toHaveBeenCalledWith({ err: persistErr }, 'Failed to record rescan run');
       expect(mockMessageEmitter.emitMessage).toHaveBeenCalledWith(
         'broadcast',
         null,
@@ -1444,7 +1832,7 @@ describe('VideosModule', () => {
     test('should handle network timeout errors', async () => {
       const timeoutError = new Error('ETIMEDOUT');
       timeoutError.code = 'ETIMEDOUT';
-      mockSequelize.query.mockRejectedValue(timeoutError);
+      mockVideo.count.mockRejectedValue(timeoutError);
 
       await expect(VideosModule.getVideosPaginated()).rejects.toThrow('ETIMEDOUT');
       expect(mockLogger.error).toHaveBeenCalledWith({ err: timeoutError }, 'Error in getVideosPaginated');
@@ -1453,7 +1841,7 @@ describe('VideosModule', () => {
     test('should handle permission errors', async () => {
       const permissionError = new Error('Permission denied');
       permissionError.code = 'EACCES';
-      mockSequelize.query.mockRejectedValue(permissionError);
+      mockVideo.count.mockRejectedValue(permissionError);
 
       await expect(VideosModule.getVideosPaginated()).rejects.toThrow('Permission denied');
       expect(mockLogger.error).toHaveBeenCalledWith({ err: permissionError }, 'Error in getVideosPaginated');
@@ -1461,7 +1849,7 @@ describe('VideosModule', () => {
 
     test('should rethrow errors after logging', async () => {
       const customError = new Error('Custom error message');
-      mockSequelize.query.mockRejectedValue(customError);
+      mockVideo.count.mockRejectedValue(customError);
 
       try {
         await VideosModule.getVideosPaginated();
@@ -1557,21 +1945,4 @@ describe('VideosModule', () => {
     });
   });
 
-  describe('tryStartBackfill', () => {
-    test('returns started: true when not running', () => {
-      VideosModule._backfillRunning = false;
-      const spy = jest.spyOn(VideosModule, 'backfillVideoMetadata').mockResolvedValue();
-      const result = VideosModule.tryStartBackfill({ trigger: 'manual' });
-      expect(result).toEqual({ started: true });
-      expect(spy).toHaveBeenCalledWith({ trigger: 'manual' });
-      spy.mockRestore();
-    });
-
-    test('returns started: false when already running', () => {
-      VideosModule._backfillRunning = true;
-      const result = VideosModule.tryStartBackfill();
-      expect(result).toEqual({ started: false, reason: 'already-running' });
-      VideosModule._backfillRunning = false;
-    });
-  });
 });
