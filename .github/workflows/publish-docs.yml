@@ -1,8 +1,10 @@
 name: Publish Documentation
 
 on:
-  push:
-    branches: [ main ]
+  # Fork note: the automatic `push: branches: [main]` trigger is removed because the
+  # deploy job publishes to GitHub Pages, which this fork has not enabled, so every push
+  # to main would add a failing run. Enable Pages (Settings -> Pages -> Source: GitHub
+  # Actions) and restore the push trigger to publish this fork's docs site.
   workflow_dispatch:
 
 permissions:

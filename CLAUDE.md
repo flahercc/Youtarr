@@ -294,6 +294,9 @@ When a code change creates or invalidates information in this file or in `docs/`
   checkout. Build locally with `./scripts/build-dev.sh` instead.
 - `coverage-badges.yml` only fires on a completed Production Release, so it no longer runs
   automatically either.
+- `publish-docs.yml` (added upstream in v1.87) is also `workflow_dispatch`-only: its deploy
+  job publishes to GitHub Pages, which this fork has not enabled. Enable Pages (Source:
+  GitHub Actions) and restore its `push:` trigger to publish a docs site.
 - To re-enable publishing: add those secrets/variables (`DOCKERHUB_USERNAME` goes under
   Actions **Variables**, not Secrets), restore the `push:` triggers in
   `.github/workflows/release-rc.yml` and `release.yml`, and change the hardcoded upstream
