@@ -28,7 +28,6 @@ const mediaServers = require('../modules/mediaServers');
 const channelSettingsModule = require('../modules/channelSettingsModule');
 const channelDownloadAllModule = require('../modules/channelDownloadAllModule');
 const newVideoQueueModule = require('../modules/channel/newVideoQueueModule');
-const newVideoScanScheduler = require('../modules/channel/newVideoScanScheduler');
 const ratingMapper = require('../modules/ratingMapper');
 const subfolderModule = require('../modules/subfolderModule');
 const playlistVideoFilters = require('../modules/playlistVideoFilters');
@@ -146,7 +145,7 @@ function registerRoutes(app, deps) {
   app.use(createSubfolderRoutes({ verifyToken, subfolderModule }));
 
   // New-videos discovery queue routes
-  app.use(createNewVideoRoutes({ verifyToken, newVideoQueueModule, newVideoScanScheduler }));
+  app.use(createNewVideoRoutes({ verifyToken, newVideoQueueModule, scheduledTaskManager }));
 
   // Scheduled task status routes
   app.use(createSchedulesRoutes({ verifyToken, scheduledTaskManager, scheduledTaskRuns, scheduleConfig }));

@@ -1,4 +1,4 @@
-jest.mock('node-cron', () => ({ schedule: jest.fn(), validate: jest.fn(() => true) }));
+jest.mock('../../scheduledTaskManager', () => ({ updateTask: jest.fn() }));
 jest.mock('../../../logger', () => ({
   info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn(),
 }));
@@ -19,7 +19,7 @@ jest.mock('../channelVideoQuery', () => ({ fetchNewestVideosFromDb: jest.fn() })
 
 describe('newVideoScanScheduler', () => {
   let scheduler;
-  let cron;
+  let scheduledTasks;
   let configModule;
   let Channel;
   let ChannelVideo;
@@ -28,15 +28,12 @@ describe('newVideoScanScheduler', () => {
   let playlistModule;
   let channelVideoFetcher;
   let channelVideoQuery;
-  let logger;
 
   beforeEach(() => {
     jest.resetModules();
     jest.clearAllMocks();
 
-    cron = require('node-cron');
-    cron.validate.mockReturnValue(true);
-    cron.schedule.mockReturnValue({ stop: jest.fn() });
+    scheduledTasks = require('../../scheduledTaskManager');
     configModule = require('../../configModule');
     Channel = require('../../../models/channel');
     ChannelVideo = require('../../../models/channelvideo');
@@ -44,7 +41,6 @@ describe('newVideoScanScheduler', () => {
     playlistModule = require('../../playlistModule');
     channelVideoFetcher = require('../channelVideoFetcher');
     channelVideoQuery = require('../channelVideoQuery');
-    logger = require('../../../logger');
 
     channelVideoQuery.fetchNewestVideosFromDb.mockResolvedValue([]);
     channelVideoFetcher.shouldRefreshChannelVideos.mockReturnValue(true);
@@ -60,38 +56,62 @@ describe('newVideoScanScheduler', () => {
   });
 
   describe('scheduleTask', () => {
-    test('schedules a daily cron at the configured time when enabled', () => {
-      configModule.getConfig.mockReturnValue({ channelScanEnabled: true, channelScanTime: '14:30' });
+    const registered = () => scheduledTasks.updateTask.mock.calls[0][0];
+
+    test('registers the scan with the shared scheduler under its schedule key', () => {
+      configModule.getConfig.mockReturnValue({ channelScanEnabled: true, channelScanFrequency: '0 */6 * * *' });
       scheduler.scheduleTask();
-      expect(cron.schedule).toHaveBeenCalledWith('30 14 * * *', expect.any(Function));
+      expect(registered()).toEqual(expect.objectContaining({ id: 'channelScanFrequency', expression: '0 */6 * * *' }));
     });
 
-    test('does not schedule when disabled', () => {
-      configModule.getConfig.mockReturnValue({ channelScanEnabled: false, channelScanTime: '14:00' });
-      scheduler.scheduleTask();
-      expect(cron.schedule).not.toHaveBeenCalled();
-    });
-
-    test('falls back to the default time when unset', () => {
+    test('falls back to the registry default schedule when unset', () => {
       configModule.getConfig.mockReturnValue({ channelScanEnabled: true });
       scheduler.scheduleTask();
-      expect(cron.schedule).toHaveBeenCalledWith('0 14 * * *', expect.any(Function));
+      expect(registered().expression).toBe('0 14 * * *');
     });
 
-    test('does not schedule a malformed time', () => {
-      configModule.getConfig.mockReturnValue({ channelScanEnabled: true, channelScanTime: 'not-a-time' });
+    test('registers the schedule as off when the scan is disabled', () => {
+      configModule.getConfig.mockReturnValue({ channelScanEnabled: false });
       scheduler.scheduleTask();
-      expect(cron.schedule).not.toHaveBeenCalled();
-      expect(logger.warn).toHaveBeenCalled();
+      expect(registered().enabled).toBe(false);
     });
 
-    test('stops the previous task on reschedule', () => {
-      const stop = jest.fn();
-      cron.schedule.mockReturnValue({ stop });
-      configModule.getConfig.mockReturnValue({ channelScanEnabled: true, channelScanTime: '14:00' });
+    test('allows manual runs while the schedule is off', () => {
+      configModule.getConfig.mockReturnValue({ channelScanEnabled: false });
       scheduler.scheduleTask();
+      expect(registered().manualRunRequiresEnabled).toBe(false);
+    });
+
+    test('passes force through to the scan', async () => {
+      configModule.getConfig.mockReturnValue({ channelScanEnabled: true });
+      const scanAll = jest.spyOn(scheduler, 'scanAll').mockResolvedValue({ errors: [] });
       scheduler.scheduleTask();
-      expect(stop).toHaveBeenCalledTimes(1);
+      await registered().run({ trigger: 'manual', force: true });
+      expect(scanAll).toHaveBeenCalledWith(true);
+    });
+
+    test('hands the raw scan summary to onSummary', async () => {
+      configModule.getConfig.mockReturnValue({ channelScanEnabled: true });
+      const summary = { channelsScanned: 1, tabsScanned: 1, playlistsScanned: 0, newVideosFound: 2, errors: [] };
+      jest.spyOn(scheduler, 'scanAll').mockResolvedValue(summary);
+      const onSummary = jest.fn();
+      scheduler.scheduleTask();
+      await registered().run({ trigger: 'manual', onSummary });
+      expect(onSummary).toHaveBeenCalledWith(summary);
+    });
+
+    test('resolves the run with a run record', async () => {
+      configModule.getConfig.mockReturnValue({ channelScanEnabled: true });
+      jest.spyOn(scheduler, 'scanAll').mockResolvedValue({ errors: [] });
+      scheduler.scheduleTask();
+      await expect(registered().run({ trigger: 'scheduled' })).resolves.toEqual(expect.objectContaining({ status: 'success' }));
+    });
+
+    test('reports running while a scan is in progress', () => {
+      configModule.getConfig.mockReturnValue({ channelScanEnabled: true });
+      scheduler.scheduleTask();
+      scheduler.scanning = true;
+      expect(registered().isRunning()).toBe(true);
     });
 
     test('subscribe registers a config-change listener', () => {

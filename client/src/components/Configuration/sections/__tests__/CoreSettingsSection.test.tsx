@@ -482,43 +482,26 @@ describe('CoreSettingsSection Component', () => {
     });
   });
 
-  describe('Channel Scan Time field', () => {
-    test('renders with the configured value', () => {
-      const props = createSectionProps({
-        config: createConfig({ channelScanEnabled: true, channelScanTime: '09:30' })
-      });
-      renderWithProviders(<CoreSettingsSection {...props} />);
-      expect(screen.getByLabelText('Channel Scan Time')).toHaveValue('09:30');
+  describe('New videos scan schedule summary', () => {
+    test('links to the scan on the Scheduling page', () => {
+      renderWithProviders(<CoreSettingsSection {...createSectionProps()} />);
+      expect(screen.getByRole('link', { name: 'Edit schedule for new videos scan' })).toHaveAttribute(
+        'href', '/settings/scheduling#channelScanFrequency'
+      );
     });
 
-    test('is disabled when channelScanEnabled is false', () => {
-      const props = createSectionProps({
+    test('describes the configured scan schedule under its own name', () => {
+      renderWithProviders(<CoreSettingsSection {...createSectionProps({
+        config: createConfig({ channelScanFrequency: '30 9 * * *' })
+      })} />);
+      expect(screen.getByText(/New videos scan: Daily at 09:30/)).toBeInTheDocument();
+    });
+
+    test('still shows the schedule while the scheduled scan is off', () => {
+      renderWithProviders(<CoreSettingsSection {...createSectionProps({
         config: createConfig({ channelScanEnabled: false })
-      });
-      renderWithProviders(<CoreSettingsSection {...props} />);
-      expect(screen.getByLabelText('Channel Scan Time')).toBeDisabled();
-    });
-
-    test('is enabled when channelScanEnabled is true', () => {
-      const props = createSectionProps({
-        config: createConfig({ channelScanEnabled: true })
-      });
-      renderWithProviders(<CoreSettingsSection {...props} />);
-      expect(screen.getByLabelText('Channel Scan Time')).not.toBeDisabled();
-    });
-
-    test('calls onConfigChange when the time changes', () => {
-      const onConfigChange = jest.fn();
-      const props = createSectionProps({
-        config: createConfig({ channelScanEnabled: true, channelScanTime: '14:00' }),
-        onConfigChange
-      });
-      renderWithProviders(<CoreSettingsSection {...props} />);
-
-      const input = screen.getByLabelText('Channel Scan Time');
-      fireEvent.change(input, { target: { value: '09:15' } });
-
-      expect(onConfigChange).toHaveBeenCalledWith({ channelScanTime: '09:15' });
+      })} />);
+      expect(screen.getByText(/^New videos scan: /)).toBeInTheDocument();
     });
   });
 

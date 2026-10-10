@@ -33,7 +33,7 @@ export const CONFIG_FIELDS = {
   channelVideoCountsFrequency: { default: '45 4 * * *', trackChanges: true },
   channelFilesToDownload: { default: 5, trackChanges: true },
   channelScanEnabled: { default: false, trackChanges: true },
-  channelScanTime: { default: '14:00', trackChanges: true },
+  channelScanFrequency: { default: '0 14 * * *', trackChanges: true },
   channelScanVideoLimit: { default: 50, trackChanges: true },
 
   // Video settings
@@ -219,7 +219,7 @@ export const DEFAULT_CONFIG: ConfigState = {
   channelVideoCountsFrequency: CONFIG_FIELDS.channelVideoCountsFrequency.default,
   channelFilesToDownload: CONFIG_FIELDS.channelFilesToDownload.default,
   channelScanEnabled: CONFIG_FIELDS.channelScanEnabled.default,
-  channelScanTime: CONFIG_FIELDS.channelScanTime.default,
+  channelScanFrequency: CONFIG_FIELDS.channelScanFrequency.default,
   channelScanVideoLimit: CONFIG_FIELDS.channelScanVideoLimit.default,
   preferredResolution: CONFIG_FIELDS.preferredResolution.default,
   videoCodec: CONFIG_FIELDS.videoCodec.default,

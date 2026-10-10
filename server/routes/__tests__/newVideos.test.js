@@ -7,25 +7,21 @@ jest.mock('../../logger', () => ({ error: jest.fn(), info: jest.fn(), warn: jest
 describe('New videos routes', () => {
   let app;
   let mockNewVideoQueueModule;
-  let mockNewVideoScanScheduler;
+  let mockScheduledTaskManager;
 
   beforeEach(() => {
     jest.resetModules();
     mockNewVideoQueueModule = {
       getQueue: jest.fn().mockResolvedValue([]),
     };
-    mockNewVideoScanScheduler = {
-      scanAll: jest.fn().mockResolvedValue({
-        channelsScanned: 0, tabsScanned: 0, playlistsScanned: 0, newVideosFound: 0, errors: [],
-      }),
-    };
+    mockScheduledTaskManager = { runNow: jest.fn() };
     const createNewVideoRoutes = require('../newVideos');
     app = express();
     app.use(express.json());
     app.use(createNewVideoRoutes({
       verifyToken: (req, res, next) => next(),
       newVideoQueueModule: mockNewVideoQueueModule,
-      newVideoScanScheduler: mockNewVideoScanScheduler,
+      scheduledTaskManager: mockScheduledTaskManager,
     }));
   });
 
@@ -49,29 +45,57 @@ describe('New videos routes', () => {
   });
 
   describe('POST /api/new-videos/scan', () => {
-    test('runs the scan and returns the summary', async () => {
-      const summary = { channelsScanned: 2, tabsScanned: 3, playlistsScanned: 1, newVideosFound: 5, errors: [] };
-      mockNewVideoScanScheduler.scanAll.mockResolvedValueOnce(summary);
+    const summary = { channelsScanned: 2, tabsScanned: 3, playlistsScanned: 1, newVideosFound: 5, errors: [] };
 
-      const res = await request(app).post('/api/new-videos/scan');
-
-      expect(res.status).toBe(200);
-      expect(res.body).toEqual(summary);
-      expect(mockNewVideoScanScheduler.scanAll).toHaveBeenCalledWith(true);
+    // Mirrors runNow for a started run: the scan reports its summary when it
+    // ends, and completion resolves after that.
+    const startedRun = (result) => (key, { args }) => Promise.resolve({
+      started: true,
+      completion: new Promise((resolve) => setImmediate(() => {
+        if (result) args.onSummary(result);
+        resolve({ status: result ? 'success' : 'error', message: 'scan failed' });
+      })),
     });
 
-    test('returns 409 when a scan is already in progress', async () => {
-      mockNewVideoScanScheduler.scanAll.mockRejectedValueOnce(new Error('SCAN_IN_PROGRESS'));
+    test('returns the scan summary', async () => {
+      mockScheduledTaskManager.runNow.mockImplementation(startedRun(summary));
       const res = await request(app).post('/api/new-videos/scan');
-      expect(res.status).toBe(409);
-      expect(res.body.error).toBeDefined();
+      expect([res.status, res.body]).toEqual([200, summary]);
     });
 
-    test('returns 500 for unexpected failures', async () => {
-      mockNewVideoScanScheduler.scanAll.mockRejectedValueOnce(new Error('boom'));
+    test('starts a forced manual run of the scan task that ignores the switch and cooldown', async () => {
+      mockScheduledTaskManager.runNow.mockImplementation(startedRun(summary));
+      await request(app).post('/api/new-videos/scan');
+      expect(mockScheduledTaskManager.runNow).toHaveBeenCalledWith('channelScanFrequency', expect.objectContaining({
+        trigger: 'manual',
+        args: expect.objectContaining({ force: true }),
+        enforceEnabled: false,
+        enforceCooldown: false,
+      }));
+    });
+
+    test('returns 409 when a scan is already running', async () => {
+      mockScheduledTaskManager.runNow.mockResolvedValue({ started: false, reason: 'running', message: 'Already running.' });
+      const res = await request(app).post('/api/new-videos/scan');
+      expect([res.status, res.body.error]).toEqual([409, 'A scan is already in progress']);
+    });
+
+    test('returns 503 when the scan task is not registered yet', async () => {
+      mockScheduledTaskManager.runNow.mockResolvedValue({ started: false, reason: 'not-registered', message: 'Not ready.' });
+      const res = await request(app).post('/api/new-videos/scan');
+      expect(res.status).toBe(503);
+    });
+
+    test('returns 500 when the scan fails', async () => {
+      mockScheduledTaskManager.runNow.mockImplementation(startedRun(null));
       const res = await request(app).post('/api/new-videos/scan');
       expect(res.status).toBe(500);
-      expect(res.body.error).toBeDefined();
+    });
+
+    test('returns 500 when the scan cannot be started', async () => {
+      mockScheduledTaskManager.runNow.mockRejectedValue(new Error('boom'));
+      const res = await request(app).post('/api/new-videos/scan');
+      expect(res.status).toBe(500);
     });
   });
 });

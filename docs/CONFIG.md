@@ -73,13 +73,13 @@ Configuration can be modified through:
 - **Config Key**: `channelScanEnabled`
 - **Type**: `boolean`
 - **Default**: `false`
-- **Description**: Runs a daily scan of every enabled channel's auto-download-enabled tabs and every enabled playlist, adding any newly-discovered videos to a review queue shown in Manual Downloads, where each video can be downloaded or ignored individually. This does not download anything by itself. The same manual "Scan Now" trigger on that page always runs this scan immediately, regardless of this setting.
+- **Description**: Runs the scheduled scan (on the `channelScanFrequency` schedule) of every enabled channel's auto-download-enabled tabs and every enabled playlist, adding any newly-discovered videos to a review queue shown in Manual Downloads, where each video can be downloaded or ignored individually. This does not download anything by itself. The same manual "Scan Now" trigger on that page always runs this scan immediately, regardless of this setting.
 
-### Channel Scan Time
-- **Config Key**: `channelScanTime`
-- **Type**: `string` (`"HH:MM"`, 24-hour, server-local time)
-- **Default**: `"14:00"`
-- **Description**: Time of day the scheduled channel/playlist scan runs when `channelScanEnabled` is true.
+### New Videos Scan Schedule
+- **Config Key**: `channelScanFrequency`
+- **Type**: `string` (cron expression, server-local time)
+- **Default**: `"0 14 * * *"` (daily at 14:00)
+- **Description**: When the scheduled channel/playlist scan runs while `channelScanEnabled` is true. Edited on **Settings -> Scheduling** like the other schedules (see below). Replaces the older `channelScanTime` (`"HH:MM"`, daily), which is converted automatically on startup: `"09:30"` becomes `"30 9 * * *"`, and an invalid value falls back to the default.
 
 ### New Videos Scan Limit
 - **Config Key**: `channelScanVideoLimit`
@@ -88,16 +88,15 @@ Configuration can be modified through:
 - **Range**: 1-200
 - **Description**: Maximum number of most recent videos checked per channel tab, to find new videos for the Manual Downloads review queue. Applies both to the scheduled/manual scan and to the automatic refresh that runs when you open a channel's page (e.g. right after adding a channel) - either way, this is the cap. It only limits how many *new* videos get checked per refresh; it does not retroactively shrink rows already fetched under a previous, higher limit. Playlists are unaffected by this limit - a playlist scan always re-lists the whole playlist (capped at 5000 entries).
 
-> **Note:** the New Videos scan above is configured under **Settings -> Core**, uses its own `"HH:MM"` time rather than a cron expression, and is not one of the tasks on the **Settings -> Scheduling** page described below - it has no run history or **Run now** there. Trigger it on demand with **Scan Now** in the New Videos queue.
-
 ### Scheduling
 
-All eight recurring tasks can be configured in **Settings -> Scheduling**. Schedules are stored in `config.json` as cron expressions. Every schedule offers a daily time picker, preset intervals, or a custom cron expression. The 15 and 30 minute presets are available for every task, but the page shows a warning when any task other than automatic downloads is set to run more than once an hour, because those tasks do full-library or network work on every run; the choice is still yours. **Custom cron** accepts five fields (minute, hour, day of month, month, day of week), or six fields with seconds first. Runs must be at least 15 minutes apart: an expression such as `*/5 * * * *` is rejected, and a six-field expression needs a single fixed seconds value.
+All nine recurring tasks can be configured in **Settings -> Scheduling**. Schedules are stored in `config.json` as cron expressions. Every schedule offers a daily time picker, preset intervals, or a custom cron expression. The 15 and 30 minute presets are available for every task, but the page shows a warning when any task other than automatic downloads is set to run more than once an hour, because those tasks do full-library or network work on every run; the choice is still yours. **Custom cron** accepts five fields (minute, hour, day of month, month, day of week), or six fields with seconds first. Runs must be at least 15 minutes apart: an expression such as `*/5 * * * *` is rejected, and a six-field expression needs a single fixed seconds value.
 
 | Config key | Default | Task |
 | --- | --- | --- |
 | `channelDownloadFrequency` | `0 * * * *` | Automatic channel and playlist downloads |
 | `watchStatusSyncFrequency` | `0 */4 * * *` | Watch status sync |
+| `channelScanFrequency` | `0 14 * * *` | New videos scan: check subscribed channels and playlists for new videos and add them to the New Videos queue |
 | `autoRemovalFrequency` | `0 2 * * *` | Video removal and empty-folder cleanup |
 | `archiveBackfillFrequency` | `20 2 * * *` | Repair library records from the download archive |
 | `sessionCleanupFrequency` | `0 3 * * *` | Expired and old inactive session cleanup |
@@ -107,18 +106,18 @@ All eight recurring tasks can be configured in **Settings -> Scheduling**. Sched
 
 Times use the server timezone, shown on the Scheduling page and configured through `TZ`. Interval presets follow the clock: "Every 4 hours" runs at 00:00, 04:00, 08:00, and so on. Changing a schedule takes effect after saving, without a restart or immediate execution. To run a task immediately, use its **Run now** button. Running tasks are allowed to finish. Invalid schedule submissions are rejected without saving other changes.
 
-Existing feature switches still control downloads, watch sync, video removal, and yt-dlp updates. Empty-folder cleanup continues even when video removal is disabled. Elfhosted manages yt-dlp updates itself. The archive repair and filesystem rescan retain their startup passes, which appear in the run history with the `startup` trigger.
+Existing feature switches still control downloads, watch sync, video removal, the new videos scan, and yt-dlp updates. Empty-folder cleanup continues even when video removal is disabled. Elfhosted manages yt-dlp updates itself. The archive repair and filesystem rescan retain their startup passes, which appear in the run history with the `startup` trigger.
 
 The Scheduling page also shows what the scheduler is actually doing: an **Upcoming runs** list, and on each card the next run, whether the task is running now, and its last recorded run with the outcome (for example "completed: Deleted 12 videos and freed 8.10 GB"). If a saved expression could not be scheduled, the card says so in red. Every time on the page is shown in the server timezone, whatever zone your browser is in, and the page updates live over the WebSocket connection, and also refreshes every minute (every 30 seconds while a task runs) and when you return to the tab. Run history is stored in the database (`scheduled_task_runs`: the last 20 runs per task, plus the newest run of each outcome so the last yt-dlp install is always kept), never in `config.json`. If a run is still in progress at its next scheduled time, that occurrence is recorded as skipped; starting a task manually while it is already running (from its schedule, a startup pass, or another manual start) is refused, so only scheduled occurrences are recorded as skipped; a run cut short by a restart is recorded as interrupted.
 
 **Run now** starts a task immediately with the saved settings, and the run appears in the history with the `manual` trigger. The button is disabled, with the reason shown next to it:
-- while the task is running, whether that run came from its schedule, a startup pass, or another manual start (the Maintenance rescan, Watch Status **Sync Now**, the YT-DLP page's update button, or **Download new** in Downloads). For automatic downloads, "running" lasts until the sweep's last download finishes, including its playlist downloads and any automatic retries. The run's history entry records the check for new videos and the queuing of downloads; the downloads themselves are summarized in Download History and notifications;
+- while the task is running, whether that run came from its schedule, a startup pass, or another manual start (the Maintenance rescan, Watch Status **Sync Now**, the New Videos queue's **Scan Now**, the YT-DLP page's update button, or **Download new** in Downloads). For automatic downloads, "running" lasts until the sweep's last download finishes, including its playlist downloads and any automatic retries. The run's history entry records the check for new videos and the queuing of downloads; the downloads themselves are summarized in Download History and notifications;
 - while its feature is turned off (watch status sync, automatic yt-dlp updates; the card links to the page that turns it on);
 - for automatic downloads, while downloads are paused by a storage limit;
 - for watch status sync, while no media server is connected;
 - for channel video counts without a YouTube API key, while YouTube has paused lookups or a download is running.
 
-Automatic downloads can be run now even when automatic downloads are turned off: the switch only stops the schedule, and Run now does the same channel and playlist sweep as **Download new**.
+Automatic downloads can be run now even when automatic downloads are turned off: the switch only stops the schedule, and Run now does the same channel and playlist sweep as **Download new**. The new videos scan works the same way: its switch only stops the schedule, and Run now does the same forced re-check as **Scan Now** in the New Videos queue.
 
 Only channel video counts can't be run again within 15 minutes of their last start, the same spacing schedules must keep; the card says when Run now becomes available. Automatic downloads can run again as soon as the previous sweep has finished, the same as **Download new**. The page-specific buttons (Sync Now, the YT-DLP update button, Download new) keep working while the schedule is turned off. Automatic video cleanup asks for confirmation first, because it deletes files.
 
