@@ -53,13 +53,15 @@ class ConfigModule extends EventEmitter {
     this.ffmpegPath = '/usr/bin/ffmpeg';
     this.atomicParsleyPath = '/usr/bin/AtomicParsley';
 
+    const scanTimeMigrated = this.migrateChannelScanTime();
+
     // Merge with template to add any missing fields
     const mergeResult = this.mergeWithTemplate(this.config);
     this.config = mergeResult.config;
 
     // Handle legacy field name (cronSchedule → channelDownloadFrequency)
     // This is a one-time migration for old configs
-    let legacyMigrationNeeded = false;
+    let legacyMigrationNeeded = scanTimeMigrated;
     if (this.config.cronSchedule && !this.config.channelDownloadFrequency) {
       this.config.channelDownloadFrequency = this.config.cronSchedule;
       delete this.config.cronSchedule;
@@ -211,6 +213,30 @@ class ConfigModule extends EventEmitter {
    * @param {object} existingConfig - Current config object
    * @returns {object} Object with { config: mergedConfig, modified: boolean }
    */
+  // channelScanTime ("HH:MM", daily) predates the Scheduling page, which keeps
+  // every schedule as cron. Runs on the raw file before mergeWithTemplate,
+  // which would otherwise fill channelScanFrequency with the template default
+  // first and hide a customized time.
+  migrateChannelScanTime() {
+    if (!this.config || this.config.channelScanTime === undefined) return false;
+    const time = this.config.channelScanTime;
+    delete this.config.channelScanTime;
+    if (this.config.channelScanFrequency !== undefined) return true;
+
+    const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(typeof time === 'string' ? time : '');
+    if (!match) {
+      logger.warn({ channelScanTime: time }, 'Discarded invalid channelScanTime; the new-videos scan uses its default schedule');
+      return true;
+    }
+    const [, hour, minute] = match;
+    this.config.channelScanFrequency = `${Number(minute)} ${Number(hour)} * * *`;
+    logger.info(
+      { channelScanTime: time, channelScanFrequency: this.config.channelScanFrequency },
+      'Migrated channelScanTime to channelScanFrequency'
+    );
+    return true;
+  }
+
   mergeWithTemplate(existingConfig) {
     const examplePath = this.getConfigExamplePath();
     const templateContent = fs.readFileSync(examplePath, 'utf8');
@@ -450,13 +476,14 @@ class ConfigModule extends EventEmitter {
 
             // Load the new config file
             this.config = JSON.parse(fileContent);
+            const scanTimeMigrated = this.migrateChannelScanTime();
 
             // Merge with template to add any new fields
             const mergeResult = this.mergeWithTemplate(this.config);
             this.config = mergeResult.config;
 
             // Handle legacy field name (cronSchedule → channelDownloadFrequency)
-            let legacyMigrationNeeded = false;
+            let legacyMigrationNeeded = scanTimeMigrated;
             if (this.config.cronSchedule && !this.config.channelDownloadFrequency) {
               this.config.channelDownloadFrequency = this.config.cronSchedule;
               delete this.config.cronSchedule;

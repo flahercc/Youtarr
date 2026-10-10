@@ -38,6 +38,18 @@ export const SCHEDULE_FIELDS = [
     runNowConfirm: null,
   },
   {
+    key: 'channelScanFrequency',
+    group: 'sync',
+    label: 'New videos scan',
+    description: 'Check subscribed channels and playlists for new videos and add them to the New Videos queue for review, without downloading them.',
+    settingsPath: 'core',
+    settingsLabel: 'Core settings',
+    enabledKey: 'channelScanEnabled',
+    disabledText: 'The scheduled scan is off, so this schedule is idle until you turn it on. Run now and Scan Now in the New Videos queue still work.',
+    frequentRunWarning: 'Every scan can make a yt-dlp request for each subscribed channel tab and re-list every playlist on YouTube. Running it more than once an hour can trigger YouTube\'s bot check; use Scan Now in the New Videos queue when you need an immediate check.',
+    runNowConfirm: null,
+  },
+  {
     key: 'autoRemovalFrequency',
     group: 'maintenance',
     label: 'Automatic video cleanup',

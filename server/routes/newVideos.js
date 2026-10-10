@@ -1,15 +1,18 @@
 const express = require('express');
 const logger = require('../logger');
+const { sendRunBlocked } = require('./runNowResponse');
+
+const SCAN_TASK_KEY = 'channelScanFrequency';
 
 /**
  * New-videos discovery queue routes (session-auth only).
  * @param {Object} deps
  * @param {Function} deps.verifyToken
  * @param {Object} deps.newVideoQueueModule
- * @param {Object} deps.newVideoScanScheduler
+ * @param {Object} deps.scheduledTaskManager
  * @returns {express.Router}
  */
-function createNewVideoRoutes({ verifyToken, newVideoQueueModule, newVideoScanScheduler }) {
+function createNewVideoRoutes({ verifyToken, newVideoQueueModule, scheduledTaskManager }) {
   const router = express.Router();
 
   /**
@@ -77,17 +80,33 @@ function createNewVideoRoutes({ verifyToken, newVideoQueueModule, newVideoScanSc
    *         description: A scan is already in progress
    *       500:
    *         description: Scan failed
+   *       503:
+   *         description: The scan task is not registered yet (server still starting or database unavailable)
    */
   router.post('/api/new-videos/scan', verifyToken, async (req, res) => {
     try {
-      const summary = await newVideoScanScheduler.scanAll(true);
-      res.json(summary);
-    } catch (error) {
-      if (error.message === 'SCAN_IN_PROGRESS') {
-        return res.status(409).json({ error: 'A scan is already in progress' });
+      // Runs through the shared scheduler so the scan lands in run history. It
+      // works while the schedule is off, always re-checks YouTube, and still
+      // answers only after the scan ends, so the queue refetch sees new videos.
+      let summary = null;
+      const outcome = await scheduledTaskManager.runNow(SCAN_TASK_KEY, {
+        trigger: 'manual',
+        args: { force: true, onSummary: (result) => { summary = result; } },
+        enforceEnabled: false,
+        enforceCooldown: false,
+      });
+      if (!outcome.started) {
+        return sendRunBlocked(res, outcome, { running: 'A scan is already in progress' });
       }
+      const record = await outcome.completion;
+      if (!summary) {
+        logger.error({ message: record && record.message }, 'Failed to run new-videos scan');
+        return res.status(500).json({ error: 'Failed to run new-videos scan' });
+      }
+      return res.json(summary);
+    } catch (error) {
       logger.error({ err: error }, 'Failed to run new-videos scan');
-      res.status(500).json({ error: 'Failed to run new-videos scan' });
+      return res.status(500).json({ error: 'Failed to run new-videos scan' });
     }
   });
 

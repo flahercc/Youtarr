@@ -197,10 +197,6 @@ export const CoreSettingsSection: React.FC<CoreSettingsSectionProps> = ({
     onConfigChange({ [event.target.name]: event.target.checked });
   };
 
-  const handleScanTimeChange = (event: ChangeEvent<HTMLInputElement>) => {
-    onConfigChange({ channelScanTime: event.target.value });
-  };
-
   const handleScanVideoLimitChange = (event: ChangeEvent<HTMLInputElement>) => {
     const parsed = Number(event.target.value);
     if (!Number.isNaN(parsed)) {
@@ -338,22 +334,7 @@ export const CoreSettingsSection: React.FC<CoreSettingsSectionProps> = ({
                 </Grid>
 
                 <Grid item xs={12} md={6}>
-                  <Box className="flex items-center gap-1">
-                    <TextField
-                      fullWidth
-                      type="time"
-                      label="Channel Scan Time"
-                      name="channelScanTime"
-                      value={config.channelScanTime}
-                      onChange={handleScanTimeChange}
-                      disabled={!config.channelScanEnabled}
-                      InputLabelProps={{ shrink: true }}
-                    />
-                    <InfoTooltip
-                      text="Server-local time of day the scheduled channel scan runs, once daily."
-                      onMobileClick={onMobileTooltipClick}
-                    />
-                  </Box>
+                  <ScheduleSummary scheduleKey="channelScanFrequency" value={config.channelScanFrequency} label="New videos scan" />
                 </Grid>
 
                 <Grid item xs={12} md={6}>

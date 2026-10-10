@@ -34,6 +34,7 @@ const SCHEDULES = {
   videoRescanFrequency: { label: 'Rescan files on disk', default: '30 3 * * *' },
   ytdlpUpdateFrequency: { label: 'Automatic yt-dlp updates', default: '0 4 * * *' },
   channelVideoCountsFrequency: { label: 'Refresh channel video counts', default: '45 4 * * *' },
+  channelScanFrequency: { label: 'New videos scan', default: '0 14 * * *' },
 };
 
 function isValidBound(token, { min, max, names = [] }) {

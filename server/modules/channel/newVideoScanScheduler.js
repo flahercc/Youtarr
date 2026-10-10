@@ -1,6 +1,8 @@
-const cron = require('node-cron');
 const logger = require('../../logger');
 const configModule = require('../configModule');
+const scheduledTasks = require('../scheduledTaskManager');
+const { getSchedule } = require('../scheduleConfig');
+const newVideoScanRunSummary = require('./newVideoScanRunSummary');
 const Channel = require('../../models/channel');
 const ChannelVideo = require('../../models/channelvideo');
 const { Playlist, PlaylistVideo } = require('../../models');
@@ -9,9 +11,7 @@ const channelVideoQuery = require('./channelVideoQuery');
 const playlistModule = require('../playlistModule');
 const { TAB_TYPES, MEDIA_TAB_TYPE_MAP, parseTabCsv } = require('../tabsUtils');
 
-// Belt-and-braces default matching config.example.json, mirroring
-// watchStatusScheduler's DEFAULT_SYNC_FREQUENCY handling.
-const DEFAULT_SCAN_TIME = '14:00';
+const SCHEDULE_KEY = 'channelScanFrequency';
 const DEFAULT_SCAN_VIDEO_LIMIT = channelVideoFetcher.DEFAULT_MAX_VIDEO_COUNT;
 
 // Mirrors channelVideoFetcher.shouldRefreshChannelVideos's per-tab freshness
@@ -32,36 +32,24 @@ class NewVideoScanScheduler {
   }
 
   /**
-   * Schedule or reschedule the daily new-videos scan.
-   * Manages cron job based on configuration settings.
+   * Register (or re-register on config change) the scan with the shared
+   * scheduler, which owns its timer, run history, and Run now. The switch only
+   * stops the schedule: Scan Now and Run now still work while it is off.
    * @returns {void}
    */
   scheduleTask() {
     const config = configModule.getConfig();
-    const time = config.channelScanTime || DEFAULT_SCAN_TIME;
-
-    if (this.task) {
-      this.task.stop();
-      this.task = null;
-    }
-
-    if (!config.channelScanEnabled) {
-      logger.info('Channel scan disabled');
-      return;
-    }
-
-    const cronExpression = this.timeToCron(time);
-    if (!cronExpression || !cron.validate(cronExpression)) {
-      logger.warn({ time }, 'Invalid channel scan time; not scheduling');
-      return;
-    }
-
-    this.task = cron.schedule(cronExpression, () => {
-      this.scanAll().catch((err) => {
-        logger.error({ err }, 'Scheduled new-videos scan failed');
-      });
+    scheduledTasks.updateTask({
+      id: SCHEDULE_KEY,
+      expression: getSchedule(config, SCHEDULE_KEY),
+      enabled: Boolean(config.channelScanEnabled),
+      manualRunRequiresEnabled: false,
+      run: ({ force = false, onSummary } = {}) => this.scanAll(force).then((summary) => {
+        if (onSummary) onSummary(summary);
+        return newVideoScanRunSummary.toRunRecord(summary);
+      }),
+      isRunning: () => this.scanning,
     });
-    logger.info({ time, cronExpression }, 'Channel scan scheduled');
   }
 
   /**
@@ -71,19 +59,6 @@ class NewVideoScanScheduler {
    */
   subscribe() {
     configModule.onConfigChange(this.scheduleTask.bind(this));
-  }
-
-  /**
-   * Convert an "HH:MM" time-of-day (server-local) into a daily cron
-   * expression. Returns null for a malformed time string.
-   * @param {string} time
-   * @returns {string|null}
-   */
-  timeToCron(time) {
-    const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(time || '');
-    if (!match) return null;
-    const [, hour, minute] = match;
-    return `${Number(minute)} ${Number(hour)} * * *`;
   }
 
   /**

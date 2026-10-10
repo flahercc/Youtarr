@@ -4,7 +4,7 @@
   "channelAutoDownload": false,
   "channelDownloadFrequency": "0 * * * *",
   "channelScanEnabled": false,
-  "channelScanTime": "14:00",
+  "channelScanFrequency": "0 14 * * *",
   "channelScanVideoLimit": 50,
   "autoRemovalFrequency": "0 2 * * *",
   "archiveBackfillFrequency": "20 2 * * *",

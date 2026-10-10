@@ -169,6 +169,48 @@ describe('ConfigModule', () => {
       expect(logger.info).toHaveBeenCalledWith('Migrated legacy cronSchedule field to channelDownloadFrequency');
     });
 
+    describe('channelScanTime migration', () => {
+      // The real template carries channelScanFrequency, so these tests keep it
+      // there: the migration has to win against the template default.
+      const loadWith = (existingConfig) => {
+        fs.existsSync.mockReturnValue(true);
+        fs.readFileSync.mockImplementation((path) => {
+          if (path.includes('config.json') && !path.includes('example')) {
+            return JSON.stringify(existingConfig);
+          }
+          return JSON.stringify({ ...defaultTemplate, channelScanFrequency: '0 14 * * *' });
+        });
+        ConfigModule = require('../configModule');
+        return ConfigModule.getConfig();
+      };
+
+      test('carries a customized time into channelScanFrequency despite the template default', () => {
+        const config = loadWith({ ...defaultTemplate, channelScanTime: '09:30' });
+        expect(config.channelScanFrequency).toBe('30 9 * * *');
+      });
+
+      test('removes channelScanTime after migrating', () => {
+        const config = loadWith({ ...defaultTemplate, channelScanTime: '09:30' });
+        expect(config.channelScanTime).toBeUndefined();
+      });
+
+      test('keeps an existing channelScanFrequency when both keys are present', () => {
+        const config = loadWith({ ...defaultTemplate, channelScanTime: '09:30', channelScanFrequency: '0 */6 * * *' });
+        expect(config.channelScanFrequency).toBe('0 */6 * * *');
+      });
+
+      test('falls back to the default schedule for an invalid channelScanTime', () => {
+        const config = loadWith({ ...defaultTemplate, channelScanTime: '25:99' });
+        expect(config.channelScanFrequency).toBe('0 14 * * *');
+      });
+
+      test('saves the migrated config to disk', () => {
+        loadWith({ ...defaultTemplate, channelScanTime: '09:30' });
+        const written = fs.writeFileSync.mock.calls.map(([, body]) => body).filter((body) => typeof body === 'string');
+        expect(written.some((body) => JSON.parse(body).channelScanFrequency === '30 9 * * *')).toBe(true);
+      });
+    });
+
     test('normalizes schedules below the minimum interval on load', () => {
       const existingConfig = {
         ...defaultTemplate,
