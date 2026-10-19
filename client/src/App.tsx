@@ -90,12 +90,9 @@ function AppContent() {
   const { version } = packageJson;
   const clientVersion = `v${version}`; // Create a version with 'v' prefix for comparison
   const tmpDirectory = '/tmp';
-  const isElfHosted = platformName?.toLowerCase() === 'elfhosted';
-  const updateAvailable = Boolean(
-    serverVersion &&
-    serverVersion !== clientVersion &&
-    !isElfHosted
-  );
+  // Fork: the latest version comes from upstream's Docker Hub tags, which this fork
+  // merges on its own schedule and does not publish, so never prompt to update.
+  const updateAvailable = false;
   const updateTooltip = updateAvailable
     ? `New version (${serverVersion}) available! Please shut down and pull the latest image and files to update.`
     : undefined;

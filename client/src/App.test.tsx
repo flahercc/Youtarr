@@ -628,6 +628,19 @@ describe('App Component', () => {
     expect(screen.queryByText(/New version.*available/)).not.toBeInTheDocument();
   });
 
+  test('does not prompt to update when Docker Hub reports a newer version', async () => {
+    axios.get.mockResolvedValue({ data: { version: 'v99.0.0' } });
+    localStorageMock.getItem.mockReturnValue('test-token');
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(axios.get).toHaveBeenCalledWith('/getCurrentReleaseVersion');
+    });
+
+    expect(screen.queryByText(/Pull the latest image/)).not.toBeInTheDocument();
+  });
+
   test('displays storage status component', async () => {
     localStorageMock.getItem.mockReturnValue('test-token');
 
