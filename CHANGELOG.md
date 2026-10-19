@@ -1,5 +1,58 @@
 # Changelog
 
+## [v1.89.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.89.0) - 2026-10-17
+
+### Features
+
+* make the bookmarklet easier to find ([4bb98fc](https://github.com/DialmasterOrg/Youtarr/commit/4bb98fcf322b619148a1cf8b51adeea66b264aad))
+
+
+### Bug Fixes
+
+* accept video urls opened from a playlist ([c1dbe18](https://github.com/DialmasterOrg/Youtarr/commit/c1dbe18d7083fa7ec9b12e84537c6a81853d9ed4)), closes [#937](https://github.com/DialmasterOrg/Youtarr/issues/937)
+* download regional subtitle language variants ([cf333d7](https://github.com/DialmasterOrg/Youtarr/commit/cf333d717f9997fdc10bc99dc2cd6dc16502e363)), closes [#914](https://github.com/DialmasterOrg/Youtarr/issues/914)
+* replace custom args denylist with allowlist ([bf2471d](https://github.com/DialmasterOrg/Youtarr/commit/bf2471dea42e54983a0446f412fdf5c949dd2794))
+* require a session for WebSocket connections ([b5cee60](https://github.com/DialmasterOrg/Youtarr/commit/b5cee606245ebb457f76ebf270681977b146d5db))
+
+
+### Continuous Integration
+
+* Add dependabot to repo ([7469cdb](https://github.com/DialmasterOrg/Youtarr/commit/7469cdbba0f901c4e9320aee6e48b7a332cdb47c))
+
+
+### Documentation
+
+* update CHANGELOG for v1.88.0 [skip ci] ([d7938d5](https://github.com/DialmasterOrg/Youtarr/commit/d7938d552a13dbf4bbc76f7e2b8f18d3d22cf2b6))
+
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.88.0...v1.89.0
+
+## [v1.88.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.88.0) - 2026-10-13
+
+### Features
+
+* add external API persistence foundation ([59cafaf](https://github.com/DialmasterOrg/Youtarr/commit/59cafaf79f5e038aa346a517e5e533aa6eac236a))
+
+
+### Bug Fixes
+
+* address final external API foundation review ([afe59f9](https://github.com/DialmasterOrg/Youtarr/commit/afe59f93315d0ba4cba3747aba8bfb0fd64cbdf1))
+* keep the app up through an internet outage ([cab55bd](https://github.com/DialmasterOrg/Youtarr/commit/cab55bde2029b54509dc9f37761787890a6b5153)), closes [#921](https://github.com/DialmasterOrg/Youtarr/issues/921)
+* require a session for the Plex PIN routes ([9c9d957](https://github.com/DialmasterOrg/Youtarr/commit/9c9d9570e51c21a08d49a41ad291d383ae53cc8e))
+* show each video once, update proxy-addr ([3c981b4](https://github.com/DialmasterOrg/Youtarr/commit/3c981b4738f51f87ba4b58e7c0ec0b291208d67e)), closes [#922](https://github.com/DialmasterOrg/Youtarr/issues/922)
+* use portable JSON literal in API key migration ([18a5c52](https://github.com/DialmasterOrg/Youtarr/commit/18a5c520c6de246f77b607bf816b43e209e16e5d))
+
+
+### Documentation
+
+* update CHANGELOG for v1.87.1 [skip ci] ([6d76c9a](https://github.com/DialmasterOrg/Youtarr/commit/6d76c9a7d53eedde88471d61e40b63c5cf989b2c))
+
+
+### Tests
+
+* keep channel model mocks association-compatible ([e2d0a7f](https://github.com/DialmasterOrg/Youtarr/commit/e2d0a7fa6b47d310fef13fbf0bb90ce987f742e1))
+
+**Full Changelog**: https://github.com/DialmasterOrg/Youtarr/compare/v1.87.1...v1.88.0
+
 ## [v1.87.1](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.87.1) - 2026-10-03
 
 ### Bug Fixes
