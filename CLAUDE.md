@@ -302,6 +302,10 @@ When a code change creates or invalidates information in this file or in `docs/`
   Actions **Variables**, not Secrets), restore the `push:` triggers in
   `.github/workflows/release-rc.yml` and `release.yml`, and change the hardcoded upstream
   service-account identity in `release.yml`'s "Configure Git user" step.
+- The Youtarr "new version available" prompt is off (`updateAvailable = false` in
+  `client/src/App.tsx`): it compares against upstream's Docker Hub tags, which this fork
+  merges on its own schedule. Keep it off when merging upstream changes to that code.
+  The yt-dlp update indicator is unaffected.
 - Upstream behavior, for reference when merging: `dev` pushes build an RC image
   (`dev-latest`, `dev-rc.<sha>`); `dev` -> `main` triggers a semver production release.
 - Commit prefixes: `feat:` (minor), `fix:` (patch), `BREAKING CHANGE:` (major).
