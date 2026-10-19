@@ -11,6 +11,10 @@ const mockNavigate = jest.fn();
 const mockOnManualDownloadFailure = jest.fn();
 jest.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
+  Link: function MockLink({ to, children }: { to: string; children: React.ReactNode }) {
+    const React = require('react');
+    return React.createElement('a', { href: to }, children);
+  },
 }));
 
 // Mock useConfig hook
@@ -106,6 +110,12 @@ describe('DownloadNew', () => {
     expect(screen.getByText('Downloads')).toBeInTheDocument();
     expect(screen.getByTestId('manual-download')).toBeInTheDocument();
     expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+  });
+
+  test('links the bookmarklet tip to the API keys settings page', () => {
+    render(<DownloadNew {...defaultProps} />);
+
+    expect(screen.getByRole('link', { name: 'Set up the bookmarklet' })).toHaveAttribute('href', '/settings/api-keys');
   });
 
   test('uses config from useConfig hook', async () => {
