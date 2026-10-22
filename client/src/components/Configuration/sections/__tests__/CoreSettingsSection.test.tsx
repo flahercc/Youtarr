@@ -279,6 +279,40 @@ describe('CoreSettingsSection Component', () => {
     });
   });
 
+  describe('Download channel banner Checkbox', () => {
+    const label = /Download channel banner/i;
+
+    test('is unchecked by default', () => {
+      const props = createSectionProps();
+      renderWithProviders(<CoreSettingsSection {...props} />);
+
+      expect(screen.getByRole('checkbox', { name: label })).not.toBeChecked();
+    });
+
+    test('reflects writeChannelBanner state when true', () => {
+      const props = createSectionProps({
+        config: createConfig({ writeChannelBanner: true })
+      });
+      renderWithProviders(<CoreSettingsSection {...props} />);
+
+      expect(screen.getByRole('checkbox', { name: label })).toBeChecked();
+    });
+
+    test('calls onConfigChange when toggled on', async () => {
+      const user = userEvent.setup();
+      const onConfigChange = jest.fn();
+      const props = createSectionProps({
+        config: createConfig({ writeChannelBanner: false }),
+        onConfigChange
+      });
+      renderWithProviders(<CoreSettingsSection {...props} />);
+
+      await user.click(screen.getByRole('checkbox', { name: label }));
+
+      expect(onConfigChange).toHaveBeenCalledWith({ writeChannelBanner: true });
+    });
+  });
+
   describe('Prefix channel name in embedded video title Checkbox', () => {
     const label = /Prefix channel name in embedded video title/i;
 
