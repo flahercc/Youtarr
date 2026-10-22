@@ -12,6 +12,8 @@ const YtdlpCommandBuilder = require('./download/ytdlpCommandBuilder');
 const { selectSubtitleFilesToPrune } = require('./download/subtitleSidecarPruner');
 const { JobVideoDownload } = require('../models');
 const videoPersistence = require('./videoPersistence');
+const channelMetadataFetcher = require('./channel/channelMetadataFetcher');
+const channelThumbnails = require('./channel/channelThumbnails');
 const { VIDEO_PERSISTED_MARKER } = require('./constants/outputMarkers');
 const logger = require('../logger');
 const logLevelSync = require('./logLevelSync');
@@ -96,6 +98,11 @@ function shouldWriteVideoFanart() {
 function shouldWriteBackdropImages() {
   const config = configModule.getConfig() || {};
   return config.writeBackdropImages === true;
+}
+
+function shouldWriteChannelBanner() {
+  const config = configModule.getConfig() || {};
+  return config.writeChannelBanner === true;
 }
 
 function shouldPrefixChannelNameInTitle() {
@@ -285,6 +292,42 @@ async function copyChannelBackdropIfNeeded(channelId, channelFolderPath) {
     }
   } catch (err) {
     logger.warn({ err }, 'Error copying channel backdrop');
+  }
+}
+
+// Write banner.jpg to the channel folder from the banner cache, fetching the
+// channel's banner into the cache first when it has not been cached yet.
+async function writeChannelBannerIfNeeded(channelId, channelFolderPath) {
+  if (!shouldWriteChannelBanner()) {
+    return;
+  }
+
+  try {
+    const channelBannerFilePath = path.join(channelFolderPath, 'banner.jpg');
+    if (fs.existsSync(channelBannerFilePath)) {
+      return;
+    }
+
+    const bannerCachePath = path.join(
+      configModule.getImagePath(),
+      `channelbanner-${channelId}.jpg`
+    );
+
+    if (!fs.existsSync(bannerCachePath)) {
+      const channelData = await channelMetadataFetcher.fetchChannelMetadata(
+        `https://www.youtube.com/channel/${channelId}`
+      );
+      await channelThumbnails.processChannelBanner(channelData, channelId);
+    }
+
+    if (fs.existsSync(bannerCachePath)) {
+      copySyncWithFallback(bannerCachePath, channelBannerFilePath);
+      logger.info({ channelFolderPath }, 'Channel banner.jpg created');
+    } else {
+      logger.debug({ channelId }, 'No channel banner available, skipping banner.jpg');
+    }
+  } catch (err) {
+    logger.warn({ err, channelId }, 'Error writing channel banner');
   }
 }
 
@@ -965,6 +1008,7 @@ async function resolveTrackedOwnerChannelId(youtubeId, metadataChannelId) {
     if (jsonData.channel_id) {
       await copyChannelPosterIfNeeded(jsonData.channel_id, finalChannelFolderPath);
       await copyChannelBackdropIfNeeded(jsonData.channel_id, finalChannelFolderPath);
+      await writeChannelBannerIfNeeded(jsonData.channel_id, finalChannelFolderPath);
     }
 
     // Save to the videos + channelvideos tables now so listing pages can show

@@ -561,6 +561,29 @@ export const CoreSettingsSection: React.FC<CoreSettingsSectionProps> = ({
                     <FormControlLabel
                       control={
                         <Switch
+                          name="writeChannelBanner"
+                          checked={config.writeChannelBanner}
+                          onChange={handleCheckboxChange}
+                        />
+                      }
+                      label={
+                        <Box className="flex items-center">
+                          Download channel banner
+                          <InfoTooltip
+                            text="When a video downloads, save the channel's YouTube banner as banner.jpg in the channel directory if one is not already there."
+                            onMobileClick={onMobileTooltipClick}
+                          />
+                        </Box>
+                      }
+                    />
+                  </FormControl>
+                </Grid>
+
+                <Grid item xs={12} md={6} className="mt-3">
+                  <FormControl>
+                    <FormControlLabel
+                      control={
+                        <Switch
                           name="prefixChannelNameInTitle"
                           checked={config.prefixChannelNameInTitle}
                           onChange={handleCheckboxChange}

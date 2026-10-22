@@ -438,6 +438,13 @@ Sync is one-way (server -> Youtarr). Non-owner Plex users come from the server's
 - **Description**: Generate backdrop image files for Emby and Jellyfin background art
 - **Note**: Creates `backdrop.jpg` in each channel directory (from the channel's YouTube banner) and a `-backdrop.jpg` file alongside each video (copy of the video thumbnail). When enabled, channel-level backdrops are backfilled for existing channel folders; video-level backdrops are created for new downloads only.
 
+### Write Channel Banner
+- **Config Key**: `writeChannelBanner`
+- **Type**: `boolean`
+- **Default**: `false`
+- **Description**: Save the channel's YouTube banner as `banner.jpg` in the channel directory
+- **Note**: Checked each time a video finishes downloading: when the channel folder has no `banner.jpg`, the banner is copied from Youtarr's image cache, fetching it from YouTube first if it has not been cached. An existing `banner.jpg` is never overwritten. Channels without a banner get no file.
+
 ### Prefix Channel Name In Embedded Title
 - **Config Key**: `prefixChannelNameInTitle`
 - **Type**: `boolean`

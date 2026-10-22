@@ -88,6 +88,16 @@ const mockVideoPersistence = {
 
 jest.mock('../videoPersistence', () => mockVideoPersistence);
 
+const mockChannelMetadataFetcher = {
+  fetchChannelMetadata: jest.fn(() => Promise.resolve({ thumbnails: [] }))
+};
+const mockChannelThumbnails = {
+  processChannelBanner: jest.fn(() => Promise.resolve())
+};
+
+jest.mock('../channel/channelMetadataFetcher', () => mockChannelMetadataFetcher);
+jest.mock('../channel/channelThumbnails', () => mockChannelThumbnails);
+
 jest.mock('../../logger');
 
 // downloadSettingsResolver is intentionally not mocked: it is a pure function, so these
@@ -963,7 +973,7 @@ describe('videoDownloadPostProcessFiles', () => {
       fs.existsSync.mockImplementation((path) => path === tempJsonPath || path.includes('/library/Channel'));
 
       await loadModule();
-      await settleAsync();
+      await settleAsync(10);
 
       // Verify final path is stored, not temp path
       expect(JobVideoDownload.update).toHaveBeenCalledWith(
@@ -1405,7 +1415,7 @@ describe('videoDownloadPostProcessFiles', () => {
       fs.pathExists.mockResolvedValue(false);
 
       await loadModule();
-      await settleAsync();
+      await settleAsync(10);
 
       // Verify fs.move was called to move video directory directly to subfolder location with __ prefix (atomic move)
       expect(fs.move).toHaveBeenCalledWith(
@@ -1817,6 +1827,113 @@ describe('videoDownloadPostProcessFiles', () => {
 
       const channelBackdropCopied = fs.copySync.mock.calls.some(([, dest]) => dest === channelBackdropPath);
       expect(channelBackdropCopied).toBe(false);
+    });
+  });
+
+  describe('writeChannelBanner', () => {
+    const channelBannerCachePath = '/mock/images/channelbanner-channel123.jpg';
+    const channelBannerFilePath = '/library/Channel/banner.jpg';
+    const bannerConfig = {
+      writeChannelPosters: false,
+      writeVideoNfoFiles: true,
+      writeChannelBanner: true,
+    };
+
+    beforeEach(() => {
+      // Flat layout: the video sits directly in the channel folder
+      process.env.YOUTARR_SKIP_VIDEO_FOLDER = 'true';
+    });
+
+    afterEach(() => {
+      delete process.env.YOUTARR_SKIP_VIDEO_FOLDER;
+    });
+
+    const bannerCopied = () =>
+      fs.copySync.mock.calls.some(([, dest]) => dest === channelBannerFilePath);
+
+    it('copies the cached channel banner to banner.jpg without fetching', async () => {
+      configModule.__setConfig(bannerConfig);
+      fs.existsSync.mockImplementation((p) => p === jsonPath || p === channelBannerCachePath);
+
+      await loadModule();
+      await settleAsync();
+
+      expect(fs.copySync).toHaveBeenCalledWith(channelBannerCachePath, channelBannerFilePath, { overwrite: true });
+      expect(mockChannelMetadataFetcher.fetchChannelMetadata).not.toHaveBeenCalled();
+    });
+
+    it('fetches the banner when it is not cached, then writes banner.jpg', async () => {
+      configModule.__setConfig(bannerConfig);
+      const channelData = { thumbnails: [{ id: 'banner_uncropped', url: 'https://example.com/b.jpg' }] };
+      mockChannelMetadataFetcher.fetchChannelMetadata.mockResolvedValueOnce(channelData);
+      let cached = false;
+      mockChannelThumbnails.processChannelBanner.mockImplementationOnce(async () => { cached = true; });
+      fs.existsSync.mockImplementation((p) =>
+        p === jsonPath || (p === channelBannerCachePath && cached)
+      );
+
+      await loadModule();
+      await settleAsync(10);
+
+      expect(mockChannelThumbnails.processChannelBanner).toHaveBeenCalledWith(channelData, 'channel123');
+      expect(fs.copySync).toHaveBeenCalledWith(channelBannerCachePath, channelBannerFilePath, { overwrite: true });
+    });
+
+    it('fetches the banner from the channel URL built from the channel id', async () => {
+      configModule.__setConfig(bannerConfig);
+      fs.existsSync.mockImplementation((p) => p === jsonPath);
+
+      await loadModule();
+      await settleAsync(10);
+
+      expect(mockChannelMetadataFetcher.fetchChannelMetadata)
+        .toHaveBeenCalledWith('https://www.youtube.com/channel/channel123');
+    });
+
+    it('writes no banner.jpg when the channel has no banner', async () => {
+      configModule.__setConfig(bannerConfig);
+      fs.existsSync.mockImplementation((p) => p === jsonPath);
+
+      await loadModule();
+      await settleAsync(10);
+
+      expect(bannerCopied()).toBe(false);
+    });
+
+    it('leaves an existing banner.jpg alone', async () => {
+      configModule.__setConfig(bannerConfig);
+      fs.existsSync.mockImplementation((p) =>
+        p === jsonPath || p === channelBannerCachePath || p === channelBannerFilePath
+      );
+
+      await loadModule();
+      await settleAsync();
+
+      expect(bannerCopied()).toBe(false);
+    });
+
+    it('does nothing when writeChannelBanner is off', async () => {
+      configModule.__setConfig({ ...bannerConfig, writeChannelBanner: false });
+      fs.existsSync.mockImplementation((p) => p === jsonPath || p === channelBannerCachePath);
+
+      await loadModule();
+      await settleAsync();
+
+      expect(bannerCopied()).toBe(false);
+    });
+
+    it('logs a warning and keeps going when the banner fetch fails', async () => {
+      configModule.__setConfig(bannerConfig);
+      mockChannelMetadataFetcher.fetchChannelMetadata.mockRejectedValueOnce(new Error('offline'));
+      fs.existsSync.mockImplementation((p) => p === jsonPath);
+
+      await loadModule();
+      await settleAsync(10);
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.objectContaining({ err: expect.any(Error), channelId: 'channel123' }),
+        'Error writing channel banner'
+      );
     });
   });
 
