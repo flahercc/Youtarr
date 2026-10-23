@@ -489,5 +489,40 @@ describe('NfoGenerator', () => {
       const nfoContent = fs.writeFileSync.mock.calls[0][1];
       expect(nfoContent).not.toContain('<year>');
     });
+
+    it('should include view count from info.json', () => {
+      nfoGenerator.writeVideoNfoFile(mockVideoPath, { title: 'Test Video', view_count: 1234567 });
+
+      const nfoContent = fs.writeFileSync.mock.calls[0][1];
+      expect(nfoContent).toContain('  <viewcount>1234567</viewcount>\n');
+    });
+
+    it('should include like count from info.json', () => {
+      nfoGenerator.writeVideoNfoFile(mockVideoPath, { title: 'Test Video', like_count: 4321 });
+
+      const nfoContent = fs.writeFileSync.mock.calls[0][1];
+      expect(nfoContent).toContain('  <likecount>4321</likecount>\n');
+    });
+
+    it('should write a zero like count', () => {
+      nfoGenerator.writeVideoNfoFile(mockVideoPath, { title: 'Test Video', like_count: 0 });
+
+      const nfoContent = fs.writeFileSync.mock.calls[0][1];
+      expect(nfoContent).toContain('<likecount>0</likecount>');
+    });
+
+    it('should omit the stats section when counts are missing', () => {
+      nfoGenerator.writeVideoNfoFile(mockVideoPath, { title: 'Test Video' });
+
+      const nfoContent = fs.writeFileSync.mock.calls[0][1];
+      expect(nfoContent).not.toContain('YouTube stats');
+    });
+
+    it('should omit like count when it is not a number', () => {
+      nfoGenerator.writeVideoNfoFile(mockVideoPath, { title: 'Test Video', view_count: 10, like_count: null });
+
+      const nfoContent = fs.writeFileSync.mock.calls[0][1];
+      expect(nfoContent).not.toContain('<likecount>');
+    });
   });
 });

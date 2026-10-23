@@ -422,7 +422,7 @@ Sync is one-way (server -> Youtarr). Non-owner Plex users come from the server's
 - **Type**: `boolean`
 - **Default**: `true`
 - **Description**: Generate NFO metadata files for Kodi/Jellyfin/Emby
-- **Note**: Creates .nfo XML files with video metadata
+- **Note**: Creates .nfo XML files with video metadata. YouTube's view and like counts at download time are written as custom `<viewcount>` and `<likecount>` elements (not part of the Kodi NFO spec, so media servers keep them in the file but don't display them).
 
 ### Write Video Fanart
 - **Config Key**: `writeVideoFanart`

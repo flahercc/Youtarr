@@ -189,6 +189,20 @@ class NfoGenerator {
         xml += '  </ratings>\n';
       }
 
+      // Snapshot of YouTube's counts at download time. Custom elements (like
+      // <youtubeid>): <playcount> is the viewer's own watched count in Kodi.
+      const viewCount = Number.isInteger(jsonData.view_count) ? jsonData.view_count : null;
+      const likeCount = Number.isInteger(jsonData.like_count) ? jsonData.like_count : null;
+      if (viewCount !== null || likeCount !== null) {
+        xml += '\n  <!-- YouTube stats at download -->\n';
+        if (viewCount !== null) {
+          xml += `  <viewcount>${viewCount}</viewcount>\n`;
+        }
+        if (likeCount !== null) {
+          xml += `  <likecount>${likeCount}</likecount>\n`;
+        }
+      }
+
       if (durationSeconds > 0) {
         xml += '\n  <!-- Runtime -->\n';
         xml += `  <runtime>${runtimeMinutes}</runtime>\n`;
