@@ -1097,7 +1097,8 @@ describe('server routes - channels', () => {
         'off', // default missingFilter
         'off', // default ignoredFilter
         'off', // default watchedFilter
-        null // default maxRating
+        null, // default maxRating
+        'off' // default deletedFilter
       );
       expect(res.statusCode).toBe(200);
       expect(res.body).toEqual({
@@ -1143,7 +1144,8 @@ describe('server routes - channels', () => {
           searchQuery: 'test search',
           sortBy: 'title',
           sortOrder: 'asc',
-          watchedFilter: 'only'
+          watchedFilter: 'only',
+          deletedFilter: 'only'
         }
       });
       const res = createMockResponse();
@@ -1167,7 +1169,8 @@ describe('server routes - channels', () => {
         'off', // default missingFilter
         'off', // default ignoredFilter
         'only', // watchedFilter
-        null // default maxRating
+        null, // default maxRating
+        'only' // deletedFilter
       );
       expect(res.statusCode).toBe(200);
     });
@@ -1211,7 +1214,8 @@ describe('server routes - channels', () => {
         'off', // default missingFilter
         'off', // default ignoredFilter
         'off', // default watchedFilter
-        null // default maxRating
+        null, // default maxRating
+        'off' // default deletedFilter
       );
       expect(res.statusCode).toBe(200);
     });
@@ -1231,7 +1235,8 @@ describe('server routes - channels', () => {
       await getVideosHandler(req, res);
 
       const args = channelModuleMock.getChannelVideos.mock.calls[0];
-      expect(args[args.length - 1]).toBe('TV-14');
+      // maxRating is the 17th argument; deletedFilter follows it.
+      expect(args[16]).toBe('TV-14');
     });
 
     test('rejects an unknown maxRating with 400', async () => {
@@ -1608,6 +1613,7 @@ describe('server routes - videos', () => {
         channelFilter: '',
         protectedFilter: 'off',
         missingFilter: 'off',
+        deletedFilter: 'off',
         watchedFilter: 'off',
         maxRating: null,
       });
@@ -1660,6 +1666,7 @@ describe('server routes - videos', () => {
         channelFilter: 'channel123',
         protectedFilter: 'off',
         missingFilter: 'off',
+        deletedFilter: 'off',
         watchedFilter: 'exclude',
         maxRating: null,
       });
