@@ -20,7 +20,9 @@ const createSubfolderRoutes = require('./subfolders');
 const createNewVideoRoutes = require('./newVideos');
 const createSchedulesRoutes = require('./schedules');
 const createLogRoutes = require('./logs');
+const createVideoTrashRoutes = require('./videoTrash');
 const videoMetadataModule = require('../modules/videoMetadataModule');
+const videoTrashModule = require('../modules/videoTrashModule');
 const videoOembedEnricher = require('../modules/videoOembedEnricher');
 const playlistModule = require('../modules/playlistModule');
 const m3uGenerator = require('../modules/m3uGenerator');
@@ -104,6 +106,9 @@ function registerRoutes(app, deps) {
     verifyToken, videosModule, downloadModule, videoOembedEnricher, videoLocalStatus, storageGuard, scheduledTaskManager, ratingMapper,
     youtubeUrlParser,
   }));
+
+  // Trash routes: deleted and missing videos (counts, mark as deleted, purge)
+  app.use(createVideoTrashRoutes({ verifyToken, videoTrashModule, jobModule }));
 
   // Video search routes
   app.use(createVideoSearchRoutes({ verifyToken, videoSearchModule }));

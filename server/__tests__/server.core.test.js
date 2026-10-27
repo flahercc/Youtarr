@@ -637,6 +637,7 @@ describe('server initialization', () => {
       channelFilter: 'channel123',
       protectedFilter: 'off',
       missingFilter: 'off',
+      deletedFilter: 'off',
       watchedFilter: 'off',
       maxRating: null,
     });
@@ -735,6 +736,7 @@ describe('server initialization', () => {
       channelFilter: '',
       protectedFilter: 'off',
       missingFilter: 'off',
+      deletedFilter: 'off',
       watchedFilter: 'off',
       maxRating: null,
     });
