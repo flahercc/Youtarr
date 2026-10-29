@@ -7,13 +7,12 @@ the full development guide — this file is the condensed, day-to-day version.
 ## 1. Pull the latest code
 
 ```bash
-git checkout dev
-git pull origin dev
+git checkout main
+git pull origin main
 ```
 
-- `dev` is the integration branch — all day-to-day work happens here.
-- `main` is the stable release branch; only merges from `dev` land there (triggers a
-  production release). Don't develop directly on `main`.
+- `main` is the only long-lived branch in this fork (there is no `dev` branch). Do
+  feature work on a branch made from `main` and merge it back with a PR.
 - If you're picking up someone else's feature branch instead: `git fetch origin && git checkout <branch>`.
 
 ## 2. Build the local dev image
@@ -153,7 +152,7 @@ setup instead of the dev one.
 ```bash
 # 1. Pull latest code
 git checkout main
-git pull origin main          # or `dev` if you intentionally track pre-release
+git pull origin main
 
 # 2. Install exact locked dependencies (root + client), skipping lifecycle scripts
 npm ci --ignore-scripts
@@ -207,7 +206,7 @@ First run: create your admin account through the UI (or set `AUTH_PRESET_USERNAM
 ## 11. Things worth remembering
 
 - **Always test inside the Docker dev containers**, not by running the server directly on the host — this repo's dev workflow assumes Docker for backend/DB parity with production.
-- **PRs target `dev`, never `main`.** `main` only receives merges from `dev`.
+- **PRs target `main`.** The fork has no `dev` branch.
 - Commit prefixes drive semantic versioning on release: `feat:` (minor), `fix:` (patch), `BREAKING CHANGE:` (major).
 - `.env` changes require a full container restart (`./stop.sh` then `./start.sh` / `./scripts/start-dev.sh`), not just a code reload.
 - Default DB credentials for local dev: `root` / `123qweasd` (internal container only, not exposed to host).

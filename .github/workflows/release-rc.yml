@@ -6,6 +6,7 @@ on:
   # `secrets.DOCKERHUB_TOKEN` are not inherited from the upstream repository, so the
   # "Login to Docker Hub" step failed on every push with "Username and password
   # required". Add those two, then restore the push trigger to re-enable RC builds.
+  # The fork has no `dev` branch, so point a restored trigger at `main`.
   workflow_dispatch:
 
 concurrency:

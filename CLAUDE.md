@@ -288,9 +288,12 @@ When a code change creates or invalidates information in this file or in `docs/`
 ## Git Workflow
 
 ### Branches
-- **`dev`**: default branch for active development; all contributor PRs target `dev`.
-- **`main`**: stable release branch; merging `dev` -> `main` triggers a production release.
-- **Feature branches**: create from `dev`, merge back to `dev` via PR.
+- **`main`**: the fork's only long-lived branch; all PRs target `main`. The fork's `dev`
+  branch was deleted (it had fallen hundreds of commits behind `main`).
+- **Feature branches**: create from `main`, merge back to `main` via PR.
+- Upstream still uses `dev` -> `main`, so upstream docs (`CONTRIBUTING.md`,
+  `docs/DEVELOPMENT.md`) and workflow comments describe that model; leave them as upstream
+  wrote them to keep upstream merges clean.
 
 ### Release
 - **This fork does not publish images.** Both release workflows are `workflow_dispatch`-only:
@@ -316,9 +319,11 @@ When a code change creates or invalidates information in this file or in `docs/`
 - Commit prefixes: `feat:` (minor), `fix:` (patch), `BREAKING CHANGE:` (major).
 
 ### PRs
-- Contributor PRs target `dev`, not `main`.
-- PRs to `dev` get automatic Claude Code reviews.
-- CI runs on PRs to both `dev` and `main`.
+- PRs target `main`.
+- CI runs on PRs to `main`.
+- Automatic Claude Code reviews (`.github/workflows/claude.yml`) are not triggered: the
+  workflow's `pull_request` trigger is limited to `dev` and the fork has no
+  `ANTHROPIC_API_KEY` secret. `@claude` comment triggers are likewise inert without it.
 
 ## Debugging
 
