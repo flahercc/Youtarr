@@ -71,12 +71,17 @@ export const formatEta = (seconds: number): string => {
 // completed immediately before it (see shouldAccumulateSummaryRef below),
 // so a small unrelated job finishing right after a user's batch doesn't
 // silently replace the count they were looking at.
-export const mergeFinalSummaries = (prev: FinalSummary, next: FinalSummary): FinalSummary => ({
+export const mergeFinalSummaries = (prev: FinalSummary, next: FinalSummary): FinalSummary => (
+  // A summary carrying lastCheckedAt re-broadcasts the last real result after a
+  // quiet check, so folding it in would count that result twice.
+  next.lastCheckedAt ? { ...prev, lastCheckedAt: next.lastCheckedAt } : {
   totalDownloaded: (prev.totalDownloaded || 0) + (next.totalDownloaded || 0),
   totalSkipped: (prev.totalSkipped || 0) + (next.totalSkipped || 0),
   totalFailed: (prev.totalFailed || 0) + (next.totalFailed || 0),
   totalAutoRetried: (prev.totalAutoRetried || 0) + (next.totalAutoRetried || 0),
   totalMembersOnly: (prev.totalMembersOnly || 0) + (next.totalMembersOnly || 0),
+  totalAlreadyDownloaded: (prev.totalAlreadyDownloaded || 0) + (next.totalAlreadyDownloaded || 0),
+  totalNotAvailable: (prev.totalNotAvailable || 0) + (next.totalNotAvailable || 0),
   totalTerminatedChannels: (prev.totalTerminatedChannels || 0) + (next.totalTerminatedChannels || 0),
   totalTerminationFailures: (prev.totalTerminationFailures || 0) + (next.totalTerminationFailures || 0),
   failedVideos: [...(prev.failedVideos || []), ...(next.failedVideos || [])],
@@ -85,7 +90,8 @@ export const mergeFinalSummaries = (prev: FinalSummary, next: FinalSummary): Fin
   terminationFailures: [...(prev.terminationFailures || []), ...(next.terminationFailures || [])],
   jobType: prev.jobType === next.jobType ? next.jobType : 'Multiple downloads',
   completedAt: next.completedAt,
-});
+}
+);
 
 const DownloadProgress: React.FC<DownloadProgressProps> = ({
   downloadProgressRef,

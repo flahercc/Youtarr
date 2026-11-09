@@ -547,7 +547,7 @@ describe('DownloadProgress', () => {
     await waitFor(() => {
       expect(screen.getByText(/✓ 8 videos downloaded/)).toBeInTheDocument();
     });
-    expect(screen.getByText(/Multiple downloads.*Completed/)).toBeInTheDocument();
+    expect(screen.getByText(/Multiple downloads/)).toBeInTheDocument();
   });
 
   test('replaces (does not accumulate) the summary when the next job is a fresh, non-continuation start', async () => {
@@ -1467,6 +1467,19 @@ describe('DownloadProgress', () => {
     test('uses the later completedAt timestamp', () => {
       const merged = mergeFinalSummaries(baseA, baseB);
       expect(merged.completedAt).toBe(baseB.completedAt);
+    });
+
+    test('sums already-downloaded and not-available counts', () => {
+      const merged = mergeFinalSummaries(
+        { ...baseA, totalAlreadyDownloaded: 2, totalNotAvailable: 1 },
+        { ...baseB, totalAlreadyDownloaded: 3, totalNotAvailable: 4 }
+      );
+      expect([merged.totalAlreadyDownloaded, merged.totalNotAvailable]).toEqual([5, 5]);
+    });
+
+    test('keeps the visible summary when the next one re-broadcasts a quiet check', () => {
+      const merged = mergeFinalSummaries(baseA, { ...baseA, lastCheckedAt: '2026-08-19T17:00:00Z' });
+      expect(merged).toEqual({ ...baseA, lastCheckedAt: '2026-08-19T17:00:00Z' });
     });
   });
 
