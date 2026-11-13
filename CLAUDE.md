@@ -4,15 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Youtarr is a Dockerized application that automatically downloads videos from YouTube channels and integrates them with Plex Media Server. It consists of:
+Youtarr is a Dockerized application that automatically downloads videos from YouTube channels and playlists and integrates them with Plex, Jellyfin and Emby:
 
 - **Backend**: Node.js/Express server with MariaDB database using Sequelize ORM
 - **Frontend**: React/TypeScript application with a custom UI layer (Radix primitives + Tailwind CSS, themed via CSS variables)
 - **Infrastructure**: Docker Compose setup with separate containers for app and database
 
+This file is the map and the universal rules. The non-obvious behaviors of each area live in `.claude/rules/<area>.md` (listed under "Area notes" below); each loads only when you read or edit a file its `paths:` frontmatter matches. The public docs site is https://dialmasterorg.github.io/Youtarr/ (built from `website/`).
+
 ## Scope Discipline
 
-**IMPORTANT: Change only what the task requires.** This rule overrides every other rule in this file when they conflict.
+**IMPORTANT: Change only what the task requires.** This rule overrides every other rule in this file and in `.claude/rules/` when they conflict.
 
 - **Bug fixes**: make the minimum change needed to fix the bug. Do not rewrite surrounding code for style, extract helpers you don't need for the fix, or clean up while you're there.
 - **Features**: touch only files the feature requires. Write new code to the standards below. Leave pre-existing code alone unless the feature forces you to change it.
@@ -28,6 +30,30 @@ For multi-part requests (e.g., "review this PR AND explain WebSocket handling"),
 
 ## Architecture
 
+### Backend (`server/`)
+
+- `server.js` is the Express entry point, `db.js` the Sequelize setup, `logger.js` the Pino logger (request correlation; file transport and log scrubber in `logging/`).
+- `routes/`: one file per API area (auth, channels, videos, videoDetail, videoSearch, videoTrash, channelSearch, config, jobs, plex, setup, subscriptions, apikeys, ytdlpOptions, health, maintenance, playlists, playlistSubscribeSettings, mediaServers, subfolders, schedules, logs, newVideos (fork), feeds, youtubeApiKey, externalApi, externalRequests; `runNowResponse` and `overrideSettingsValidator` are helpers). Every file is a dependency-injection factory wired in `routes/index.js`; `middleware/` holds the External API auth.
+- `models/`: Sequelize models (apikey, apikeychannelgrant, channel, channelvideo, externalapiusagebucket, externalrequest, job, jobvideo, jobvideodownload, mediaserveruser, playlist, playlistsyncstate, playlistvideo, scheduledtaskrun, session, subfolder, video, videowatchstatus, watchstatussynccursor).
+- `modules/`: class-based singletons holding the business logic, by area:
+  - Downloads: `downloadModule`, `jobModule`, `modules/download/` (yt-dlp command builder, executor, progress monitor, finalizer, run tracker, retry and diagnosis helpers), `ytdlpModule`, cookie handling, `storageGuard`, `archiveModule`, `modules/filenamePreview/` (filename template preview), `modules/constants/` (shared constants).
+  - Channels: `channelModule` (facade) over `modules/channel/`, `channelSettingsModule`, `channelDownloadAllModule`, `channelSearchModule`, `titleFilterRegex`, `modules/subscriptionImport/`, and (fork) the new-videos scan and review queue (`channel/newVideoScanScheduler`, `channel/newVideoScanRunSummary`, `channel/newVideoQueueModule`).
+  - Playlists: `playlistModule`, `playlistDownloadModule`, `m3uGenerator`, `playlistOutputRefresh`.
+  - Videos and the library: `videosModule`, `videoMetadataModule`, `videoSearchModule`, `videoDeletionModule`, `videoTrashModule`, `videoRemovalState`, `libraryRootCheck`, the rescan (`rescanRowUpdate`, `videoRowGuard`), the info.json cache (`infoJsonSlimmer`, `infoJsonCachePruner`), `subfolderModule`, `modules/filesystem/` (path and file abstraction; the sub-module aggregator pattern to copy).
+  - Media servers: `plexModule`, `nfoGenerator`, `modules/mediaServers/` (adapter registry, playlist sync, watch status sync).
+  - Scheduling: `scheduleConfig`, `scheduledTaskManager`, `scheduledTaskRuns`, `cronJobs`.
+  - Runtime: `configModule`, `webSocketServer` + `webSocketAuth`, `messageEmitter`, `databaseSocket`, `databaseHealthModule`, `sessionAuth`, `apiKeyModule`, `logLevelSync`, `logFilesModule`.
+  - Notifications: `notificationModule`, `modules/notifications/` (service registry, formatters, senders).
+  - RSS feeds: `modules/feeds/` (RSS writer, download feed, settings limits).
+  - External API: `modules/externalApi/` (catalog, requests, executor, permissions).
+  - YouTube Data API: `modules/youtubeApi/` (client, quota tracker, error classifier), the optional API path for channel and video search, playlists, metadata and tab counts.
+- `utils/`: Python helpers (`validate-cookies.py` runs yt-dlp's cookie parser; `title-filter-regex.py` evaluates Python `re` for channel title filters).
+
+### Frontend (`client/src/`)
+
+- `App.tsx`: routing plus the global `fetch()` override and axios response interceptor that turn a 503 `requiresDbFix` response into the database error overlay.
+- `components/`: one directory per feature (`Subscriptions/`, `ChannelPage/`, `PlaylistPage/`, `VideosPage/`, `FindVideos/`, `FindChannels/`, `DownloadManager/`, `SubscriptionImport/`, `Settings/` + `Configuration/`); `components/shared/` for cross-feature pieces (`VideoModal/`, `DeleteVideosDialog`, `AddChannelDialog`); `components/ui/` for theme-neutral primitives; `components/layout/` for the app shell and nav. Fork: `DownloadManager/ManualDownload/NewVideosQueue/` is the new-videos review queue. `shared/VideoList/VideoListSelectionPill.tsx` renders bulk-selection actions as an icon-only floating button, a discoverability gap tracked in [flahercc/Youtarr#4](https://github.com/flahercc/Youtarr/issues/4).
+- `hooks/`, `contexts/`, `providers/` (auth token, WebSocket, theme, video activity), `themes/` (the `ALL_THEMES` registry), `config/` (the `CONFIG_FIELDS` registry), `types/`, `utils/`.
 ### Backend (server/)
 - `modules/externalCookies.js`: validates external cookie snapshots through the installed yt-dlp parser in `utils/validate-cookies.py`, memoizes unchanged results, and reports unusable files for omission; `modules/uploadedCookies.js` gives the uploaded `config/cookies.user.txt` a disposable private copy per run (yt-dlp rewrites its cookie file in place on exit, so concurrent runs sharing it could read a half-written jar or undo a Settings upload; nothing is written back, and Settings uploads are written to a temp file and renamed into place; if the copy fails, the run goes without cookies (error-level log; info when the upload was just deleted) and yt-dlp is never handed the uploaded file itself, whose exit-time jar save could overwrite a newer upload or recreate deleted cookies); `modules/ytdlpProcess.js` owns both kinds of copy's lifetime around yt-dlp processes. No persistent cookie fallback.
 - `modules/rescanRowUpdate.js` + `modules/videoRowGuard.js`: the filesystem rescan (`videosModule.backfillVideoMetadata`) walks the disk once and reads rows in chunks, so downloads and deletions in between make the walk stale. The walk only nominates rows (`isRescanCandidate`); `resolveRescanUpdate` recomputes each nominated row's write from a fresh per-format stat (present only for a regular file / missing on `ENOENT` or `ENOTDIR` or a non-file / unknown on any other error; both formats missing marks the row missing and keeps its stored paths; a missing format is cleared only when the other is present; any present format means `removed: false` even if the other is unknown; an unknown format is never cleared, and with nothing present an unknown writes nothing), and the write only lands if the row is unchanged since read (`videoRowGuard.unchangedSinceRead`: removed, both paths and sizes, `video_resolution`, `last_downloaded_at`; zero affected rows means a conflict only when the write includes a column that really differs, because Sequelize's MySQL dialect connects with -FOUND_ROWS and mysql2 then counts changed rows, not matched rows). Nominated rows left as recorded (files still at a stored path, e.g. outside the downloads folder, or files that could not be checked; re-checked every run) are counted as `kept` (`videosKept` in the run details, not the message). The walk's count of folders and files it could not read is `unreadableOnDisk` in the run details and log (not the message: those rows are re-checked by path). Rows another writer changed are counted as `skippedChanged` (`videosSkipped` in the run record) and failed writes as `failed` (`videosFailed`); both appear in the run message, and a finished scan with failed writes records as `error`/`partial` (a timed-out scan stays `timed-out` so Maintenance can continue it); the completion `rescanStatus` broadcast is built through the same `rescanRunSummary` record so the live Maintenance view matches the run history. Library repair (`jobModule.backfillFromCompleteList`) uses the same guard: it reads the row before searching the disk, writes file details and `removed: false` only for a file it actually found, and looks up a lost row's files by YouTube id with one `videosModule.scanForVideoFiles` walk per run (only when a lost row exists; video and audio, any folder layout), recreating it as missing when the walk finds nothing. The walk skips and counts (`unreadable`) folders and files it cannot read rather than stopping, logging unreadable files once per folder; repair still recreates unmatched rows as missing after a partial walk, because deferring would block recovery wherever a folder is never readable (lost+found, NAS recycle bins), and the next rescan restores a row whose file it finds. Such a run records as `error`/`partial`, naming the count in its message (`recreatedUnverified` and `unreadableOnDisk` in the details); a partial walk that affected no row stays `completed`.
@@ -73,155 +99,64 @@ For multi-part requests (e.g., "review this PR AND explain WebSocket handling"),
 - `types/`, `utils/`: shared types and helpers.
 
 ### Database
-- MariaDB 10.3 with utf8mb4. Migrations in `migrations/` run automatically on container startup. Create new migrations with `./scripts/db-create-migration.sh migration-name`.
-- Collation is `utf8mb4_unicode_ci` on every table from migration `20260907000000-normalize-utf8mb4-unicode-collation` onward (older installs had `utf8mb4_general_ci` legacy tables beside explicitly `unicode_ci` newer ones, which breaks any SQL comparing string columns across them). Migrations sorted before it must not compare string columns across tables; `migrations/lib/unicodeCollation.js` is the lowercase-table-name collation helper, `jobsUuidCollation.js` is legacy. The helper drops the foreign keys on the jobs UUID chain before converting and recreates them (stored names and rules, read from information_schema, never assumed) after restoring `utf8mb4_bin`, because MariaDB 10.4.31+/10.5.22+/10.6.15+/10.11.5+/11.x/12.x refuse to alter a foreign-key column even with `FOREIGN_KEY_CHECKS=0`; a key missing after an interrupted run is recreated from the canonical definition as `<table>_job_id_fk`. MariaDB 12.1+ keeps `<Table>_ibfk_N` names across renames and auto-names new constraints `1`, `2`, so Elfhosted-style databases carry mixed-case constraint names on lowercase tables. Test migrations that alter foreign-key columns against `mariadb:12.3` as well as the bundled 10.3.
 
-- `server/modules/scheduleConfig.js`: registry of the nine configurable schedules (config key, label, default), `getScheduleError` (syntax via node-cron plus the 15-minute minimum interval, computed structurally with node-cron's own step semantics: a step keeps values divisible by it; the across-midnight case asks the matcher whether two firing days are consecutive, so a Sundays-only `5,55 0,23` schedule is not rejected), `violatesMinimumInterval` with `normalizeToMinimumInterval` (what `configModule` applies at startup: runs closer than 15 minutes apart are dropped, never added, and the hour and calendar fields are kept, so `0,5 2 * * 0` becomes `0 2 * * 0` and pre-floor hand edits keep running instead of blocking every Settings save), and `getNextRun` (steps node-cron's internal time matcher over the minutes/hours the expression can fire on, so predictions match what actually fires, and adds the repeated period when clocks fall back, derived from the offset change so thirty-minute zones such as Lord Howe work, because `setHours` only yields an ambiguous time's first occurrence). `scheduledTaskManager.js` owns the timers: `updateTask({ id, expression, enabled, run, isRunning, getRunBlocker, manualCooldownMs, manualRunRequiresEnabled })` replaces a timer only when the expression changes, keeps the previous timer on an invalid edit, skips a scheduled occurrence while the previous run is still active, and records every run through the recorder injected by `setRunRecorder` (wired in server.js once the DB is ready); `manualRunRequiresEnabled: false` (channel downloads) means the feature switch only stops the timer, not a manual run. A task whose work outlives it may resolve with `finalRecord` (a promise of the run record): the lock is released as usual and only the history row waits for it (`finishWhenSettled`; a rejection closes the row as an error, a row still open at shutdown becomes interrupted), so a slow or stuck `finalRecord` can never hold a task running. `run` is always called as `run({ trigger, ...args })`. `runNow(id, { trigger, args, enforceEnabled, enforceCooldown })` is the single entry point for manual runs -- Scheduling's Run now via `routes/runNowResponse.js` and `POST /api/schedules/:key/run`, the Maintenance rescan, Watch Status Sync Now, the New Videos queue's Scan Now (`POST /api/new-videos/scan`, which passes `force` and an `onSummary` callback and awaits `completion` so it still answers with the full scan summary), the YT-DLP update button, and Download New -- returning `{ started, completion }` or a blocker, checked in order: running (the manager's own flag or the task's `isRunning` probe) -> the task's `getRunBlocker` -> turned off -> the manual-run cooldown (`MANUAL_RUN_COOLDOWN_MS`, kept in memory, applied to channel video counts only; channel downloads are refused only while a sweep is running). `getTaskSnapshot(id)` reads the run blocker and the task's status together, after the run history has been read, so `running` and `runNow` on `GET /api/schedules` never disagree; `scheduledTaskStatus` broadcasts (`{ key }`) tell open Scheduling pages to refetch, and `announceRun(id, promise)` gives the same broadcast to startup passes that run outside the manager (library repair, the yt-dlp channel re-apply, the channel-count refresh). Tasks resolve to `{ status: success|error|skipped, outcome, message, details }`; the feature tasks map their own results through adapters (`mediaServers/watchStatusRunSummary`, `channelAutoDownload`, `backfillFromCompleteList`, `rescanRunSummary`, `ytdlpUpdateRunSummary`, `channel/newVideoScanRunSummary`) so an overlapped, deferred, or partially failed run is never recorded as a success; a run whose work partly failed (some deletions or empty-folder removals, some archive record writes, the playlist half of the download sweep or any individual playlist in it, one media server of a sync) records as `error` with outcome `partial` and counts in its message. `scheduledTaskRuns.js` is that recorder: a bounded history (20 rows per task, never pruning a running row or the newest row of each outcome, so "last installed" survives any number of later checks) in `scheduled_task_runs`, best-effort so a DB problem never reaches the task, with `markInterruptedRuns()` at startup flagging rows a crashed process left running. `rescanRunSummary.js` and `ytdlpUpdateRunSummary.js` map the rescan and yt-dlp update results to run records and back; startup passes (the filesystem rescan, library repair, and the channel-count refresh) record themselves, while every scheduled and manual run, including the rescan's, is recorded by `scheduledTaskManager` through `runNow`. `jobModule.runStartupBackfill` records the archive repair's startup pass the same way (one finished row, because it starts before `markInterruptedRuns()`), and their last-run displays (Maintenance page, YT-DLP page via `/api/ytdlp/latest-version`) read the history, falling back to the legacy `rescanLastRun` / `ytdlpLast*` config keys, which are no longer written, until a run has been recorded.
-- `server/modules/videoLocalStatus.js`: shared local download/file metadata lookup for search results and the local-status endpoint. Also sets `inArchive` on each result: the ID is in `config/complete.list` (one read per call through `archiveModule.filterArchivedVideoIds`, which returns an empty set when the file cannot be read) but has no Videos row, so yt-dlp would skip it. Channel-ignored videos are excluded, because ignoring writes the archive entry on purpose. That lookup is `modules/archiveOnlyIds.js`, shared with channel Download all and playlist download selection; it requires only the ChannelVideo model, not the models index, because `downloadModule.test.js` replaces model files with plain objects and the index's association setup throws on them when `playlistDownloadModule` loads it. The channel listing sets the same flag on the page it returns (`channelVideosService.applyArchiveFlag`, called from `buildChannelVideosResponse` so the date probe that precedes each listing never reads the archive). The channel page, video modal, and Find Videos count such videos as previously downloaded when opening the download dialog, which turns on "Allow re-downloading"; the channel page and Find Videos pass the flag into the modal, whose own local-status lookup then keeps it current. It also sets `channelSubscribed` (an enabled Channel row for the result's `channelId`) on results that carry a channel id, i.e. search results but not the local-status endpoint's, whose refresh therefore never clears the flag.
-- `server/modules/videoSearchModule.js`: `POST /api/videos/search` (YouTube Data API when a key is set, else yt-dlp `ytsearch`). Results stay in the source's order, YouTube's relevance ranking, which the client cannot recompute; every other order is applied client-side (`FindVideos/sortResults.ts`). The yt-dlp path drops `live_status` `is_live`/`is_upcoming` entries, as the API path already did, because a download would record the stream; a VOD with a null duration is kept.
-- `server/modules/download/videoActivity.js`: transient per-video queued/downloading registry, duplicate admission claims, and revisioned snapshots.
-- `client/src/providers/VideoActivityProvider.tsx`: shared authenticated activity snapshots; `useLocalVideoStatus` refreshes persisted metadata independently of activity revisions.
+- MariaDB 10.3 with utf8mb4; migrations in `migrations/` run at container startup. Create them with `./scripts/db-create-migration.sh <name>`, never by hand.
 
 ### Reference docs (consult these instead of re-deriving from code)
-- `docs/DEVELOPMENT.md`: dev environment setup, `./scripts/build-dev.sh` (flags: `--install-deps`, `--no-cache`) and `./scripts/start-dev.sh` (flags: `--no-auth`, `--debug`, `--headless-auth`, `--pull-latest`, `--dev`, `--arm`, `--external-db`), Vite HMR dev server option (`cd client && npm run dev` on port 3000), running tests, Swagger/OpenAPI docs at `/swagger` and `/swagger.json`.
-- `docs/DOCKER.md`: Docker architecture (two containers), Compose file variants (main, ARM override, external-db), volume layout, NAS configuration, backup/restore, platform deployment (`DATA_PATH`, `AUTH_ENABLED`, `PLEX_URL`).
+
+- `docs/DEVELOPMENT.md`: dev environment setup, `./scripts/build-dev.sh` (flags: `--install-deps`, `--no-cache`) and `./scripts/start-dev.sh` (flags: `--no-auth`, `--debug`, `--headless-auth`, `--pull-latest`, `--dev`, `--arm`, `--external-db`, `--as-elfhosted`), Vite HMR dev server option (`cd client && npm run dev` on port 3000), running tests, Swagger/OpenAPI docs at `/swagger` and `/swagger.json`.
+- `docs/DOCKER.md`: Docker architecture (two containers), Compose file variants (main, named-volume override, external-db), volume layout, NAS configuration, backup/restore, platform deployment (`DATA_PATH`, `AUTH_ENABLED`, `PLEX_URL`).
 - `docs/DATABASE.md`: schema tables, internal vs external database, migration workflow, idempotent migration helpers, troubleshooting.
-- `docs/ENVIRONMENT_VARIABLES.md`: all env vars (`DB_*`, `YOUTUBE_OUTPUT_DIR`, `DATA_PATH`, `YOUTARR_UID/GID`, `AUTH_ENABLED`, `AUTH_PRESET_*`, `PLEX_URL`, `LOG_LEVEL`, `LOG_FILE_MAX_SIZE`, `LOG_FILE_MAX_COUNT`, `TZ`, `YOUTARR_IMAGE`).
-- `docs/CONFIG.md`: `config/config.json` schema. Real field names include `plexApiKey`, `plexYoutubeLibraryId`, `plexSubfolderLibraryMappings`, `plexIP`/`plexPort`/`plexViaHttps`/`plexUrl`, `channelAutoDownload`, `channelDownloadFrequency` (cron), `channelFilesToDownload`, `channelScanEnabled`/`channelScanFrequency` (new-videos scan switch and cron schedule; legacy `channelScanTime` is migrated on startup), `channelScanVideoLimit` (videos checked per channel tab during that scan), `preferredResolution`, `videoCodec`, `defaultSubfolder`, plus groups for SponsorBlock, notifications (`appriseUrls`), download performance, and auto-removal. Legacy `cronSchedule` is auto-migrated to `channelDownloadFrequency` on startup.
+- `docs/ENVIRONMENT_VARIABLES.md`: all env vars (`DB_*`, `YOUTUBE_OUTPUT_DIR`, `DATA_PATH`, `YOUTARR_UID/GID`, `AUTH_ENABLED`, `AUTH_PRESET_*`, `PLEX_URL`, `LOG_LEVEL`, `LOG_FILE_MAX_SIZE`, `LOG_FILE_MAX_COUNT`, `OUTPUT_DIR_HEALTHCHECK_TIMEOUT`, `TZ`, `YOUTARR_IMAGE`).
+- `docs/CONFIG.md`: `config/config.json` schema. Real field names include `plexApiKey`, `plexYoutubeLibraryId`, `plexSubfolderLibraryMappings`, `plexIP`/`plexPort`/`plexViaHttps`/`plexUrl`, `channelAutoDownload`, `channelDownloadFrequency` (cron), `channelFilesToDownload`, `channelScanEnabled`/`channelScanFrequency`/`channelScanVideoLimit` (fork: new-videos scan; legacy `channelScanTime` is migrated on startup), `preferredResolution`, `videoCodec`, `defaultSubfolder`, plus groups for SponsorBlock, notifications (`appriseUrls`), download performance, and auto-removal.
 - `docs/AUTHENTICATION.md`: Plex OAuth, local auth (bcrypt, `username`/`passwordHash`), API keys (`x-api-key` header, rate-limited, download-only scope), session management (`x-access-token`, 7-day expiry), headless bootstrap via `AUTH_PRESET_*`.
 - `docs/API_INTEGRATION.md`: API key integration for external tools (bookmarklets, iOS Shortcuts, Android Tasker, Home Assistant, cURL/Python/JS). Documents the `/api/videos/download` endpoint, rate limits, and CORS/auth-proxy bypass for Cloudflare Zero Trust and Authelia.
 - `docs/TROUBLESHOOTING.md`: common runtime issues.
 
-### Implementation notes (non-obvious behaviors)
-- **Plex integration** uses OAuth; the user must be the Plex server admin. The target Plex library must be "Other Videos" with the "Personal Media" agent.
-- **Video downloads**: yt-dlp writes to a temp location, then post-processing finalizes files into the channel's target directory. Resume-on-partial-download is supported.
-- **WebSocket server** shares the HTTP server port (3011 in container, 3087 on host) via the `ws` library; there is no separate WS port. The upgrade bypasses Express (no `verifyToken`), so `webSocketServer` authorizes it itself through `webSocketAuth` before the handshake: only `/ws`, and only with an active session (`sessionAuth.findActiveSession`, the same lookup `verifyToken` uses; API keys are refused; anything goes with `AUTH_ENABLED=false`). Browsers cannot set handshake headers, so `WebSocketProvider` (rendered inside `AppContent`, given the `token`, no connection while it is null) offers `youtarr` plus `youtarr.auth.<token>` as subprotocols and the server echoes `youtarr`, which keeps the token out of URLs and proxy logs. Open sockets are re-checked every 5 minutes (one lookup per session, however many tabs share it) and closed (1008) once their session expired or was revoked; a lookup error keeps them. A refused handshake reaches the browser only as 1006, so the provider calls `onSessionCheckNeeded` on a 1008 close and on every 3rd attempt in a row that never opens (so a check that could not reach the server during an outage is retried, about every 90 s at the 30 s backoff cap); `AppContent` then re-runs `/auth/validate` and signs out only on 401/403, so an outage never logs anyone out. Clients never send data (`maxPayload` 1 KB), and every socket has an `error` listener, because ws rethrows an invalid frame's `error` without one and that crashed the process. Broadcast message types include `videoActivityUpdated` (invalidates `GET /api/jobs/video-activity` snapshots), `downloadProgress`, `downloadComplete`, `jobsUpdated` (emitted when a download job is enqueued or flips to In Progress), and `videosUpdated` (emitted per video mid-batch after its DB rows are persisted); listing pages and the Download History page subscribe via `client/src/hooks/useDownloadListingsRefresh.ts` to refetch in near real time. The server pings clients every 30s and terminates unresponsive ones (proxy idle-timeout guard); on connect it replays only the last stored final-state message, never in-flight progress. The activity page therefore seeds its initial state over REST: `GET /api/jobs/current-activity` returns `downloadModule.getCurrentActivitySnapshot()` (the executor's retained progress monitor read via the side-effect-free `toPayload()`, plus the stored last-final message), consumed by `useCurrentActivitySeed` in `client/src/components/DownloadManager/hooks/`, which seeds only until the first live broadcast arrives and re-probes on tab-visibility and on the provider's local `connectionRestored` message (emitted after every reconnect). `client/src/utils/jobTypeLabel.ts` is the client-side mirror of `server/modules/download/jobTypes.js` labels for the activity header, queued chips, and job summaries.
-- **Deno** is installed in the container; yt-dlp uses it automatically for JS-heavy extractors.
+### Area notes (`.claude/rules/`)
+
+Each file loads on its own when you Read, Edit or Write a matching file. A diff or a search (`git diff`, `rg`, Grep) loads nothing, so before judging or changing code you only saw that way, Read the file; `limit: 1` is enough. This applies to reviews too. A rule loaded here never reaches a subagent, which loads its own through its own reads, and after compaction a rule returns only on the next matching read. A brand-new file loads its area's rules only after its first Write, so read the area's rule file before creating a file in it, and read the relevant ones first when planning work that spans areas.
+
+- `downloads.md`: yt-dlp runs, job queue, archive, storage pause, activity page.
+- `cookies.md`: external and uploaded cookie files, the cookie test.
+- `channels.md`: subscriptions, listings, title filters, tab counts, channel search, import.
+- `playlists.md`: following, download selection, m3u files.
+- `media-servers.md`: Plex, Jellyfin and Emby playlist and watch status sync.
+- `videos.md`: rescan, library repair, deleted vs. missing, trash, auto-removal, info.json cache.
+- `video-search.md`: Find Videos search, local status, single-video lookup.
+- `scheduling.md`: cron expressions, task manager, run history, Scheduling page.
+- `server-runtime.md`: process, DNS and database sockets, logging, WebSocket, sessions.
+- `settings-config.md`: config.json, `/updateconfig`, Settings pages.
+- `notifications.md`: Apprise services, formatters, link template.
+- `feeds.md`: the token-protected `/feeds` RSS namespace.
+- `new-videos.md` (fork): the scheduled new-videos scan and the New Videos review queue.
+- `external-api.md`: the opt-in `/external-api/v1` surface.
+- `database.md`: migrations, collation history, models.
+- `docs.md`: `docs/` and the published docs site.
+- `backend.md`, `frontend.md`, `testing.md`: coding standards for server, client and test files.
 
 ## Code Quality Standards (for new and rewritten code)
 
-These standards apply when you are authoring new code or doing an explicit rewrite. See **Scope Discipline** above.
+These apply when you are authoring new code or doing an explicit rewrite. See Scope Discipline above. The per-side specifics (logging, error shapes, route factories, hooks, styling, API calls) are in `backend.md` and `frontend.md`.
 
-### General Principles
 - **DRY when writing the third copy**: if you find yourself writing the same logic a third time in your own new code, extract it.
-- **Single responsibility**: each module, class, or function should have one clear purpose. If a function name requires "and" to describe it, split it.
-- **Extract deliberately, inline small snippets**:
-  - **Extract** when a block is substantial and has a clear external interface. Rough threshold: ~30+ lines of JSX/logic with its own props or state, or two usages in structurally different parents (e.g. mobile card vs desktop table row). Size and interface clarity matter more than copy count.
-  - **Inline** one-off snippets used in a single place. Three similar lines of code is better than a premature abstraction. The "three copies" rule applies to small repeated patterns, not to substantial blocks.
-  - Before creating a new component/module file, answer: (1) is this substantial enough to extract, or should it stay inline? (2) which directory -- feature-local, `shared/`, or `ui/` -- and why? (3) what test file am I adding alongside it?
-- **File size targets for new files**: backend modules under ~500 lines, frontend components under ~300 lines. Several legacy files exceed these limits (notably `jobModule.js`, `channelSettingsModule.js`, `videoDeletionModule.js`, `VideosPage.tsx`, `ChannelVideos.tsx`, `DownloadProgress.tsx`) - do not use them as examples. The codebase is migrating toward these targets over time.
-- **Named constants for magic values**: in new code, timeouts, retry counts, limits, and defaults should be named constants at the top of the file or in a shared constants module.
+- **Single responsibility**: one clear purpose per module, class or function. If a function name needs "and", split it.
+- **Extract deliberately, inline small snippets**: extract a block of roughly 30+ lines with its own props or state, or one used by two structurally different parents; inline one-off snippets. Three similar lines beat a premature abstraction. Before creating a file, decide whether it is substantial enough, which directory it belongs in, and which test file goes alongside it.
+- **File size targets for new files**: backend modules under ~500 lines, frontend components under ~300 lines. Legacy files that exceed them (`jobModule.js`, `channelSettingsModule.js`, `videoDeletionModule.js`, `VideosPage/`, `ChannelVideos.tsx`, `DownloadProgress.tsx`) are not examples to follow.
+- **Named constants for magic values**: timeouts, retry counts, limits and defaults.
 - **Early returns** for error and edge cases, to keep happy-path nesting shallow.
-- **Comments**: only where the logic is not self-evident. Do not add docstrings, type comments, or explanatory prose to code you did not change.
-
-### Backend Standards (Node.js/Express)
-
-#### Logging
-- **Always use the Pino logger** (`require('../logger')`), never `console.log` or `console.error`.
-- **Structured logging** with context objects: `logger.error({ err: error, videoId }, 'Download failed')`, not string interpolation.
-- **Levels**: `error` for failures needing attention, `warn` for recoverable issues, `info` for significant operations, `debug` for diagnostic detail.
-
-#### Error Handling
-- **Standard error response shape**: `res.status(statusCode).json({ error: 'Human-readable message' })`. The codebase has drift (`{ success: false, error }`, `{ status, message }`); new code must use `{ error }`.
-- **Always catch async errors** in route handlers with try-catch. Never let unhandled promise rejections escape.
-- **Specific status codes**: 400 for bad input, 401 for unauthenticated, 403 for forbidden, 404 for not found, 409 for conflicts, 503 for service unavailable.
-- **Log errors with context**: include relevant IDs, operation names, and the error object.
-
-#### Route Patterns
-- **Dependency injection factory pattern** for all new route files:
-  ```javascript
-  function createMyRoutes({ verifyToken, myModule }) {
-    const router = express.Router();
-    // ...
-    return router;
-  }
-  module.exports = createMyRoutes;
-  ```
-  Never import modules directly inside route files; receive them as factory arguments.
-- **Keep routes thin**: validate input, call module methods, format responses. Business logic belongs in modules.
-
-#### Module Patterns
-- **Class-based singletons**: new modules export a single instance (`module.exports = new MyModule()`).
-- **Avoid circular dependencies**: restructure the dependency graph, extract shared logic, use events, or pass dependencies at call time. Do not use late-binding `require()` inside methods as a workaround. Some existing modules (e.g., `cronJobs.js`) use late-binding; do not copy the pattern.
-- **Sub-module aggregator pattern** for complex features: see `server/modules/filesystem/` and `server/modules/notifications/` as good examples.
-
-#### Database
-- **Sequelize model methods** for queries, not raw SQL, unless there is a specific performance reason. Raw queries must use explicit parameter binding.
-- **Create migrations using the script**: `./scripts/db-create-migration.sh migration-name`. Never create migration files manually.
-- **Transactions** for multi-step operations that must be atomic.
-
-### Frontend Standards (React/TypeScript)
-
-#### TypeScript
-- **No `any` in new code**. Use proper types everywhere:
-  - Error handlers: `catch (err: unknown)` with type narrowing.
-  - API responses, WebSocket payloads: define interfaces.
-  - Event handlers: use React's built-in event types.
-- **Define interfaces** for props, API payloads, and shared data. Co-locate feature-specific types with the feature; put shared types in `client/src/types/`.
-- **CONFIG_FIELDS registry**: use `client/src/config/configSchema.ts` when adding new configuration fields.
-- The codebase has ~300 existing `any` occurrences; do not add more.
-
-#### Component Structure
-- **When authoring or rewriting a component**: aim for fewer than 10 `useState` calls and under 300 lines. If you cross that threshold while writing new code, extract logic into custom hooks and UI into child components.
-- **Placement of new components and modules** (prescriptive, not just descriptive -- `shared/` is not the default):
-  - **Feature-local** (used by a single feature/page): place in the feature directory, e.g. `components/DownloadManager/VideoThumbnail.tsx`. This is the default.
-  - **Cross-feature** (imported by 2+ feature directories *today*, not hypothetically): place in `components/shared/`.
-  - **Theme-neutral UI primitive** (Button-like, Card-like, no business logic): place in `components/ui/`.
-  - Promote to `shared/` later when a second feature actually imports it -- do not speculatively place in `shared/` "in case" it gets reused.
-- **Feature directory layout** for new complex features, either of these is acceptable:
-  ```
-  # Sibling-file layout (most common in this repo)
-  FeatureName.tsx              # the main component
-  FeatureName/
-  ├── components/
-  ├── hooks/
-  └── __tests__/
-
-  # index.tsx layout
-  FeatureName/
-  ├── components/
-  ├── hooks/
-  ├── __tests__/
-  └── index.tsx
-  ```
-  Sibling-file examples: `ChannelManager.tsx`, `Configuration.tsx`, `ChannelPage.tsx`. `index.tsx` example: `SubscriptionImport/`.
-
-#### Custom Hooks
-- **Extract data fetching and multi-step state logic** into hooks. Each hook owns one concern.
-- **Return shape**: `{ data, loading, error, ...actions }` for consistency.
-- **Do not extract one-off state**: local component state read in exactly one place stays inline.
-- **Cleanup effects**: always return cleanup from `useEffect` for subscriptions, timers, and event listeners.
-- **Memoize deliberately**: `useMemo` for genuinely expensive derivations, `useCallback` for callbacks passed to memoized children. Do not over-memoize trivial values.
-
-#### Styling
-- **Tailwind utility classes** via `className` are the default for layout, spacing, and typography. Import UI primitives from `./ui` (Box, Card, Typography, Button, Chip, Dialog, etc.); do not reach for MUI, it is not installed.
-- **Theme tokens via CSS variables**, not hardcoded colors: `var(--destructive)`, `text-foreground`, `text-muted-foreground`, `bg-card`. Theme values are set on the document root by `ThemeEngineContext`.
-- **Inline `style` is acceptable only for computed/dynamic values** (e.g., a padding driven by `isMobile`, a length-dependent `maxHeight`). For static styling, prefer Tailwind classes.
-- **Responsive breakpoints**: use the custom `useMediaQuery` from `hooks/useMediaQuery` with a raw media query (`useMediaQuery('(max-width: 767px)')`) or the exported `breakpoints.down('sm')` helper. Tailwind's `md:`/`sm:` class prefixes are also fine for pure-CSS responsive behavior.
-
-#### API Calls
-- **Use Axios** in new hooks and components. A few legacy hooks use raw `fetch()` (`client/src/hooks/useConfig.ts` and `client/src/components/Configuration/hooks/usePlexConnection.ts`); do not copy them.
-- **Auth headers**: `headers: { 'x-access-token': token }`. Hooks receive `token` from the calling component.
-- **Type requests and responses** with interfaces.
-- **Handle specific status codes** (403, 404, 503) rather than generic catch-alls.
-- **Exception**: the global `fetch()` override in `App.tsx` is the one place `fetch` is intentional, for database error detection.
-
-#### State Management
-- React Context for cross-cutting concerns (auth, WebSocket, theme).
-- Local `useState` / `useReducer` for component-specific state.
-- Custom events sparingly, only for decoupled communication (e.g., `CONFIG_UPDATED_EVENT`).
+- **Comments** only where the logic is not self-evident. Do not add docstrings, type comments or explanatory prose to code you did not change.
 
 ## Security
 
 Youtarr shells out to `yt-dlp` and writes files using user-influenced paths, so this section is not optional.
 
-- **Validate untrusted input at route boundaries**. Check types, lengths, and shape before passing anything to modules. Return 400 with `{ error }` for invalid input.
-- **Never interpolate user data into shell commands or filesystem paths directly.** Use the existing helpers: `modules/download/ytdlpCommandBuilder.js`, `modules/filesystem/pathBuilder.js`, `modules/filesystem/sanitizer.js`. If a new helper is needed, add it to those modules, not inline in a route.
-- **Auth by default**: new routes must wire `verifyToken` unless the user explicitly says the route is public. If you add a public route, call it out in your final report so the user can confirm.
-- **Never log secrets**. Pino redacts known keys, but do not bypass redaction by interpolating tokens, passwords, cookies, or API keys into log messages.
-- **Treat uploaded files as untrusted**: Takeout CSV and cookies uploads in the subscription import flow must be validated, size-limited, and parsed defensively.
-- **Sequelize protects against SQL injection only when using model methods**. Raw queries require explicit parameterization.
-- **Rate-limit endpoints that accept external identifiers or credentials** (follow the existing pattern in `server/routes/videos.js` and `server/routes/auth.js`).
+- **Validate untrusted input at route boundaries**: types, lengths, shape; 400 with `{ error }` for invalid input.
+- **Never interpolate user data into shell commands or filesystem paths.** Use `modules/download/ytdlpCommandBuilder.js`, `modules/filesystem/pathBuilder.js` and `modules/filesystem/sanitizer.js`; a new helper goes in those modules, not inline in a route.
+- **Auth by default**: new routes wire `verifyToken` unless the user explicitly says the route is public. Call out any public route in your final report.
+- **Never log secrets**: do not interpolate tokens, passwords, cookies or API keys into log messages.
+- **Treat uploaded files as untrusted**: Takeout CSV and cookies uploads are validated, size-limited and parsed defensively.
+- **Sequelize protects against SQL injection only through model methods**; raw queries need explicit parameterization. **Rate-limit** endpoints that accept external identifiers or credentials.
 
 ## Testing
 
@@ -232,58 +167,37 @@ npm run test:frontend                                        # all frontend test
 npm run test:frontend -- client/src/hooks/__tests__/foo.ts   # one frontend test
 npm run test:backend                                         # all backend tests
 npm run test:backend -- server/modules/__tests__/foo.test.js # one backend test
-npm run lint                                                  # lint front + back
+npm run test:external-api-database                           # real database migration/runtime regressions
+npm run test:external-index-plans                            # local synthetic query/EXPLAIN report
+npm run lint                                                  # lint front + back, check rule paths
 npm run lint:ts                                               # TypeScript typecheck
 ```
 
 ### Tests Accompany New Files
-**New component/module files ship with tests in the same change.** When you create a new `.tsx`/`.ts` component, hook, or backend module, add its test file in the same commit. Co-locate in the nearest `__tests__/` directory. Cover externally-observable behavior: renders with required props, responds to interactions, handles the missing/error/loading states the component declares. The `write-tests` and `write-tests-react` slash commands scaffold these. Trivial pure-display components (no props, no logic) are the only exception.
+**New component/module files ship with tests in the same change.** Co-locate them in the nearest `__tests__/` directory and cover externally observable behavior: renders with required props, responds to interactions, handles the loading, empty and error states the component declares. Trivial pure-display components (no props, no logic) are the only exception.
 
 ### Test Execution Policy
-**NEVER skip tests.** No `test.skip()`, no `describe.skip()`, no commented-out failing tests. Fix failing tests or delete them if obsolete. If a test is written, it must run and pass in CI.
+**NEVER skip tests.** No `test.skip()`, no `describe.skip()`, no commented-out failing tests. Fix failing tests or delete them if obsolete. If a test is written, it must run and pass in CI. Testing Library rules, Jest mocking gotchas and hook test patterns are in `testing.md`.
 
-### React Testing Library Rules
-- **No direct DOM queries**: no `querySelector`, `parentElement`, or other native DOM access. Use `getByRole`, `getByLabelText`, `getByText`, `getByTestId`, and `within()` for scoped queries. ESLint enforces this via `testing-library/no-node-access`.
-- **No conditional `expect`** calls.
-- **Assert behavior, not implementation**. Test what the code does, not how.
+## Local Dev Stack
 
-### Jest Mocking Gotchas (project-specific)
-These are real landmines that cost time, not general Jest advice. Full examples live in existing tests under `server/modules/__tests__/` and `client/src/**/__tests__/`; consult them before mocking a new dependency.
+`./scripts/build-dev.sh` then `./scripts/start-dev.sh` run `docker-compose.dev.yml`: containers `youtarr-dev` and `youtarr-db-dev`, app on host port 3087.
 
-1. **Mocking React components**: do NOT use JSX inside `jest.mock()`. Jest hoists the mock and JSX fails with "Invalid variable access." Use `React.createElement` via `require('react')` inside the factory.
-2. **Mocking axios**: use a factory (`jest.mock('axios', () => ({ get: jest.fn(), post: jest.fn(), ... }))`) and `require('axios')` after the mock. Direct ES6 `import axios from 'axios'` fails with ESM errors.
-3. **Mocking `fetch` JSON**: mock `json` as `jest.fn().mockResolvedValueOnce(...)`, not an async arrow function; the latter returns the wrong shape.
-4. **Mock path resolution**: mock paths are relative to the test file, not the component under test. Double-check `../` vs `../../`.
-
-### Backend Test Setup
-- Place `jest.mock()` calls before `require()` imports.
-- Use `jest.resetModules()` and `jest.clearAllMocks()` in `beforeEach`, then re-require the module under test.
-- Mock only external dependencies (db, fs, HTTP, logger). Over-mocking internal module methods usually indicates a design issue.
-
-### Hook Test Setup
-- Use `renderHook` with explicit type annotations for parameterized hooks (e.g., `renderHook(({ token }: { token: string | null }) => useMyHook(token), { initialProps: { token: null } })`).
-- Use `waitFor` for async state changes, not arbitrary timeouts.
-- For polling/interval tests, use fake timers (`jest.useFakeTimers()`) and clean up with `jest.runOnlyPendingTimers()` + `jest.useRealTimers()` in `afterEach`.
-- Test cleanup on unmount.
-
-### Test Quality
-- Each test asserts one thing. A test with 15 assertions is testing too much.
-- Meaningful names: `'returns empty array when no channels exist'`, not `'test case 1'`.
-- Minimal setup: only what the specific test needs; use `beforeEach` for genuinely shared setup.
-- Do not test private implementation details. If you need to expose internals to test them, the API design needs work.
+- `server/` and `migrations/` are bind-mounted and `node --watch` restarts the server on code changes; run a new migration with `docker restart youtarr-dev`. Client changes need a rebuild (the two scripts above), or the Vite dev server on port 3000.
+- Logs: `docker logs youtarr-dev`. Database: `docker exec youtarr-db-dev mysql -uroot -p123qweasd youtarr -e "<sql>"` (the default dev password; `DB_ROOT_PASSWORD` overrides it).
+- Run yt-dlp probes in the container (`docker exec youtarr-dev yt-dlp ...`): it has the version Youtarr actually runs, and a host install may differ.
+- `git commit` runs a pre-commit hook: lint, typecheck and both full test suites. Expect it to take minutes, and give the command a long timeout.
 
 ## Documentation Sync
 
-When a code change creates or invalidates information in this file or in `docs/`, update the docs in the same PR. This is not optional; stale docs are how we got here.
+When a change creates or invalidates information in this file, a rule file, or `docs/`, update it in the same PR.
 
-- **New top-level route file or module**: add a one-liner to the Architecture section above.
-- **New feature directory under `client/src/components/`**: add a one-liner to the Frontend section.
-- **New or changed env var**: update `docs/ENVIRONMENT_VARIABLES.md`.
-- **New or changed config field**: update `docs/CONFIG.md` and register the field in `client/src/config/configSchema.ts`.
-- **New dev command or flag**: update `docs/DEVELOPMENT.md`.
-- **Schema changes**: update `docs/DATABASE.md`.
-- **API changes**: Swagger annotations live with the routes; update them so `/swagger` stays accurate.
-- **Changed services, environment, or ports in `docker-compose.yml`**: mirror the change in the stack in `docs/platforms/portainer.md`, which keeps its own copy with absolute paths.
+- **New top-level directory** under `server/`, `server/modules/` or `client/src/components/`: one line in the Architecture map above. Nothing else is added to this file; it stays under 200 lines.
+- **Non-obvious behavior a future session could break** (an invariant with its reason, a cross-module contract): one bullet in that area's `.claude/rules/<area>.md`, under 40 words, no UI description, no code. A new area gets a new file with a `paths:` frontmatter and a line in "Area notes".
+- **New module, route or component file in an existing area**: add its path to that area's `paths:` list (most rule files name files one by one, so an unlisted file loads no rule). `npm run lint` fails on a path that matches no file, so update the list when you rename or delete one.
+- **New or changed env var**: `docs/ENVIRONMENT_VARIABLES.md`. **Config field**: `docs/CONFIG.md`, `client/src/config/configSchema.ts` and `config/config.example.json` (`configSchemaAlignment.test.ts` fails when the last two disagree).
+- **Dev command or flag**: `docs/DEVELOPMENT.md`. **Schema change**: `docs/DATABASE.md`. **API change**: the Swagger annotations beside the route.
+- **Services, environment or ports in `docker-compose.yml`**: mirror in `docs/platforms/portainer.md`, which keeps its own copy with absolute paths.
 
 ## Git Workflow
 

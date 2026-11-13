@@ -303,10 +303,137 @@ describe('DownloadProgress', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('Summary of last job')).toBeInTheDocument();
+      expect(screen.getByText('Last download')).toBeInTheDocument();
     });
-    expect(screen.getByText(/✓ 5 videos downloaded, 2 skipped \(already downloaded or filtered\)/)).toBeInTheDocument();
-    expect(screen.getByText(/Channel update.*Completed/)).toBeInTheDocument();
+    expect(screen.getByText('✓ 5 videos downloaded')).toBeInTheDocument();
+    expect(screen.getByText(/^Channel update • Jan/)).toBeInTheDocument();
+    expect(screen.queryByText(/Last checked/)).not.toBeInTheDocument();
+  });
+
+  describe('jobs that found nothing new', () => {
+    const showSummary = async (payload: Record<string, unknown>) => {
+      renderWithContext(
+        <DownloadProgress
+          downloadProgressRef={mockDownloadProgressRef}
+          downloadInitiatedRef={mockDownloadInitiatedRef}
+          jobs={[]}
+          token="test-token"
+        />
+      );
+      const processCallback = getProcessCallback();
+      await act(async () => {
+        processCallback(payload);
+      });
+    };
+
+    test('says there is nothing new, not how many videos it looked at', async () => {
+      await showSummary({
+        finalSummary: {
+          totalDownloaded: 0,
+          totalSkipped: 9,
+          jobType: 'Channel Downloads',
+          completedAt: '2026-10-15T12:04:00Z',
+        },
+      });
+
+      expect(await screen.findByText('Last check')).toBeInTheDocument();
+      expect(screen.getByText('No new videos to download')).toBeInTheDocument();
+      expect(screen.getByText(/^Channel update • Checked Oct/)).toBeInTheDocument();
+      expect(screen.queryByText(/skipped/)).not.toBeInTheDocument();
+    });
+
+    test('shows the kept result and when Youtarr last checked', async () => {
+      await showSummary({
+        finalSummary: {
+          totalDownloaded: 12,
+          totalFailed: 1,
+          totalSkipped: 0,
+          jobType: 'Manually Added Urls',
+          completedAt: '2026-10-15T11:42:00Z',
+          lastCheckedAt: '2026-10-15T12:04:00Z',
+        },
+      });
+
+      expect(await screen.findByText('Last download')).toBeInTheDocument();
+      expect(screen.getByText('✓ 12 videos downloaded, ✗ 1 failed')).toBeInTheDocument();
+      expect(screen.getByText(/^Manual download • Oct/)).toBeInTheDocument();
+      expect(screen.getByText(/^Last checked Oct .*: no new videos$/)).toBeInTheDocument();
+      expect(screen.queryByText('No new videos to download')).not.toBeInTheDocument();
+    });
+
+    test('does not call a stopped job a finished check', async () => {
+      await showSummary({
+        warning: true,
+        terminationReason: 'User requested termination',
+        finalSummary: {
+          totalDownloaded: 0,
+          totalSkipped: 0,
+          jobType: 'Manually Added Urls',
+          completedAt: '2026-10-15T12:04:00Z',
+        },
+      });
+
+      expect(await screen.findByText('Last download')).toBeInTheDocument();
+      expect(screen.getByText('No new videos downloaded')).toBeInTheDocument();
+      expect(screen.queryByText(/Checked/)).not.toBeInTheDocument();
+    });
+  });
+
+  describe('jobs given specific videos', () => {
+    test('accounts for the videos it did not download', async () => {
+      renderWithContext(
+        <DownloadProgress
+          downloadProgressRef={mockDownloadProgressRef}
+          downloadInitiatedRef={mockDownloadInitiatedRef}
+          jobs={[]}
+          token="test-token"
+        />
+      );
+      const processCallback = getProcessCallback();
+
+      await act(async () => {
+        processCallback({
+          finalSummary: {
+            totalDownloaded: 3,
+            totalSkipped: 3,
+            totalAlreadyDownloaded: 2,
+            totalNotAvailable: 1,
+            jobType: 'Manually Added Urls',
+          },
+        });
+      });
+
+      expect(
+        await screen.findByText('✓ 3 videos downloaded, 2 already downloaded, 1 not available (live, upcoming or members-only)')
+      ).toBeInTheDocument();
+      expect(screen.getByText('Last download')).toHaveClass('text-warning');
+    });
+
+    test('reports a job that only found videos it already had as a download result', async () => {
+      renderWithContext(
+        <DownloadProgress
+          downloadProgressRef={mockDownloadProgressRef}
+          downloadInitiatedRef={mockDownloadInitiatedRef}
+          jobs={[]}
+          token="test-token"
+        />
+      );
+      const processCallback = getProcessCallback();
+
+      await act(async () => {
+        processCallback({
+          finalSummary: {
+            totalDownloaded: 0,
+            totalSkipped: 2,
+            totalAlreadyDownloaded: 2,
+            jobType: 'Manually Added Urls',
+          },
+        });
+      });
+
+      expect(await screen.findByText('Last download')).toHaveClass('text-success');
+      expect(screen.getByText('2 already downloaded')).toBeInTheDocument();
+    });
   });
 
   test('names a download job that failed in the final summary', async () => {
@@ -335,7 +462,7 @@ describe('DownloadProgress', () => {
     await waitFor(() => {
       expect(screen.getByText('✗ Download job failed (No valid channel URLs to download)')).toBeInTheDocument();
     });
-    expect(screen.queryByText('No new videos downloaded')).not.toBeInTheDocument();
+    expect(screen.queryByText('No new videos to download')).not.toBeInTheDocument();
   });
 
   test('displays queued auto-retries in the final summary', async () => {
@@ -364,7 +491,7 @@ describe('DownloadProgress', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('Summary of last job')).toBeInTheDocument();
+      expect(screen.getByText('Last download')).toBeInTheDocument();
     });
     expect(screen.getByText(/✓ 2 videos downloaded, 1 queued for auto-retry/)).toBeInTheDocument();
   });
@@ -420,7 +547,7 @@ describe('DownloadProgress', () => {
     await waitFor(() => {
       expect(screen.getByText(/✓ 8 videos downloaded/)).toBeInTheDocument();
     });
-    expect(screen.getByText(/Multiple downloads.*Completed/)).toBeInTheDocument();
+    expect(screen.getByText(/Multiple downloads/)).toBeInTheDocument();
   });
 
   test('replaces (does not accumulate) the summary when the next job is a fresh, non-continuation start', async () => {
@@ -503,7 +630,7 @@ describe('DownloadProgress', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('Summary of last job')).toBeInTheDocument();
+      expect(screen.getByText('Last download')).toBeInTheDocument();
     });
     expect(screen.getByText(/1 channel marked terminated/)).toBeInTheDocument();
     expect(screen.getByText('Channels Marked Terminated by YouTube')).toBeInTheDocument();
@@ -536,7 +663,7 @@ describe('DownloadProgress', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('Summary of last job')).toBeInTheDocument();
+      expect(screen.getByText('Last download')).toBeInTheDocument();
     });
     expect(screen.getByText(/1 termination could not be auto-disabled/)).toBeInTheDocument();
     expect(screen.getByText('Terminations Could Not Be Auto-Disabled')).toBeInTheDocument();
@@ -566,7 +693,7 @@ describe('DownloadProgress', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('Summary of last job')).toBeInTheDocument();
+      expect(screen.getByText('Last download')).toBeInTheDocument();
     });
     expect(screen.queryByText('Channels Marked Terminated by YouTube')).not.toBeInTheDocument();
   });
@@ -799,7 +926,7 @@ describe('DownloadProgress', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText('Summary of last job')).toBeInTheDocument();
+      expect(screen.getByText('Last download')).toBeInTheDocument();
     });
 
     await act(async () => {
@@ -809,7 +936,7 @@ describe('DownloadProgress', () => {
     });
 
     await waitFor(() => {
-      expect(screen.queryByText('Summary of last job')).not.toBeInTheDocument();
+      expect(screen.queryByText('Last download')).not.toBeInTheDocument();
     });
   });
 
@@ -1341,6 +1468,19 @@ describe('DownloadProgress', () => {
       const merged = mergeFinalSummaries(baseA, baseB);
       expect(merged.completedAt).toBe(baseB.completedAt);
     });
+
+    test('sums already-downloaded and not-available counts', () => {
+      const merged = mergeFinalSummaries(
+        { ...baseA, totalAlreadyDownloaded: 2, totalNotAvailable: 1 },
+        { ...baseB, totalAlreadyDownloaded: 3, totalNotAvailable: 4 }
+      );
+      expect([merged.totalAlreadyDownloaded, merged.totalNotAvailable]).toEqual([5, 5]);
+    });
+
+    test('keeps the visible summary when the next one re-broadcasts a quiet check', () => {
+      const merged = mergeFinalSummaries(baseA, { ...baseA, lastCheckedAt: '2026-08-19T17:00:00Z' });
+      expect(merged).toEqual({ ...baseA, lastCheckedAt: '2026-08-19T17:00:00Z' });
+    });
   });
 
   describe('formatEta', () => {
@@ -1777,8 +1917,8 @@ describe('DownloadProgress', () => {
       await waitFor(() => {
         expect(screen.getByText('Download Terminated')).toBeInTheDocument();
       });
-      expect(screen.getByText('Summary of last job')).toBeInTheDocument();
-      expect(screen.getByText(/✓ 5 videos downloaded, 2 skipped \(already downloaded or filtered\)/)).toBeInTheDocument();
+      expect(screen.getByText('Last download')).toBeInTheDocument();
+      expect(screen.getByText('✓ 5 videos downloaded')).toBeInTheDocument();
 
       jest.useRealTimers();
     });
@@ -2206,7 +2346,7 @@ describe('DownloadProgress', () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByText('Summary of last job')).toBeInTheDocument();
+        expect(screen.getByText('Last download')).toBeInTheDocument();
       });
       expect(screen.getByText(/3 videos downloaded/)).toBeInTheDocument();
     });
@@ -2270,7 +2410,7 @@ describe('DownloadProgress', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText('Summary of last job')).toBeInTheDocument();
+        expect(screen.getByText('Last download')).toBeInTheDocument();
       });
       expect(screen.queryByText('Downloading video stream...')).not.toBeInTheDocument();
       expect(screen.getByText(/5 videos downloaded/)).toBeInTheDocument();
@@ -2319,7 +2459,7 @@ describe('DownloadProgress', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText('Summary of last job')).toBeInTheDocument();
+        expect(screen.getByText('Last download')).toBeInTheDocument();
       });
       expect(screen.queryByText('Download Failed')).not.toBeInTheDocument();
       expect(screen.getByText(/2 videos downloaded/)).toBeInTheDocument();
@@ -2401,7 +2541,7 @@ describe('DownloadProgress', () => {
         jest.advanceTimersByTime(2000);
       });
 
-      expect(screen.getByText('Summary of last job')).toBeInTheDocument();
+      expect(screen.getByText('Last download')).toBeInTheDocument();
       expect(screen.queryByText('Download Failed')).not.toBeInTheDocument();
       jest.useRealTimers();
     });
@@ -2516,7 +2656,7 @@ describe('DownloadProgress', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText('Summary of last job')).toBeInTheDocument();
+        expect(screen.getByText('Last download')).toBeInTheDocument();
       });
       expect(screen.getByText(/✓ 3 videos downloaded, ✗ 2 failed/)).toBeInTheDocument();
       expect(screen.getByText('Failed Downloads')).toBeInTheDocument();
@@ -2570,7 +2710,7 @@ describe('DownloadProgress', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText('Summary of last job')).toBeInTheDocument();
+        expect(screen.getByText('Last download')).toBeInTheDocument();
       });
       expect(screen.getByText(/2 videos failed:/)).toBeInTheDocument();
       expect(screen.getByText(/1 video failed:/)).toBeInTheDocument();
@@ -2626,7 +2766,7 @@ describe('DownloadProgress', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText('Summary of last job')).toBeInTheDocument();
+        expect(screen.getByText('Last download')).toBeInTheDocument();
       });
       expect(
         screen.getByText(/2 videos failed: YouTube blocked the download while using your cookies/)
@@ -2688,7 +2828,7 @@ describe('DownloadProgress', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText('Summary of last job')).toBeInTheDocument();
+        expect(screen.getByText('Last download')).toBeInTheDocument();
       });
       expect(
         screen.getByText(/1 video failed: YouTube blocked the download while using your cookies/)
@@ -2736,7 +2876,7 @@ describe('DownloadProgress', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText('Summary of last job')).toBeInTheDocument();
+        expect(screen.getByText('Last download')).toBeInTheDocument();
       });
       expect(screen.getByText(/2 videos failed:/)).toBeInTheDocument();
       expect(screen.getByText('Video unavailable')).toBeInTheDocument();
@@ -2792,7 +2932,7 @@ describe('DownloadProgress', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText('Summary of last job')).toBeInTheDocument();
+        expect(screen.getByText('Last download')).toBeInTheDocument();
       });
       // Known titles render as text; unknown-titled videos render as ID links
       expect(screen.getByText(/Known Video Title/)).toBeInTheDocument();
@@ -2832,7 +2972,7 @@ describe('DownloadProgress', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText('Summary of last job')).toBeInTheDocument();
+        expect(screen.getByText('Last download')).toBeInTheDocument();
       });
       // Verify both successes and failures are displayed
       expect(screen.getByText(/✓ 3 videos downloaded, ✗ 1 failed/)).toBeInTheDocument();
@@ -2878,7 +3018,7 @@ describe('DownloadProgress', () => {
       });
 
       await waitFor(() => {
-        expect(screen.getByText('Summary of last job')).toBeInTheDocument();
+        expect(screen.getByText('Last download')).toBeInTheDocument();
       });
       expect(screen.getByText(/✗ 2 failed/)).toBeInTheDocument();
       // When there are failed videos but no downloads, only the failed count should show
