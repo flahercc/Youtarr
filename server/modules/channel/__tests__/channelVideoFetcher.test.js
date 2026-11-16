@@ -15,15 +15,6 @@ describe('channelVideoFetcher', () => {
   let Channel;
   let youtubeApi;
 
-  const mockChannelData = {
-    channel_id: 'UC123456',
-    title: 'Test Channel',
-    description: 'Test Description',
-    uploader: 'Test Uploader',
-    url: 'https://www.youtube.com/@testchannel',
-    lastFetchedByTab: JSON.stringify({ video: new Date('2024-01-01').toISOString() })
-  };
-
   beforeEach(() => {
     jest.resetModules();
     jest.clearAllMocks();
@@ -37,6 +28,16 @@ describe('channelVideoFetcher', () => {
 
     channelVideoFetcher = require('../channelVideoFetcher');
   });
+
+  // Kept for the fork's New Videos scan (newVideoScanScheduler).
+  const mockChannelData = {
+    channel_id: 'UC123456',
+    title: 'Test Channel',
+    description: 'Test Description',
+    uploader: 'Test Uploader',
+    url: 'https://www.youtube.com/@testchannel',
+    lastFetchedByTab: JSON.stringify({ video: new Date('2024-01-01').toISOString() })
+  };
 
   describe('shouldRefreshChannelVideos', () => {
     test('should refresh if no channel record', () => {
@@ -208,13 +209,151 @@ describe('channelVideoFetcher', () => {
       // Fetch and timestamp update both succeed; only the clear fails.
       await expect(
         channelVideoFetcher.fetchAndSaveVideosViaYtDlp(channel, 'UC123', 'videos', null)
-      ).resolves.toBeUndefined();
+      ).resolves.toEqual({ newVideos: 0 });
 
       expect(channel.update).toHaveBeenCalledWith({ terminated_at: null });
       const logger = require('../../../logger');
       expect(logger.warn).toHaveBeenCalledWith(
         expect.objectContaining({ channelId: 'UC123' }),
         'Failed to clear terminated_at after successful video fetch'
+      );
+    });
+  });
+
+  describe('fetchAndSaveVideosViaYtDlp - new video count', () => {
+    const channel = () => ({
+      channel_id: 'UC123',
+      title: 'Test',
+      url: 'https://www.youtube.com/@chan',
+      terminated_at: null,
+      reload: jest.fn(),
+      update: jest.fn().mockResolvedValue(),
+    });
+
+    beforeEach(() => {
+      const { sequelize } = require('../../../db');
+      sequelize.query.mockResolvedValue([]);
+    });
+
+    test('resolves the number of new videos', async () => {
+      const channelVideoWriter = require('../channelVideoWriter');
+      jest.spyOn(channelVideoFetcher, 'fetchChannelVideos').mockResolvedValue({
+        videos: [{ youtube_id: 'a' }, { youtube_id: 'b' }, { youtube_id: 'c' }],
+        currentChannelUrl: 'https://www.youtube.com/@chan',
+      });
+      jest.spyOn(channelVideoWriter, 'insertVideosIntoDb').mockResolvedValue({ created: 2 });
+
+      const result = await channelVideoFetcher.fetchAndSaveVideosViaYtDlp(channel(), 'UC123', 'videos', null);
+
+      expect(result).toEqual({ newVideos: 2 });
+    });
+
+    test('resolves zero new videos when the tab lists nothing', async () => {
+      jest.spyOn(channelVideoFetcher, 'fetchChannelVideos').mockResolvedValue({
+        videos: [],
+        currentChannelUrl: 'https://www.youtube.com/@chan',
+      });
+
+      const result = await channelVideoFetcher.fetchAndSaveVideosViaYtDlp(channel(), 'UC123', 'videos', null);
+
+      expect(result).toEqual({ newVideos: 0 });
+    });
+  });
+
+  describe('refreshTabTracked', () => {
+    const KEY = 'UC123:videos';
+    let fetchRegistry;
+    let channel;
+
+    beforeEach(() => {
+      fetchRegistry = require('../fetchRegistry');
+      const { sequelize } = require('../../../db');
+      sequelize.query.mockResolvedValue([]);
+      const channelVideoWriter = require('../channelVideoWriter');
+      jest.spyOn(channelVideoWriter, 'insertVideosIntoDb').mockResolvedValue({ created: 2 });
+      jest.spyOn(channelVideoFetcher, 'fetchChannelVideos').mockResolvedValue({
+        videos: [{ youtube_id: 'a' }, { youtube_id: 'b' }],
+        currentChannelUrl: 'https://www.youtube.com/@chan',
+      });
+      channel = {
+        channel_id: 'UC123',
+        title: 'Test',
+        url: 'https://www.youtube.com/@chan',
+        terminated_at: null,
+        reload: jest.fn(),
+        update: jest.fn().mockResolvedValue(),
+      };
+    });
+
+    test('resolves the number of new videos', async () => {
+      const result = await channelVideoFetcher.refreshTabTracked(channel, 'UC123', 'videos', { type: 'autoRefresh' });
+
+      expect(result).toEqual({ skipped: false, newVideos: 2 });
+    });
+
+    test('records the finished result', async () => {
+      await channelVideoFetcher.refreshTabTracked(channel, 'UC123', 'videos', { type: 'autoRefresh' });
+
+      expect(fetchRegistry.has(KEY)).toBe(false);
+      expect(fetchRegistry.getLastResult(KEY)).toEqual(
+        expect.objectContaining({ type: 'autoRefresh', newVideos: 2, failed: false })
+      );
+    });
+
+    test('registers the tab as being fetched while the listing runs', async () => {
+      let finishListing;
+      channelVideoFetcher.fetchChannelVideos.mockReturnValue(new Promise((resolve) => {
+        finishListing = () => resolve({ videos: [], currentChannelUrl: 'https://www.youtube.com/@chan' });
+      }));
+
+      const refresh = channelVideoFetcher.refreshTabTracked(channel, 'UC123', 'videos', { type: 'feedCheck' });
+
+      expect(fetchRegistry.get(KEY)).toEqual({
+        startTime: expect.any(String),
+        type: 'feedCheck',
+        tabType: 'videos',
+      });
+      finishListing();
+      await refresh;
+    });
+
+    test('skips a tab that is already being fetched', async () => {
+      fetchRegistry.set(KEY, { startTime: 'x', type: 'fetchAll', tabType: 'videos' });
+
+      const result = await channelVideoFetcher.refreshTabTracked(channel, 'UC123', 'videos', { type: 'autoRefresh' });
+
+      expect(result).toEqual({ skipped: true });
+      expect(channelVideoFetcher.fetchChannelVideos).not.toHaveBeenCalled();
+      expect(fetchRegistry.get(KEY).type).toBe('fetchAll');
+    });
+
+    test('records a failure and rethrows', async () => {
+      channelVideoFetcher.fetchChannelVideos.mockRejectedValue(new Error('yt-dlp failed'));
+
+      await expect(
+        channelVideoFetcher.refreshTabTracked(channel, 'UC123', 'videos', { type: 'autoRefresh' })
+      ).rejects.toThrow('yt-dlp failed');
+
+      expect(fetchRegistry.has(KEY)).toBe(false);
+      expect(fetchRegistry.getLastResult(KEY)).toEqual(
+        expect.objectContaining({ type: 'autoRefresh', newVideos: 0, failed: true })
+      );
+    });
+
+    test('hands the max video count to the listing', async () => {
+      await channelVideoFetcher.refreshTabTracked(channel, 'UC123', 'videos', {
+        type: 'autoRefresh',
+        maxVideoCount: 5,
+      });
+
+      expect(channelVideoFetcher.fetchChannelVideos).toHaveBeenCalledWith('UC123', 'videos', 5);
+    });
+
+    test('lists the default max video count when none is given', async () => {
+      await channelVideoFetcher.refreshTabTracked(channel, 'UC123', 'videos', { type: 'feedCheck' });
+
+      expect(channelVideoFetcher.fetchChannelVideos).toHaveBeenCalledWith(
+        'UC123', 'videos', channelVideoFetcher.DEFAULT_MAX_VIDEO_COUNT
       );
     });
   });

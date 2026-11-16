@@ -31,6 +31,9 @@ const AUTO_RETRY_LABEL_PREFIX = 'Auto-retry: ';
 // Single-video downloads queued from the new-videos discovery queue. Always
 // a URL-list job (one video), same as the other prefixed labels above.
 const NEW_VIDEO_DOWNLOAD_LABEL_PREFIX = 'New Video: ';
+// Downloads approved through the External API. Unlike the owner's own manual
+// downloads, these never use the owner's membership.
+const EXTERNAL_REQUEST_JOB_LABEL = `${MANUAL_DOWNLOAD_LABEL} (external request)`;
 // Synthetic status-marker jobType for an idle playlist auto-download sweep
 // (>=1 auto-enabled playlist checked, nothing enqueued, no errors). NOT a
 // download job: it must stay un-matched by every detection helper below.
@@ -98,6 +101,7 @@ module.exports = {
   CHANNEL_DOWNLOAD_ALL_LABEL_PREFIX,
   AUTO_RETRY_LABEL_PREFIX,
   NEW_VIDEO_DOWNLOAD_LABEL_PREFIX,
+  EXTERNAL_REQUEST_JOB_LABEL,
   PLAYLIST_SWEEP_LABEL,
   isSpecificUrlDownloadJob,
   isDownloadJob,
