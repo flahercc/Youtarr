@@ -18,6 +18,7 @@ const createYtdlpOptionsRoutes = require('./ytdlpOptions');
 const createMaintenanceRoutes = require('./maintenance');
 const createSubfolderRoutes = require('./subfolders');
 const createNewVideoRoutes = require('./newVideos');
+const createSupportPromptRoutes = require('./supportPrompt');
 const createSchedulesRoutes = require('./schedules');
 const createLogRoutes = require('./logs');
 const createVideoTrashRoutes = require('./videoTrash');
@@ -37,8 +38,10 @@ const channelDownloadAllModule = require('../modules/channelDownloadAllModule');
 const newVideoQueueModule = require('../modules/channel/newVideoQueueModule');
 const ratingMapper = require('../modules/ratingMapper');
 const subfolderModule = require('../modules/subfolderModule');
+const supportPromptModule = require('../modules/supportPromptModule');
 const playlistVideoFilters = require('../modules/playlistVideoFilters');
 const playlistDownloadModule = require('../modules/playlistDownloadModule');
+const membersAccess = require('../modules/membersAccess');
 const models = require('../models');
 const videoLocalStatus = require('../modules/videoLocalStatus');
 const youtubeUrlParser = require('../modules/youtubeUrlParser');
@@ -168,7 +171,7 @@ function registerRoutes(app, deps) {
   app.use(createVideoDetailRoutes({ verifyToken, videosModule, videoMetadataModule, mediaServers }));
 
   // Playlist routes
-  app.use(createPlaylistRoutes({ verifyToken, playlistModule, downloadModule, m3uGenerator, mediaServers, models, channelSettingsModule, ratingMapper, subfolderModule, playlistVideoFilters, playlistDownloadModule, storageGuard }));
+  app.use(createPlaylistRoutes({ verifyToken, playlistModule, downloadModule, m3uGenerator, mediaServers, models, channelSettingsModule, ratingMapper, subfolderModule, playlistVideoFilters, playlistDownloadModule, storageGuard, membersAccess }));
 
   // Media server routes
   app.use(createMediaServerRoutes({ verifyToken, configModule, mediaServers, scheduledTaskManager }));
@@ -183,6 +186,8 @@ function registerRoutes(app, deps) {
 
   // New-videos discovery queue routes
   app.use(createNewVideoRoutes({ verifyToken, newVideoQueueModule, scheduledTaskManager }));
+  // One-time support prompt routes
+  app.use(createSupportPromptRoutes({ verifyToken, supportPromptModule }));
 
   // Scheduled task status routes
   app.use(createSchedulesRoutes({ verifyToken, scheduledTaskManager, scheduledTaskRuns, scheduleConfig }));
