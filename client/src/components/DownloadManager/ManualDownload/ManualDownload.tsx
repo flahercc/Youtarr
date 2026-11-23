@@ -15,9 +15,10 @@ interface ManualDownloadProps {
   ) => Promise<void>;
   token: string | null;
   defaultResolution?: string;
+  defaultProtect?: boolean;
 }
 
-const ManualDownload: React.FC<ManualDownloadProps> = ({ onStartDownload, token, defaultResolution = '1080' }) => {
+const ManualDownload: React.FC<ManualDownloadProps> = ({ onStartDownload, token, defaultResolution = '1080', defaultProtect = false }) => {
   const {
     validatedVideos,
     isValidating,
@@ -127,6 +128,7 @@ const ManualDownload: React.FC<ManualDownloadProps> = ({ onStartDownload, token,
         videoCount={pendingDownload?.length ?? 0}
         missingVideoCount={missingVideoCount}
         defaultResolution={defaultResolution}
+        defaultProtect={defaultProtect}
         mode="manual"
         defaultResolutionSource="global"
         token={token}

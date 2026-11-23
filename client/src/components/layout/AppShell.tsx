@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CssBaseline } from '../ui';
-import { SETTINGS_PAGES } from '../Settings/SettingsIndex';
+import { SETTINGS_GROUPS, SETTINGS_PAGES } from '../Settings/SettingsIndex';
 import { useThemeEngine } from '../../contexts/ThemeEngineContext';
 import { NavHeader } from './NavHeader';
 import { NavSidebar } from './NavSidebar';
 import { BackgroundDecorations } from './BackgroundDecorations';
 import UpdateAvailableBanner from './UpdateAvailableBanner';
 import DownloadPauseBanner from './DownloadPauseBanner';
+import SupportPromptDialog from './SupportPromptDialog';
 import { NavItem } from './navigation';
 import { getThemeById, getThemeLayoutCssVars, resolveThemeLayoutPolicy } from '../../themes';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
@@ -115,6 +116,8 @@ export function AppShell({
         key: page.key,
         label: page.title,
         to: `/settings/${page.key}`,
+        matchPrefix: true,
+        group: SETTINGS_GROUPS.find((group) => group.key === page.group)?.title,
       })),
     []
   );
@@ -153,6 +156,7 @@ export function AppShell({
           icon: <SettingsIcon />,
           to: '/settings',
           subItems: settingsSubItems,
+          hideSubItemsOnMobile: true,
         },
       ],
     [channelsSubItems, videosSubItems, downloadsSubItems, settingsSubItems]
@@ -293,6 +297,7 @@ export function AppShell({
       </main>
 
       <UpdateAvailableBanner show={updateAvailable} serverVersion={serverVersion} />
+      <SupportPromptDialog token={token} />
     </div>
   );
 }

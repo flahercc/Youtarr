@@ -594,6 +594,20 @@ module.exports = function createVideoRoutes({
    *                   type: integer
    *                 thumbnail:
    *                   type: string
+   *                 isMembersOnly:
+   *                   type: boolean
+   *                   description: The video is members-only and the configured cookies cannot download it
+   *                 membersAccess:
+   *                   type: string
+   *                   nullable: true
+   *                   enum: [no_cookies, unchecked, confirmed, denied, null]
+   *                   description: Whether the configured cookies can open a members-only video; null when the video is not members-only
+   *                 error:
+   *                   type: string
+   *                 errorCode:
+   *                   type: string
+   *                   enum: [COOKIES_REQUIRED, COOKIES_REJECTED]
+   *                   description: COOKIES_REJECTED means the video is members-only and the configured cookies could not be used to check access
    *       400:
    *         description: URL is required
    *       429:
@@ -932,6 +946,9 @@ module.exports = function createVideoRoutes({
    *                     type: string
    *                     enum: ['360', '480', '720', '1080', '1440', '2160']
    *                     description: Override download resolution
+   *                   protect:
+   *                     type: boolean
+   *                     description: Protect the downloaded videos from automatic removal
    *               videoChannelMap:
    *                 type: object
    *                 additionalProperties:
@@ -999,6 +1016,10 @@ module.exports = function createVideoRoutes({
         return res.status(400).json({
           error: 'skipVideoFolder must be a boolean'
         });
+      }
+
+      if (overrideSettings.protect !== undefined && typeof overrideSettings.protect !== 'boolean') {
+        return res.status(400).json({ error: 'protect must be a boolean' });
       }
 
       // Validate/normalize rating override if provided

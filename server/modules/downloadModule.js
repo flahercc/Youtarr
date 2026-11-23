@@ -3,16 +3,21 @@ const { normalizeUrlToVideoId } = require('./youtubeUrlParser');
 const configModule = require('./configModule');
 const jobModule = require('./jobModule');
 const plexModule = require('./plexModule');
+const libraryRefresh = require('./mediaServers/libraryRefresh');
 const DownloadExecutor = require('./download/downloadExecutor');
 const YtdlpCommandBuilder = require('./download/ytdlpCommandBuilder');
 const tempPathManager = require('./download/tempPathManager');
 const downloadSettingsResolver = require('./download/downloadSettingsResolver');
-const { MANUAL_DOWNLOAD_LABEL, playlistJobLabel, playlistRetryJobLabel, autoRetryJobLabel } = require('./download/jobTypes');
+const {
+  MANUAL_DOWNLOAD_LABEL, EXTERNAL_REQUEST_JOB_LABEL, playlistJobLabel, playlistRetryJobLabel, autoRetryJobLabel,
+  isArrBridgeJob,
+} = require('./download/jobTypes');
 const MessageEmitter = require('./messageEmitter');
 const ChannelVideo = require('../models/channelvideo');
 const logger = require('../logger');
 const playlistDownloadModule = require('./playlistDownloadModule');
 const storageGuard = require('./storageGuard');
+const membersAccess = require('./membersAccess');
 
 const DEFAULT_FILES_TO_DOWNLOAD = 5;
 // Statuses that end a grouped channel download before its remaining groups run.
@@ -89,6 +94,11 @@ class DownloadModule {
     }
 
     return undefined;
+  }
+
+  // An External API request, or an auto-retry of one.
+  isExternalRequestJob(jobData, jobType) {
+    return jobType === EXTERNAL_REQUEST_JOB_LABEL || this.getJobDataValue(jobData, 'externalRequest') === true;
   }
 
   /**
@@ -209,10 +219,13 @@ class DownloadModule {
       (video) => video && video.anonymousRetry === true
     );
 
+    const sourceLabel = this.getJobDataValue(sourceJobData, 'jobLabel');
     const body = {
       urls: retryVideos.map((video) => video.url),
       overrideSettings: { ...this.getOverrideSettings(sourceJobData) },
-      jobLabel: autoRetryJobLabel(retryVideos.length, { anonymous: anonymousRetry }),
+      jobLabel: autoRetryJobLabel(retryVideos.length, {
+        anonymous: anonymousRetry, arrBridge: isArrBridgeJob(sourceLabel),
+      }),
       autoRetryAttempt,
       anonymousRetry,
     };
@@ -221,6 +234,10 @@ class DownloadModule {
     if (effectiveQuality) body.effectiveQuality = effectiveQuality;
     if (runId) body.runId = runId;
     if (this.getJobDataValue(sourceJobData, 'structurePerVideo')) body.structurePerVideo = true;
+    // The retry's label no longer names the External API, so the flag carries it.
+    if (this.isExternalRequestJob(sourceJobData, sourceLabel)) body.externalRequest = true;
+    // A repeat try of a blocked Sonarr/Radarr grab stays quiet through its retries.
+    if (this.getJobDataValue(sourceJobData, 'quietBlockedFailure') === true) body.quietBlockedFailure = true;
 
     logger.info(
       { videoCount: retryVideos.length, autoRetryAttempt, channelId, runId },
@@ -386,7 +403,8 @@ class DownloadModule {
         const videoCount = overrideSettings.videoCount || configModule.config.channelFilesToDownload;
         const allowRedownload = !!overrideSettings.allowRedownload;
 
-        const args = YtdlpCommandBuilder.getBaseCommandArgs(resolution, allowRedownload);
+        const membersFilter = await membersAccess.buildDownloadFilter({ cookiesEnabled: Boolean(configModule.getCookiesPath()) });
+        const args = YtdlpCommandBuilder.getBaseCommandArgs(resolution, allowRedownload, null, null, null, false, { membersFilter });
         args.push('-a', tempChannelsFile);
         args.push('--playlist-end', String(videoCount));
 
@@ -659,14 +677,23 @@ class DownloadModule {
       }
     }
 
-    // Refresh each distinct Plex library mapped to the downloaded subfolders.
-    // Pre-condition: g.subFolder must already be a resolved effective subfolder
-    // (clean name, no __ prefix, no ##USE_GLOBAL_DEFAULT## sentinel) as produced
-    // by channelDownloadGrouper. null means root (no subfolder).
-    // Defensive: refreshLibrary currently swallows errors internally
-    plexModule.refreshLibrariesForSubfolders(groups.map(g => g.subFolder ?? null)).catch(err => {
-      logger.error({ err }, 'Failed to refresh Plex libraries after grouped download');
-    });
+    // Refresh media servers once for the whole job, and only when a group
+    // downloaded something (most scheduled checks find nothing new).
+    if ((completedJob?.data?.videos?.length || 0) > 0) {
+      // Each distinct Plex library mapped to the groups' subfolders.
+      // Pre-condition: g.subFolder must already be a resolved effective subfolder
+      // (clean name, no __ prefix, no ##USE_GLOBAL_DEFAULT## sentinel) as produced
+      // by channelDownloadGrouper. null means root (no subfolder).
+      // Defensive: refreshLibrary currently swallows errors internally
+      plexModule.refreshLibrariesForSubfolders(groups.map(g => g.subFolder ?? null)).catch(err => {
+        logger.error({ err }, 'Failed to refresh Plex libraries after grouped download');
+      });
+
+      // Jellyfin and Emby; also swallows its own errors.
+      libraryRefresh.refreshAfterDownload().catch(err => {
+        logger.error({ err }, 'Failed to refresh Jellyfin/Emby libraries after grouped download');
+      });
+    }
 
     // Now start the next job in the queue
     await jobModule.startNextJob();
@@ -736,7 +763,8 @@ class DownloadModule {
       // Pass audioFormat from filterConfig for MP3 downloads
       const audioFormat = group.filterConfig?.audioFormat || null;
       const skipVideoFolder = group.filterConfig?.skipVideoFolder || false;
-      const args = YtdlpCommandBuilder.getBaseCommandArgs(group.quality, allowRedownload, null, group.filterConfig, audioFormat, skipVideoFolder);
+      const membersFilter = await membersAccess.buildDownloadFilter({ cookiesEnabled: Boolean(configModule.getCookiesPath()) });
+      const args = YtdlpCommandBuilder.getBaseCommandArgs(group.quality, allowRedownload, null, group.filterConfig, audioFormat, skipVideoFolder, { membersFilter });
       args.push('-a', tempChannelsFile);
       args.push('--playlist-end', String(videoCount));
 
@@ -877,17 +905,34 @@ class DownloadModule {
             config: configModule.config,
           });
 
-        // For manual downloads, we don't apply duration filters but still exclude members-only
+        // For manual downloads, we don't apply duration filters; members-only videos follow membersAccess
         // Subfolder override is passed to post-processor via environment variable
         // Pass audioFormat for MP3 downloads
         const anonymousRetry = Boolean(this.getJobDataValue(jobData, 'anonymousRetry'));
         const cookiesEnabled = Boolean(configModule.getCookiesPath()) && !anonymousRetry;
+        // An External API request never uses the owner's membership, so its
+        // members-only videos stay filtered out as in a run without cookies.
+        const externalRequest = this.isExternalRequestJob(jobData, jobType);
+        // Videos the user picked are attempted even when a denial is on record,
+        // and the attempt replaces it. yt-dlp checks a match filter on a video
+        // URL only after fetching it, so playlist and Download All jobs leave
+        // fresh denials out of their URL lists before queuing instead.
+        const userPicked = jobType.includes(MANUAL_DOWNLOAD_LABEL) && !externalRequest;
+        if (userPicked && cookiesEnabled) {
+          await membersAccess.clearVerdicts(acceptedIds).catch((err) => {
+            logger.warn({ err, jobId }, 'Could not clear members-only verdicts for a manual download');
+          });
+        }
+        const membersFilter = await membersAccess.buildDownloadFilter({
+          cookiesEnabled: cookiesEnabled && !externalRequest,
+          skipDenied: false,
+        });
         const args = YtdlpCommandBuilder.getBaseCommandArgsForManualDownload(
           resolution,
           allowRedownload,
           audioFormat,
           skipVideoFolder,
-          { cookiesEnabled }
+          { cookiesEnabled, membersFilter }
         );
 
         if (anonymousRetry) {
@@ -971,6 +1016,7 @@ class DownloadModule {
             cookiesEnabled,
             anonymousRetry,
             isContinuation: isNextJob,
+            protectVideos: overrideSettings.protect === true,
           }
         )).catch(async err => {
           // Covers failures before the executor installs its own process
@@ -1182,8 +1228,14 @@ class DownloadModule {
 
     if (!entries.length) return 0;
 
+    // yt-dlp would fetch a denied video before its match filter skips it.
+    const deniedIds = configModule.getCookiesPath()
+      ? await membersAccess.getFreshDeniedIdSet()
+      : new Set();
+
     const toDownload = [];
     for (const entry of entries) {
+      if (deniedIds.has(entry.youtube_id)) continue;
       // Downloads may finish after candidate loading. Re-check before admission;
       // doSpecificDownloads also claims queue ownership atomically.
       if (!allowRedownload) {
@@ -1234,6 +1286,7 @@ class DownloadModule {
       if (routing.subfolderFallback !== undefined) groupOverride.subfolderFallback = routing.subfolderFallback;
       if (routing.ratingOverride !== undefined) groupOverride.rating = routing.ratingOverride;
       if (routing.ratingFallback !== undefined) groupOverride.ratingFallback = routing.ratingFallback;
+      if (overrideSettings.protect === true) groupOverride.protect = true;
       // doSpecificDownloads accepts an Express-request shape (.body). runId ties
       // these jobs into the parent run so its summary aggregates them.
       const admission = await this.doSpecificDownloads({ body: { urls, overrideSettings: groupOverride, jobLabel, runId, ownerChannelMap } });

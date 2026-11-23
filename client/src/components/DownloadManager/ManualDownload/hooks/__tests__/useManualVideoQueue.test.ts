@@ -77,6 +77,32 @@ describe('useManualVideoQueue', () => {
     expect(result.current.errorMessage).toMatch(/members-only/i);
   });
 
+  test('validateUrl keeps the members-only access of a video the cookies can open', async () => {
+    axios.post.mockResolvedValueOnce({
+      data: {
+        isValidUrl: true,
+        isAlreadyDownloaded: false,
+        isMembersOnly: false,
+        membersAccess: 'confirmed',
+        metadata: {
+          youtubeId: 'mem',
+          url: 'https://www.youtube.com/watch?v=mem',
+          channelName: 'Channel',
+          videoTitle: 'Title',
+          duration: 60,
+          publishedAt: 1700000000,
+        },
+      },
+    });
+
+    const { result } = renderHook(() => useManualVideoQueue('t'));
+    await act(async () => {
+      await result.current.validateUrl('https://www.youtube.com/watch?v=mem');
+    });
+
+    expect(result.current.validatedVideos[0].membersAccess).toBe('confirmed');
+  });
+
   test('validateUrl rejects a duplicate already in the list', async () => {
     const metadata = {
       youtubeId: 'abc',
