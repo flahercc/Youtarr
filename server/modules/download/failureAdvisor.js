@@ -21,7 +21,7 @@ const ADVICE = {
       'finish this video. Merging the video and audio needs roughly twice ' +
       'the video\'s size. Free up space there, then try again. The server ' +
       'log names the folder and how much space it had; where downloads are ' +
-      'staged depends on "Use external temp directory" in Settings.',
+      'staged depends on "External temp directory" in Settings.',
   },
   'http-403-cookies-enabled': {
     title: 'YouTube blocked the download while using your cookies',
@@ -55,11 +55,15 @@ const ADVICE = {
       'cookies from your browser and upload them again.',
   },
   'bot-check-cookies-disabled': {
-    title: 'YouTube is asking for sign-in verification',
+    title: 'YouTube bot check (usually temporary)',
     message:
-      'YouTube is asking for sign-in verification. Upload YouTube cookies ' +
-      'from your browser in Settings -> Cookies to resolve ' +
-      'this.',
+      'YouTube asked this server to sign in before serving the video. ' +
+      'Without cookies this is usually a temporary block on the server\'s ' +
+      'IP address that clears on its own. Videos from subscribed channels ' +
+      'and playlists are retried automatically on the next scheduled ' +
+      'download; a manual download can be run again later. If it keeps ' +
+      'happening across several runs, upload YouTube cookies from your ' +
+      'browser in Settings -> Cookies.',
   },
   'bot-check-anonymous-retry': {
     title: 'No-cookies fallback also failed',
@@ -68,6 +72,18 @@ const ADVICE = {
       'may be genuinely unavailable.',
   },
 };
+
+// The diagnoses that mean YouTube refused this server or these cookies, which
+// often passes on its own. The "anonymous-retry" ones are left out: there the
+// video failed with and without cookies and may really be unavailable.
+const YOUTUBE_BLOCK_KEYS = new Set([
+  'http-403-cookies-enabled',
+  'http-403-cookies-disabled',
+  'bot-check-cookies-enabled',
+  'bot-check-cookies-disabled',
+]);
+
+const isYoutubeBlock = (key) => YOUTUBE_BLOCK_KEYS.has(key);
 
 // Ordered registry; first match wins. Out-of-space comes first: the finalizer
 // measured it for that video (tempSpaceProbe), so it is not a guess from the
@@ -148,6 +164,7 @@ function mergeDiagnoses(existing, incoming) {
 module.exports = {
   adviseFailures,
   mergeDiagnoses,
+  isYoutubeBlock,
   ADVICE,
   REGISTRY,
 };

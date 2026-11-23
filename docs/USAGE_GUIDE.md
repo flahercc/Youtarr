@@ -43,6 +43,7 @@ Scheduled channel sweeps discover videos as they run, so per-video activity appe
 3. **Customize download settings** (optional)
    - Choose a specific resolution for this download, or leave it at the default to use your global quality setting
    - Use the **Video File Structure** select (under **File Structure Override**) to force flat files (no video subfolders) or individual video subfolders for this download; the default applies each channel's own settings
+   - Turn on **Protect this download from auto-removal** to mark every video in this download as Protected, so automatic removal never deletes it. To have the switch start on, enable **Protect manual downloads** in **Settings -> Core -> Downloads**
 
 4. **Click "Start Download"**
    - The download will begin immediately
@@ -57,11 +58,13 @@ Subscribe to YouTube channels to automatically download new videos as they're pu
    - Click "Channels & Playlists" in the navigation menu
 
 2. **Add a channel**
-   - Paste the channel URL or @handle into the **Add a new channel** field, then click the **Channel** button (or press Enter)
+   - Paste the channel URL or @handle into the **Search or add a channel** field, then click the **Channel** button (or press Enter)
      - Examples:
        - `@MrBeast`
        - `https://youtube.com/@MrBeast`
        - `https://www.youtube.com/channel/UCX6OQ3DkcsbYNE6H8uQQuVA`
+   - The same field searches the channels you already have: type part of a name and the list below narrows as you type. Enter adds only a URL or an @handle; a plain word such as `MrBeast` is treated as a search until you click **Channel**.
+   - When a name matches none of your channels, click **Find on YouTube** to search YouTube for it.
    - Youtarr looks the channel up on YouTube (this can take a few seconds), then opens the **Add channel** dialog with the usual defaults filled in:
      - **Auto Downloads**: a toggle for each tab the channel has (**New Videos**, **New Shorts**, **New Live/Streams**)
      - **Video Quality**, **Download Type** (Video Only, Video + MP3, or MP3 Only), and **Subfolder**
@@ -82,7 +85,7 @@ Subscribe to YouTube channels to automatically download new videos as they're pu
        - **Subfolder**: pick or create a subfolder to organize channels into separate media libraries (e.g., `__kids`, `__music`); the picker has an inline **Add Subfolder** action for new names
        - **Resolution Override**: a **Channel Video Quality Override** that takes precedence over the global setting
        - **Video File Structure**: download videos directly into the channel folder (flat) or into individual video subfolders (see [Folder Structure](YOUTARR_DOWNLOADS_FOLDER_STRUCTURE.md))
-       - **Auto Downloads**: separate toggles for **New Videos**, **New Shorts**, and **New Live/Streams**. These only take effect while the global **Enable Automatic Downloads** toggle in Settings -> Core is on.
+       - **Auto Downloads**: separate toggles for **New Videos**, **New Shorts**, and **New Live/Streams**. These only take effect while the global **Automatic downloads** toggle in Settings -> Core -> **Downloads** is on.
      - **Filters**: duration limits and a title regex to control which videos auto-download
      - **Ratings**: a default content rating for this channel's downloads
      - **Tags**: custom tags that can be automatically added to downloaded videos separated by '|'. This applies only to videos downloaded in the future.
@@ -202,6 +205,16 @@ Subscribe to a YouTube playlist and Youtarr tracks its videos, downloads them, a
 
 > Click the **?** icon on the Playlists tab for an in-app summary of how playlists work.
 
+### Private playlists
+
+Public and unlisted playlists need no setup. A private playlist, including **Watch Later** (`https://www.youtube.com/playlist?list=WL`) and **Liked videos**, only works with [cookies](CONFIG.md#cookie-config) from the YouTube account that owns it. With cookies enabled, Youtarr sends them on every playlist refresh, the same way it does for channel listings.
+
+YouTube answers "The playlist does not exist" for a private playlist when the request is signed out, and also once the cookies expire. If a private playlist that used to refresh starts failing with that message, run **Test cookies** in Settings and upload fresh cookies if the test fails.
+
+**Note:** Watch Later and Liked videos belong to one account, so they need that account's cookies. YouTube can restrict accounts it sees used with tools like yt-dlp, which is why Youtarr otherwise recommends a throwaway account for cookies. Using your main account is your call.
+
+Cookies from an account you keep using in a browser can stop working very quickly: YouTube rotates the session as the browser uses it, which leaves the exported copy stale. Export them from a private window that you close right after exporting, and expect to re-export from time to time. See [Test Cookies Says Not Signed In](TROUBLESHOOTING.md#test-cookies-says-not-signed-in).
+
 ### Where the videos are saved
 
 Playlists don't get their own folder. Each video is saved under the channel that uploaded it, so a playlist that pulls from five channels lands in five channel folders.
@@ -211,7 +224,7 @@ Playlists don't get their own folder. Each video is saved under the channel that
 
 The same video never downloads twice just because it shows up in a playlist.
 
-Private, deleted, and members-only videos can't be accessed, so Youtarr leaves them out of the list and never downloads them. The video count reflects only the videos Youtarr can see.
+Private and deleted videos can't be accessed, so Youtarr leaves them out of the list and never downloads them. The video count reflects only the videos Youtarr can see. Members-only videos download only when cookies from an account that is a member of the channel are set up; see [Members-Only Videos](CONFIG.md#members-only-videos).
 
 ### The playlist detail page
 
@@ -286,7 +299,7 @@ Set up automatic downloads on a schedule so Youtarr checks for new videos period
      - **Low disk space**: delete the oldest videos **When free space falls below** a threshold
      - **Total size of downloads**: delete the oldest videos **When downloads total more than** a size, for example to stay under a cloud storage quota
    - Some videos are always kept, no matter which rules match:
-     - Videos you've marked as Protected
+     - Videos you've marked as Protected, including downloads you started with **Protect this download from auto-removal** turned on
      - The newest N downloads, if you set **Keep this many newest downloads**
      - Videos from channels you've shielded in that channel's **Auto-Removal** settings tab (full protection or the channel's own keep-newest count)
    - **Use "Preview Automatic Removal"** to simulate deletions before saving
@@ -314,7 +327,7 @@ The page shows the server timezone. Times and interval presets follow that clock
 
 Each task is a row you can expand. The collapsed row shows the task's status, its schedule in words, when it runs next, when it last ran and whether that failed, and how long that run took, so you can check every task at a glance. If the latest run was skipped, the row shows how long the run before it took instead; a run cut short by a server restart shows **Interrupted ... by a server restart**, since there is no end time to measure. For automatic downloads the run covers the whole update, from checking for new videos until the last download (retries included) finishes, and its result counts the videos downloaded, failed, and skipped; any failed video marks the run **Partly failed**. If a storage limit pauses downloads partway, the run ends there and says how many queued jobs will run when downloads resume. A summary line at the top counts running tasks and failures and names the next run. A pulsing dot and a **Running** label mark a task that is running now; **Off** marks one whose feature is switched off, and **Unsaved** a schedule you changed but have not saved yet. Expand a row for its description, the full result of its last run (for example "completed: Deleted 12 videos and freed 8.10 GB" or "failed: Permission denied"), a link to where its feature is turned on, and the schedule editor. **Edit schedule** links from other settings pages open the matching row. If a run is still going when its next time comes around, that occurrence is skipped and recorded as such. Times on this page are in the server timezone, and the page keeps itself up to date while it is open.
 
-Each task has a **Run now** button that starts it immediately with your saved settings (on phones it is a play icon). If Run now is greyed out, the row says why in a few words and the expanded row explains in full: the task is already running, its feature is turned off (use the link on the card to turn it on, then save), downloads are paused by a storage limit, or, for channel video counts, it ran less than 15 minutes ago, in which case the card shows when you can run it again. Automatic downloads can be run now even while they are turned off; the switch only stops the schedule. Running automatic video cleanup asks you to confirm, because it permanently deletes the videos your removal rules match.
+Each task has a **Run now** button that starts it immediately with your saved settings (on phones it is a play icon). If Run now is greyed out, the row says why in a few words and the expanded row explains in full: the task is already running, its feature is turned off (use the link on the card to turn it on, then save), downloads are paused (by a storage limit, or because the downloads folder looks unavailable), or, for channel video counts and the check for new videos, it ran less than 15 minutes ago, in which case the card shows when you can run it again. Automatic downloads can be run now even while they are turned off; the switch only stops the schedule. Running automatic video cleanup asks you to confirm, because it permanently deletes the videos your removal rules match.
 
 While a scheduled task other than automatic downloads is running, a clock icon with a pulsing dot appears in the top bar next to the download indicator. Hover it to see which task is running, or click it to open **Settings -> Scheduling**.
 
@@ -367,7 +380,7 @@ Get notified when new videos finish downloading. Notifications are delivered thr
    - Click the test button (paper-plane icon, "Send test notification") next to the service
    - Check the service for the test message
 
-**Note**: Download notifications are sent when a run downloads at least one new video, or when a run fails with a diagnosed cause or stops early. They are batched: a scheduled download run sends one summary covering all of its channels and playlists, not one message per video. Youtarr also sends notifications when automatic cleanup deletes videos and when downloads pause or resume because of a storage limit.
+**Note**: Download notifications are sent when a run downloads at least one new video, or when a run fails with a diagnosed cause or stops early. They are batched: a scheduled download run sends one summary covering all of its channels and playlists, not one message per video. Youtarr also sends notifications when automatic cleanup deletes videos and when downloads pause or resume because of a storage limit or because the downloads folder looks unavailable.
 
 ## RSS Feeds
 
@@ -434,13 +447,13 @@ Common cases:
 
 1. **Open Settings -> Maintenance & Rescan**
 2. Click **Rescan files on disk**
-3. The page shows progress in real time and a summary of the last run (videos updated, files marked missing)
+3. While it runs, the page shows how far it has got: first the folders and video files found while scanning the downloads folder, then how many videos have been checked. Afterwards it shows a summary of the last run: how long it took, how many video files it found on disk for how many videos, what it updated or marked missing, and how many videos are missing now.
 
 You can also start a rescan with **Run now** on the Rescan files on disk card in **Settings -> Scheduling**.
 
-A scan also runs daily on a schedule and once at server startup, so changes you make outside Youtarr will eventually be picked up even if you don't trigger a manual rescan.
+A scan also runs daily on a schedule and once at server startup, so changes you make outside Youtarr will eventually be picked up even if you don't trigger a manual rescan. The scan of the downloads folder and the check of every video always finish, however long a slow share takes. Only the resolution probing is limited (to 5 minutes a run); videos it did not get to are probed on the next run.
 
-If the downloads folder is missing or empty when the scan runs, as it is while a drive or network share is unmounted, the scan does not mark anything missing: it records a run that names the folder and asks whether the drive is mounted, and the Videos page shows the same warning. If only some of its `__subfolders` are empty or unreadable, just the videos stored in those subfolders are left alone; an empty subfolder no video is stored in (for example one a channel was moved out of) does not count. Mount the share and run it again. If the folder really is empty because you removed the files yourself, **Rescan anyway...** on the Deleted and missing videos card runs the scan without that check; it marks every video whose file is gone as missing, and **Mark all missing as deleted** then asks you to confirm that you emptied the folder yourself before marking them.
+If the downloads folder is missing or empty when the scan runs, as it is while a drive or network share is unmounted, the scan does not mark anything missing: it records a run that names the folder and asks whether the drive is mounted, and the Videos page shows the same warning. If only some of its `__subfolders` are empty or unreadable, just the videos stored in those subfolders are left alone; an empty subfolder no video is stored in (for example one a channel was moved out of) does not count. The scan also marks nothing missing in a folder where it finds fewer than half of the downloaded videos stored there (when at least 25 are gone): that usually means the volume mapping points at the wrong folder, not that you deleted most of your library. Mount the share (or fix the volume mapping) and run it again. If you really removed the files yourself, **Rescan anyway...** on the Deleted and missing videos card runs the scan without these checks. It says how many videos it would mark missing and asks you to confirm first, and **Mark all missing as deleted** then asks you to confirm that you removed the files yourself before marking them.
 
 **Supported file extensions**: `.mp4`, `.webm`, `.mkv`, `.m4v`, `.avi` for video, plus `.mp3` for audio-only downloads. Youtarr only writes `.mp4` (or `.mp3` for audio-only), but the rescan recognizes any of these so transcoding outside Youtarr won't orphan your library. Files must keep the `[<youtube-id>]` segment in their filename (the 11-character ID in brackets that yt-dlp writes by default) for Youtarr to match them back to the database.
 

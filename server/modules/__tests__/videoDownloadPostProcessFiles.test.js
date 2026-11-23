@@ -723,8 +723,26 @@ describe('videoDownloadPostProcessFiles', () => {
 
     expect(mockVideoPersistence.persistDownloadedVideoForJob).toHaveBeenCalledWith({
       jobId: 'test-job-id',
-      youtubeId: 'abc123'
+      youtubeId: 'abc123',
+      protect: false
     });
+  });
+
+  it('persists the video as protected when the download was started with protection', async () => {
+    process.env.YOUTARR_PROTECT_VIDEOS = 'true';
+
+    try {
+      await loadModule();
+      await settleAsync();
+
+      expect(mockVideoPersistence.persistDownloadedVideoForJob).toHaveBeenCalledWith({
+        jobId: 'test-job-id',
+        youtubeId: 'abc123',
+        protect: true
+      });
+    } finally {
+      delete process.env.YOUTARR_PROTECT_VIDEOS;
+    }
   });
 
   it('emits the persisted control marker on stdout after a successful persist', async () => {
@@ -789,6 +807,65 @@ describe('videoDownloadPostProcessFiles', () => {
       }
     );
     expect(process.exit).not.toHaveBeenCalled();
+  });
+
+  // Issue #1021: the byte cap on the title can cut inside a bracketed phrase
+  // ("... [ Original Song ]" becomes "... [ O"), leaving an unclosed "[" before the ID.
+  describe('title that leaves a bracket unclosed', () => {
+    const { moveWithRetries } = require('../filesystem');
+    const bracketName = 'Channel - Song [ O [abc123]';
+    const bracketJsonPath = `/library/Channel/${bracketName}.info.json`;
+
+    beforeEach(() => {
+      process.argv = ['node', 'script', `/library/Channel/${bracketName}.mp4`];
+      fs.existsSync.mockImplementation((p) => p === bracketJsonPath);
+    });
+
+    afterEach(() => {
+      delete process.env.YOUTARR_SKIP_VIDEO_FOLDER;
+    });
+
+    it('saves the info.json under the video ID alone', async () => {
+      await loadModule();
+      await settleAsync();
+
+      expect(fs.moveSync).toHaveBeenCalledWith(
+        bracketJsonPath,
+        '/mock/jobs/info/abc123.info.json',
+        { overwrite: true }
+      );
+    });
+
+    it('registers the download under the video ID alone', async () => {
+      await loadModule();
+      await settleAsync();
+
+      expect(mockVideoPersistence.persistDownloadedVideoForJob).toHaveBeenCalledWith({
+        jobId: 'test-job-id',
+        youtubeId: 'abc123',
+        protect: false
+      });
+    });
+
+    it('moves the files of a flat-layout download out of temp', async () => {
+      const tempDir = '/tmp/youtarr-downloads/Channel';
+      process.env.YOUTARR_SKIP_VIDEO_FOLDER = 'true';
+      process.argv = ['node', 'script', `${tempDir}/${bracketName}.mp4`];
+      tempPathManager.isTempPath.mockReturnValue(true);
+      tempPathManager.convertTempToFinal.mockImplementation((p) =>
+        p.replace('/tmp/youtarr-downloads', '/library')
+      );
+      fs.existsSync.mockImplementation((p) =>
+        p === `${tempDir}/${bracketName}.info.json` || p.startsWith('/library/')
+      );
+      fs.readdir.mockResolvedValue([`${bracketName}.mp4`, `${bracketName}.jpg`]);
+
+      await loadModule();
+      await settleAsync();
+
+      const movedFiles = moveWithRetries.mock.calls.map(([src]) => src.split('/').pop());
+      expect(movedFiles).toEqual([`${bracketName}.mp4`, `${bracketName}.jpg`]);
+    });
   });
 
   describe('tempPathManager integration', () => {

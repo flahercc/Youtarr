@@ -6,14 +6,16 @@ const { MEDIA_TAB_TYPE_MAP } = require('./tabsUtils');
 const logger = require('../logger');
 const videoActivity = require('./download/videoActivity');
 const { findArchiveOnlyIds } = require('./archiveOnlyIds');
+const membersAccess = require('./membersAccess');
 
 const WATCH_URL_PREFIX = 'https://www.youtube.com/watch?v=';
 
 // Mirrors the yt-dlp manual-download match filter
 // (availability!=subscriber_only & !is_live & live_status!=is_upcoming), so
-// callers agree with what yt-dlp will actually accept. Shared by the
-// per-channel-per-tab listing below and the cross-channel new-videos queue
-// (newVideoQueueModule), which applies the same rule across tabs/channels.
+// callers agree with what yt-dlp will actually accept. Used by the
+// cross-channel new-videos queue (newVideoQueueModule) and single-video
+// downloads; the per-tab download-all listing below applies upstream's
+// members-aware rule (membersAccess) instead.
 function isEligibleAvailability(row) {
   return (
     row.availability !== 'subscriber_only' &&
@@ -38,7 +40,22 @@ class ChannelDownloadAllModule {
       attributes: ['youtube_id', 'duration', 'availability', 'live_status'],
     });
 
-    const candidates = rows.filter(isEligibleAvailability);
+    // Mirror the yt-dlp match filter (members-only rule from
+    // membersAccess.buildDownloadFilter, !is_live, live_status!=is_upcoming)
+    // so the preview count matches what yt-dlp will accept: members-only
+    // videos count only when cookies are set and have not been denied them.
+    const membersOnlyIds = rows
+      .filter((row) => row.availability === 'subscriber_only')
+      .map((row) => row.youtube_id);
+    const membersStates = membersOnlyIds.length > 0
+      ? await membersAccess.getStates(membersOnlyIds, { knownMembersOnly: new Set(membersOnlyIds) })
+      : new Map();
+    const candidates = rows.filter(
+      (row) =>
+        !membersAccess.isBlockedState(membersStates.get(row.youtube_id)) &&
+        row.live_status !== 'is_live' &&
+        row.live_status !== 'is_upcoming'
+    );
 
     if (candidates.length === 0) {
       return [];

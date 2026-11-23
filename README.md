@@ -1,7 +1,7 @@
 # Youtarr
 
-![Backend Coverage](https://img.shields.io/badge/Backend_Coverage-90%25-brightgreen)
-![Frontend Coverage](https://img.shields.io/badge/Frontend_Coverage-90%25-brightgreen)
+![Backend Coverage](https://img.shields.io/badge/Backend_Coverage-91%25-brightgreen)
+![Frontend Coverage](https://img.shields.io/badge/Frontend_Coverage-91%25-brightgreen)
 ![CI Status](https://github.com/flahercc/Youtarr/workflows/CI%20-%20Lint%20and%20Test/badge.svg)
 
 Youtarr is a self-hosted YouTube downloader that automatically downloads videos from your favorite channels and playlists. It provides metadata for multiple media servers, mirrors your subscribed YouTube playlists into Plex, Jellyfin, and Emby as native playlists, pulls watch status back from those servers so you can filter your library by what's been watched, and offers optional Plex integration for automatic library refreshes. Learn more at [youtarr.com](https://youtarr.com).
@@ -50,6 +50,7 @@ https://github.com/user-attachments/assets/a80548fc-bcf9-4ad0-889c-dbd5aac250ee
 - **Powered by yt-dlp**: Uses [yt-dlp](https://github.com/yt-dlp/yt-dlp) under the hood for YouTube integration and downloads
 - **Content Ratings**: Add per-video and per-channel content ratings (normalized to common media-server values like `G`, `PG`, `PG-13`, `R`, `NC-17`, `TV-*`). Ratings can be set per-download, via channel defaults, or derived from yt-dlp metadata; they show up as badges and can be used for automated policies.
 - **Additional Tags**: Add per-channel tags that are in addition to tags found from the YouTube video
+- **VPN support**: Route Youtarr's traffic through a [Gluetun](https://github.com/qdm12/gluetun) VPN container with an optional Compose override
 
 ## How Youtarr compares
 
@@ -70,6 +71,7 @@ You'll need Docker, Docker Compose, Git, and a Bash shell (Git Bash on Windows).
 ### Setup & Configuration
 - [Installation Guide](docs/INSTALLATION.md) - Install methods, initial setup, and updating
 - [Usage Guide](docs/USAGE_GUIDE.md) - Step-by-step tutorials for common tasks
+- [Sonarr and Radarr](docs/SONARR_RADARR.md) - Use Youtarr as an indexer and download client for Sonarr and Radarr
 - [Configuration Reference](docs/CONFIG.md) - All configuration options
 - [Environment Variables](docs/ENVIRONMENT_VARIABLES.md) - Docker environment settings
 - [Authentication Setup](docs/AUTHENTICATION.md) - Security and access control
@@ -95,6 +97,7 @@ You'll need Docker, Docker Compose, Git, and a Bash shell (Git Bash on Windows).
 - [Docker Configuration](docs/DOCKER.md) - Advanced Docker settings
 - [Development Guide](docs/DEVELOPMENT.md) - Contributing, development setup, and using bleeding-edge dev builds
 - [API Documentation](http://localhost:3087/swagger) - Interactive Swagger/OpenAPI documentation (requires running instance)
+- [Gluetun Integration](docs/GLUETUN_INTEGRATION.md) - Gluetun VPN integration for Youtarr
 
 ### Help & Support
 - [Troubleshooting Guide](docs/TROUBLESHOOTING.md) - Common issues and solutions

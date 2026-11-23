@@ -460,7 +460,9 @@ async function resolveTrackedOwnerChannelId(youtubeId, metadataChannelId) {
     }
 
     const filename = path.basename(jsonPath, '.info.json'); // get the filename
-    const matches = filename.match(/\[(.*?)\]/g); // Extract all occurrences of video IDs enclosed in brackets
+    // A token never spans a "[", so an unclosed one left in the title is not
+    // read as the start of the ID.
+    const matches = filename.match(/\[([^[\]]*)\]/g); // Extract all occurrences of video IDs enclosed in brackets
     const id = matches
       ? matches[matches.length - 1].replace(/[[\]]/g, '')
       : 'default'; // take the last match and remove brackets or use 'default'
@@ -1018,7 +1020,11 @@ async function resolveTrackedOwnerChannelId(youtubeId, metadataChannelId) {
     // must not fail the download.
     if (activeJobId) {
       try {
-        const persisted = await videoPersistence.persistDownloadedVideoForJob({ jobId: activeJobId, youtubeId: id });
+        const persisted = await videoPersistence.persistDownloadedVideoForJob({
+          jobId: activeJobId,
+          youtubeId: id,
+          protect: process.env.YOUTARR_PROTECT_VIDEOS === 'true',
+        });
         if (persisted) {
           // Control marker, not a log line: stdout flows through yt-dlp to
           // YtdlpOutputRouter, which broadcasts videosUpdated to the listing pages.

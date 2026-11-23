@@ -17,6 +17,7 @@ const downloadCleanup = require('./downloadCleanup');
 const transient403RetryPlanner = require('./transient403RetryPlanner');
 const failureAdvisor = require('./failureAdvisor');
 const failedVideoEnricher = require('./failedVideoEnricher');
+const membersAccess = require('../membersAccess');
 const tempSpaceProbe = require('./tempSpaceProbe');
 const { containsHttp403 } = require('./ytdlpStderrSignals');
 const { isSpecificUrlDownloadJob } = require('./jobTypes');
@@ -169,8 +170,12 @@ async function finalizeDownloadJob({
   onTempChannelsFileCleaned,
   enqueueAutoRetry = null,
   cookiesEnabled = Boolean(configModule.getCookiesPath()),
+  // Whether yt-dlp actually got --cookies; preparation drops it for an unusable file.
+  cookiesPassed = cookiesEnabled,
   anonymousRetry = false,
   stdioClosed = true,
+  // The user chose to protect this download from automatic removal.
+  protectVideos = false,
 }) {
   // True once the job's terminal status has been persisted; the catch
   // below must not overwrite it with 'Error' for failures that happen
@@ -218,13 +223,30 @@ async function finalizeDownloadJob({
       router.archiveSkippedIds
     );
     // Use successful videos for further processing (archive, database, etc.)
-    videoData = successfulVideos;
+    // The per-video post-processor already saved each video as protected; the
+    // end-of-batch save repeats it for any video that save missed. The flag is
+    // only ever set, never cleared, so a re-download keeps existing protection.
+    videoData = protectVideos
+      ? successfulVideos.map((video) => ({ ...video, protected: true }))
+      : successfulVideos;
 
     // Best-effort: name failed videos from what the DB already knows so
     // history, notifications, and run summaries can identify them.
     await failedVideoEnricher.enrichFailedVideos(failedVideosList);
 
     await downloadResultProcessor.reconcileArchive({ allowRedownload, failedVideosList, videoData, errorTracker });
+
+    // Best-effort: a failure here only means the next run checks again.
+    try {
+      await membersAccess.recordDownloadOutcome({
+        membersOnlyIds: errorTracker.membersOnlyVideoIds,
+        downloadedIds: videoData.map((video) => video.youtubeId),
+        usedCookies: cookiesEnabled && cookiesPassed && !anonymousRetry,
+        stderr: stderrBuffer,
+      });
+    } catch (err) {
+      logger.warn({ err, jobId }, 'Could not record members-only access from the download');
+    }
 
     const wasTerminated = Boolean(timeoutController.shutdownInProgress || timeoutController.shutdownReason || wasManuallyTerminated);
 
@@ -233,6 +255,14 @@ async function finalizeDownloadJob({
     for (const video of failedVideosList) {
       videoActivity.finish(jobId, video.youtubeId);
     }
+
+    // Set by the Sonarr/Radarr bridge on a repeat try of a grab YouTube
+    // blocked: the first blocked attempt already notified. Read here, before
+    // the terminal update replaces the job's data.
+    const quietBlockedFailure = transient403RetryPlanner.readJobDataValue(
+      jobModule.getJob(jobId)?.data,
+      'quietBlockedFailure'
+    ) === true;
 
     // Auto-retry eligible download failures. Enqueue while this job is still
     // In Progress so the retry queues as Pending behind it, and read job data
@@ -345,7 +375,7 @@ async function finalizeDownloadJob({
         ? 'Bot detection encountered during the no-cookies fallback. The fallback also failed, so this video may be genuinely unavailable.'
         : cookiesEnabled
           ? 'Bot detection encountered even though cookies are configured - they are likely expired or rotated.'
-          : 'Bot detection encountered. Please set cookies in your Configuration.';
+          : 'Bot detection encountered. YouTube is temporarily refusing requests from this server; this usually clears on its own, so try again later.';
 
       // Same leftovers, and the same guard, as the non-zero exit branch below.
       if (stdioClosed) {
@@ -362,7 +392,7 @@ async function finalizeDownloadJob({
           ? 'The no-cookies fallback was also rejected by YouTube. This video may be genuinely unavailable.'
           : cookiesEnabled
             ? 'YouTube requires authentication and your uploaded cookies appear stale. Re-export fresh cookies from your browser and upload them in Settings -> Cookies.'
-            : 'YouTube requires authentication. Enable cookies in Configuration to resolve this issue.',
+            : 'YouTube asked this server to sign in (bot check). Without cookies this is usually temporary and the next scheduled download retries the failed videos. If it keeps happening, upload YouTube cookies in Settings -> Cookies.',
         error: anonymousRetry ? 'NO_COOKIES_FALLBACK_FAILED' : 'COOKIES_REQUIRED'
       });
       jobErrorCode = anonymousRetry ? 'NO_COOKIES_FALLBACK_FAILED' : 'COOKIES_REQUIRED';
@@ -672,7 +702,10 @@ async function finalizeDownloadJob({
     // manual/timeout terminations where the user was already acting.
     const successOutcome = (finalState === 'complete' || finalState === 'warning') && !isFinalError;
     const diagnosedFailureOutcome = diagnoses.length > 0 && finalState !== 'terminated';
-    if ((successOutcome || diagnosedFailureOutcome) && !skipJobTransition && !runActive) {
+    // Only a failure that is nothing but the block stays quiet.
+    const quietOutcome = quietBlockedFailure && !successOutcome
+      && diagnoses.every((diagnosis) => failureAdvisor.isYoutubeBlock(diagnosis.key));
+    if ((successOutcome || diagnosedFailureOutcome) && !quietOutcome && !skipJobTransition && !runActive) {
       notificationModule.sendDownloadNotification({
         finalSummary: finalPayload.finalSummary,
         videoData: videoData,
